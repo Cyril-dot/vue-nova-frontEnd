@@ -369,7 +369,7 @@ export default {
         mfaEnabled: false
       },
       errors: {},
-     API_BASE_URL: 'https://nova-test-ctne.onrender.com/api'
+      API_BASE_URL: 'https://nova-test-ctne.onrender.com/api'
     }
   },
   methods: {
@@ -394,7 +394,7 @@ export default {
         firstName: '',
         lastName: '',
         username: '',
-        email: this.formData.email, // Keep email
+        email: this.formData.email,
         password: '',
         confirmPassword: '',
         mfaEnabled: false
@@ -492,7 +492,6 @@ export default {
           throw new Error(data.message || data.error || 'Login failed');
         }
 
-        // Check if MFA is required
         if (data.message && data.message.toLowerCase().includes('mfa')) {
           console.log('MFA required');
           this.pendingMfaEmail = this.formData.email;
@@ -501,7 +500,6 @@ export default {
           return;
         }
 
-        // Try different possible field names for tokens
         const accessToken = data.accessToken || data.access_token || data.token || null;
         const refreshToken = data.refreshToken || data.refresh_token || null;
 
@@ -515,11 +513,8 @@ export default {
 
         if (accessToken) {
           console.log('=== SAVING TOKENS ===');
-          
-          // Save tokens
           this.saveTokens(accessToken, refreshToken);
           
-          // Wait and verify
           await new Promise(resolve => setTimeout(resolve, 200));
           
           const savedToken = localStorage.getItem('accessToken');
@@ -581,12 +576,10 @@ export default {
 
         this.successMessage = 'Account created successfully! Redirecting to login...';
         
-        // If MFA was enabled, show the secret
         if (data.user && data.user.mfaSecret && data.user.mfaSecret !== 'MFA not enabled') {
           alert(`Your MFA Secret: ${data.user.mfaSecret}\nPlease save this in your authenticator app!`);
         }
 
-        // Redirect to login page after successful registration
         setTimeout(() => {
           this.switchMode(true);
           this.formData.email = data.user.email;
@@ -605,7 +598,6 @@ export default {
       window.location.href = `${this.API_BASE_URL}/oauth2/login/github`;
     },
 
-    // MFA Modal Methods
     handleMfaInput(index, event) {
       const value = event.target.value;
       
@@ -666,7 +658,6 @@ export default {
         if (data.accessToken) {
           this.saveTokens(data.accessToken, data.refreshToken);
           
-          // Verify token is saved
           await new Promise(resolve => setTimeout(resolve, 100));
           const savedToken = localStorage.getItem('accessToken');
           console.log('MFA: Token saved:', savedToken ? 'YES' : 'NO');
@@ -678,7 +669,6 @@ export default {
           this.showMfaModal = false;
           this.successMessage = 'Login successful! Redirecting...';
           
-          // Use window.location for full page reload
           const redirectPath = this.$route.query.redirect || '/dashboard';
           window.location.href = redirectPath;
         }
@@ -702,7 +692,6 @@ export default {
       console.log('Refresh token length:', refreshToken ? refreshToken.length : 0);
       
       try {
-        // Save to BOTH localStorage AND sessionStorage for redundancy
         localStorage.setItem('accessToken', accessToken);
         sessionStorage.setItem('accessToken', accessToken);
         
@@ -711,7 +700,6 @@ export default {
           sessionStorage.setItem('refreshToken', refreshToken);
         }
         
-        // IMMEDIATE verification - don't wait
         const localToken = localStorage.getItem('accessToken');
         const sessionToken = sessionStorage.getItem('accessToken');
         
@@ -724,7 +712,6 @@ export default {
           throw new Error('Failed to save tokens to storage');
         }
         
-        // Emit event for other components
         window.dispatchEvent(new Event('auth-token-updated'));
         
         console.log('✅ Tokens saved successfully to both storages');
@@ -735,7 +722,6 @@ export default {
       }
     },
 
-    // Helper method to get token (use this in other components)
     getAccessToken() {
       return localStorage.getItem('accessToken');
     },
@@ -757,9 +743,60 @@ export default {
   },
 
   mounted() {
+    console.log('=== AUTHPAGE MOUNTED ===');
+    
+    // Check for OAuth callback with tokens in URL
+    const params = new URLSearchParams(window.location.search);
+    const accessToken = params.get('accessToken');
+    const refreshToken = params.get('refreshToken');
+    
+    console.log('URL Parameters:');
+    console.log('- accessToken present:', !!accessToken);
+    console.log('- refreshToken present:', !!refreshToken);
+    
+    if (accessToken) {
+      console.log('🔑 OAuth tokens received from backend');
+      console.log('- Access Token length:', accessToken.length);
+      console.log('- Refresh Token length:', refreshToken ? refreshToken.length : 'N/A');
+      
+      try {
+        // Decode URL-encoded tokens
+        const decodedAccessToken = decodeURIComponent(accessToken);
+        const decodedRefreshToken = refreshToken ? decodeURIComponent(refreshToken) : null;
+        
+        console.log('✅ Tokens decoded successfully');
+        console.log('- Decoded Access Token length:', decodedAccessToken.length);
+        console.log('- Decoded Refresh Token length:', decodedRefreshToken ? decodedRefreshToken.length : 'N/A');
+        
+        this.saveTokens(decodedAccessToken, decodedRefreshToken);
+        console.log('✅ Tokens saved to localStorage and sessionStorage');
+        
+        // Verify tokens were saved
+        const savedToken = localStorage.getItem('accessToken');
+        console.log('✅ Token verification - Saved:', !!savedToken);
+        
+        // Clean URL and redirect to dashboard
+        console.log('🚀 Cleaning URL and redirecting to dashboard...');
+        window.history.replaceState({}, document.title, '/auth');
+        
+        setTimeout(() => {
+          console.log('🚀 Window redirect to /dashboard');
+          window.location.href = '/dashboard';
+        }, 500);
+        return;
+      } catch (error) {
+        console.error('❌ Error saving OAuth tokens:', error);
+        this.errorMessage = 'Failed to process authentication. Please try again.';
+        return;
+      }
+    }
+    
     // Check if already authenticated
     if (this.isAuthenticated()) {
+      console.log('✅ User already authenticated - redirecting to dashboard');
       this.$router.push('/dashboard');
+    } else {
+      console.log('ℹ️ User not authenticated - showing auth page');
     }
   }
 }
@@ -780,7 +817,6 @@ export default {
   position: relative;
 }
 
-/* Main Container */
 .auth-container {
   position: relative;
   min-height: 100vh;
@@ -789,7 +825,6 @@ export default {
   isolation: isolate;
 }
 
-/* Left Side - Branding */
 .auth-branding {
   display: flex;
   align-items: center;
@@ -923,7 +958,6 @@ export default {
   color: rgba(255, 255, 255, 0.7);
 }
 
-/* Right Side - Form */
 .auth-form-container {
   background: #ffffff;
   display: flex;
@@ -939,7 +973,6 @@ export default {
   max-width: 480px;
 }
 
-/* Alert Messages */
 .alert {
   padding: 14px 16px;
   border-radius: 12px;
@@ -979,7 +1012,6 @@ export default {
   font-size: 1.1rem;
 }
 
-/* Toggle Buttons */
 .auth-toggle {
   display: flex;
   gap: 8px;
@@ -1009,7 +1041,6 @@ export default {
   box-shadow: 0 2px 8px rgba(74, 144, 226, 0.15);
 }
 
-/* Form Header */
 .form-header {
   margin-bottom: 32px;
 }
@@ -1028,7 +1059,6 @@ export default {
   font-weight: 500;
 }
 
-/* OAuth Buttons */
 .oauth-buttons {
   display: flex;
   flex-direction: column;
@@ -1070,7 +1100,6 @@ export default {
   flex-shrink: 0;
 }
 
-/* Divider */
 .divider {
   position: relative;
   text-align: center;
@@ -1097,7 +1126,6 @@ export default {
   font-weight: 600;
 }
 
-/* Form */
 .auth-form {
   display: flex;
   flex-direction: column;
@@ -1275,7 +1303,6 @@ export default {
   gap: 8px;
 }
 
-/* MFA Modal */
 .mfa-modal-overlay {
   position: fixed;
   inset: 0;
@@ -1435,7 +1462,6 @@ export default {
   cursor: not-allowed;
 }
 
-/* Footer */
 .form-footer {
   text-align: center;
   margin-top: 24px;
@@ -1477,7 +1503,6 @@ export default {
   color: #4a90e2;
 }
 
-/* Responsive Design */
 @media (max-width: 968px) {
   .auth-container {
     grid-template-columns: 1fr;
