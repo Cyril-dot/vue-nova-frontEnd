@@ -369,7 +369,7 @@ export default {
         mfaEnabled: false
       },
       errors: {},
-      API_BASE_URL: 'https://poikiloblastic-leeanne-gazeless.ngrok-free.dev/api'
+     API_BASE_URL: 'https://nova-test-ctne.onrender.com/api'
     }
   },
   methods: {
