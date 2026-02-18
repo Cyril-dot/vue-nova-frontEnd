@@ -166,14 +166,15 @@
       <div class="dashboard-nav-section">
         <div class="dashboard-section-label">COLLABORATION</div>
         <nav class="dashboard-nav-menu">
-          <a href="#" class="dashboard-nav-item">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+          
+          <router-link to="/meeting-dashboard" class="dashboard-nav-item">
+             <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
               <rect x="2" y="7" width="20" height="15" rx="2" stroke="currentColor" stroke-width="2"/>
               <path d="M17 2l-5 5-5-5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
             </svg>
             <span>Conferencing</span>
             <span class="dashboard-badge-new">New</span>
-          </a>
+          </router-link>
 
           <router-link to="/teams" class="dashboard-nav-item">
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none">

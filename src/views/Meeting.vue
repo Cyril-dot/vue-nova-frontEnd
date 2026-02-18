@@ -312,8 +312,8 @@
 <script>
 import { TokenService } from '@/utils/apiService';
 
-const API = 'https://poikiloblastic-leeanne-gazeless.ngrok-free.dev/api';
-const WS_URL = 'wss://poikiloblastic-leeanne-gazeless.ngrok-free.dev/ws/webrtc';
+const API = 'https://nova-test-ctne.onrender.com/api';  // ✅ your Render backend
+const WS_URL = 'wss://nova-test-ctne.onrender.com/ws/webrtc';  // ✅ WebSocket on Render
 
 export default {
   name: 'Meeting',

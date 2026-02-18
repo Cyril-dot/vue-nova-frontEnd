@@ -5,6 +5,15 @@
     <nav class="pj-topbar">
       <div class="pj-topbar__inner">
         <div class="pj-topbar__left">
+          <!-- Mobile Menu Toggle Button -->
+          <button class="pj-mobile-menu-btn" @click="toggleMobileSidebar">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+              <line x1="3" y1="12" x2="21" y2="12"/>
+              <line x1="3" y1="6" x2="21" y2="6"/>
+              <line x1="3" y1="18" x2="21" y2="18"/>
+            </svg>
+          </button>
+          
           <div class="pj-brand">
             <svg width="30" height="30" viewBox="0 0 42 42" fill="none">
               <rect width="42" height="42" rx="11" fill="#6366f1"/>
@@ -30,38 +39,63 @@
       </div>
     </nav>
 
+    <!-- Mobile Sidebar Overlay -->
+    <transition name="pj-fade">
+      <div v-if="mobileSidebarOpen" class="pj-mobile-overlay" @click="mobileSidebarOpen = false"></div>
+    </transition>
+
     <!-- Sidebar -->
-    <aside class="pj-sidebar">
-      <button class="pj-new-btn" @click="$router.push('/projects/create')">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
-        New Project
-      </button>
-      <div class="pj-nav-section">
-        <div class="pj-nav-label">MAIN</div>
-        <nav class="pj-nav-list">
-          <router-link to="/dashboard" class="pj-nav-item">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><rect x="3" y="3" width="7" height="7" rx="1" stroke="currentColor" stroke-width="2"/><rect x="14" y="3" width="7" height="7" rx="1" stroke="currentColor" stroke-width="2"/><rect x="3" y="14" width="7" height="7" rx="1" stroke="currentColor" stroke-width="2"/><rect x="14" y="14" width="7" height="7" rx="1" stroke="currentColor" stroke-width="2"/></svg>
-            Dashboard
-          </router-link>
-          <router-link to="/tasks" class="pj-nav-item">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M9 11l3 3L22 4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
-            My Tasks
-          </router-link>
-          <router-link to="/projects" class="pj-nav-item pj-nav-item--active">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
-            Projects
-          </router-link>
-          <router-link to="/workspace" class="pj-nav-item">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><rect x="3" y="3" width="18" height="18" rx="2" stroke="currentColor" stroke-width="2"/><path d="M9 3v18M3 9h18M3 15h18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
-            WorkSpace
-          </router-link>
-          <router-link to="/calendar" class="pj-nav-item">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><rect x="3" y="4" width="18" height="18" rx="2" stroke="currentColor" stroke-width="2"/><path d="M16 2v4M8 2v4M3 10h18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
-            Calendar
-          </router-link>
-        </nav>
-      </div>
-    </aside>
+    <transition name="pj-slide">
+      <aside class="pj-sidebar" :class="{ 'pj-sidebar--mobile-open': mobileSidebarOpen }">
+        <!-- Mobile Sidebar Header with Close Button -->
+        <div class="pj-sidebar__mobile-header">
+          <div class="pj-sidebar__mobile-brand">
+            <svg width="28" height="28" viewBox="0 0 42 42" fill="none">
+              <rect width="42" height="42" rx="11" fill="#6366f1"/>
+              <polygon points="21,10 33,16 21,22 9,16" fill="white" opacity="0.95"/>
+              <rect x="13" y="25" width="16" height="7" rx="2" fill="white"/>
+            </svg>
+            <span class="pj-sidebar__mobile-title">NovaSpace</span>
+          </div>
+          <button class="pj-sidebar__mobile-close" @click="mobileSidebarOpen = false">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
+              <line x1="18" y1="6" x2="6" y2="18"/>
+              <line x1="6" y1="6" x2="18" y2="18"/>
+            </svg>
+          </button>
+        </div>
+
+        <button class="pj-new-btn" @click="$router.push('/projects/create')">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+          New Project
+        </button>
+        <div class="pj-nav-section">
+          <div class="pj-nav-label">MAIN</div>
+          <nav class="pj-nav-list">
+            <router-link to="/dashboard" class="pj-nav-item" @click="mobileSidebarOpen = false">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><rect x="3" y="3" width="7" height="7" rx="1" stroke="currentColor" stroke-width="2"/><rect x="14" y="3" width="7" height="7" rx="1" stroke="currentColor" stroke-width="2"/><rect x="3" y="14" width="7" height="7" rx="1" stroke="currentColor" stroke-width="2"/><rect x="14" y="14" width="7" height="7" rx="1" stroke="currentColor" stroke-width="2"/></svg>
+              Dashboard
+            </router-link>
+            <router-link to="/tasks" class="pj-nav-item" @click="mobileSidebarOpen = false">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M9 11l3 3L22 4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+              My Tasks
+            </router-link>
+            <router-link to="/projects" class="pj-nav-item pj-nav-item--active" @click="mobileSidebarOpen = false">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+              Projects
+            </router-link>
+            <router-link to="/workspace" class="pj-nav-item" @click="mobileSidebarOpen = false">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><rect x="3" y="3" width="18" height="18" rx="2" stroke="currentColor" stroke-width="2"/><path d="M9 3v18M3 9h18M3 15h18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+              WorkSpace
+            </router-link>
+            <router-link to="/calendar" class="pj-nav-item" @click="mobileSidebarOpen = false">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><rect x="3" y="4" width="18" height="18" rx="2" stroke="currentColor" stroke-width="2"/><path d="M16 2v4M8 2v4M3 10h18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+              Calendar
+            </router-link>
+          </nav>
+        </div>
+      </aside>
+    </transition>
 
     <!-- Main -->
     <main class="pj-main">
@@ -492,6 +526,9 @@ export default {
       searchTimeout: null,
       projectColors: ['#8b5cf6','#3b82f6','#10b981','#f59e0b','#ec4899','#06b6d4'],
 
+      // Mobile sidebar
+      mobileSidebarOpen: false,
+
       // Project Workspace Panel
       projectWorkspaceMode: false,
       activeProject: null,
@@ -581,11 +618,17 @@ export default {
     navigateToProject(id) { this.$router.push(`/projects/${id}`); },
     toggleMenu(id) { this.activeMenu = this.activeMenu === id ? null : id; },
 
+    /* ── MOBILE SIDEBAR ── */
+    toggleMobileSidebar() {
+      this.mobileSidebarOpen = !this.mobileSidebarOpen;
+    },
+
     /* ── PROJECT WORKSPACE ── */
     openWorkspacePanel(project) {
       this.activeProject = project;
       this.projectWorkspaceMode = true;
       this.activeMenu = null;
+      this.mobileSidebarOpen = false; // Close mobile sidebar when opening workspace
       this.loadProjectWorkspaces();
     },
 
@@ -774,6 +817,26 @@ export default {
 .pj-topbar { grid-area: nav; background: var(--white); border-bottom: 1px solid var(--border); position: sticky; top: 0; z-index: 100; height: var(--topbar-h); }
 .pj-topbar__inner { height: 100%; padding: 0 20px; display: flex; align-items: center; justify-content: space-between; }
 .pj-topbar__left { display: flex; align-items: center; gap: 20px; flex: 1; max-width: 60%; }
+
+/* Mobile Menu Button */
+.pj-mobile-menu-btn { 
+  display: none; 
+  width: 38px; 
+  height: 38px; 
+  border: 1px solid var(--border); 
+  background: var(--white); 
+  border-radius: 9px; 
+  align-items: center; 
+  justify-content: center; 
+  cursor: pointer; 
+  transition: all 0.2s; 
+  color: var(--ink-2); 
+}
+.pj-mobile-menu-btn:hover { 
+  border-color: var(--primary); 
+  color: var(--primary); 
+}
+
 .pj-brand { display: flex; align-items: center; gap: 10px; padding-right: 20px; border-right: 1px solid var(--border); }
 .pj-brand__text { display: flex; flex-direction: column; }
 .pj-brand__name { font-size: 14px; font-weight: 800; color: var(--ink); font-family: 'Fraunces', serif; line-height: 1.2; }
@@ -788,7 +851,68 @@ export default {
 .pj-notif-dot { position: absolute; top: 9px; right: 9px; width: 6px; height: 6px; background: var(--red); border-radius: 50%; border: 1.5px solid var(--white); }
 
 /* SIDEBAR */
-.pj-sidebar { grid-area: sidebar; background: var(--white); border-right: 1px solid var(--border); padding: 16px 12px; position: sticky; top: var(--topbar-h); align-self: start; height: calc(100vh - var(--topbar-h)); overflow-y: auto; }
+.pj-sidebar { 
+  grid-area: sidebar; 
+  background: var(--white); 
+  border-right: 1px solid var(--border); 
+  padding: 16px 12px; 
+  position: sticky; 
+  top: var(--topbar-h); 
+  align-self: start; 
+  height: calc(100vh - var(--topbar-h)); 
+  overflow-y: auto; 
+  transition: transform 0.3s var(--ease);
+}
+
+/* Mobile Sidebar Header */
+.pj-sidebar__mobile-header {
+  display: none;
+  align-items: center;
+  justify-content: space-between;
+  padding-bottom: 16px;
+  margin-bottom: 16px;
+  border-bottom: 1px solid var(--border);
+}
+.pj-sidebar__mobile-brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.pj-sidebar__mobile-title {
+  font-size: 16px;
+  font-weight: 800;
+  color: var(--ink);
+  font-family: 'Fraunces', serif;
+}
+.pj-sidebar__mobile-close {
+  width: 34px;
+  height: 34px;
+  border: 1px solid var(--border);
+  background: var(--white);
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  color: var(--ink-2);
+  transition: all 0.2s;
+}
+.pj-sidebar__mobile-close:hover {
+  border-color: var(--red);
+  color: var(--red);
+}
+
+/* Mobile Overlay */
+.pj-mobile-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.6);
+  backdrop-filter: blur(4px);
+  z-index: 200;
+  animation: pj-fade 0.2s ease;
+}
+
 .pj-new-btn { width: 100%; height: 38px; background: linear-gradient(135deg, var(--primary), var(--primary-dk)); color: var(--white); border: none; border-radius: 9px; font-size: 13px; font-weight: 700; font-family: 'DM Sans', sans-serif; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 7px; margin-bottom: 18px; transition: all 0.25s var(--ease); }
 .pj-new-btn:hover { transform: translateY(-1px); box-shadow: 0 6px 16px rgba(99,102,241,0.3); }
 .pj-nav-section { margin-bottom: 16px; }
@@ -1028,17 +1152,123 @@ export default {
 
 /* RESPONSIVE */
 @media (max-width: 968px) {
-  .pj-root { grid-template-areas: "nav" "main"; grid-template-columns: 1fr; }
-  .pj-sidebar { display: none; }
-  .pj-toolbar { flex-direction: column; align-items: stretch; }
-  .pj-ws-form-grid { grid-template-columns: 1fr; }
-  .pj-ws-edit-split { grid-template-columns: 1fr; }
-  .pj-ws-edit-input { height: 50%; border-right: none; border-bottom: 1px solid #334155; }
-  .pj-list-body { grid-template-columns: 1fr; gap: 8px; }
+  .pj-root { 
+    grid-template-areas: "nav" "main"; 
+    grid-template-columns: 1fr; 
+  }
+  
+  .pj-mobile-menu-btn { 
+    display: flex; 
+  }
+  
+  .pj-mobile-overlay {
+    display: block;
+  }
+  
+  .pj-sidebar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 280px;
+    height: 100vh;
+    z-index: 300;
+    transform: translateX(-100%);
+    border-right: 1px solid var(--border);
+    box-shadow: none;
+  }
+  
+  .pj-sidebar--mobile-open {
+    transform: translateX(0);
+    box-shadow: var(--shadow-lg);
+  }
+  
+  .pj-sidebar__mobile-header {
+    display: flex;
+  }
+  
+  .pj-brand { 
+    border-right: none; 
+    padding-right: 0; 
+  }
+  
+  .pj-toolbar { 
+    flex-direction: column; 
+    align-items: stretch; 
+  }
+  
+  .pj-ws-form-grid { 
+    grid-template-columns: 1fr; 
+  }
+  
+  .pj-ws-edit-split { 
+    grid-template-columns: 1fr; 
+  }
+  
+  .pj-ws-edit-input { 
+    height: 50%; 
+    border-right: none; 
+    border-bottom: 1px solid #334155; 
+  }
+  
+  .pj-list-body { 
+    grid-template-columns: 1fr; 
+    gap: 8px; 
+  }
+  
+  .pj-global-search { 
+    display: none; 
+  }
 }
+
 @media (max-width: 640px) {
-  .pj-grid, .pj-ws-grid { grid-template-columns: 1fr; }
-  .pj-global-search { display: none; }
-  .pj-ws-modal { max-width: 100%; max-height: 100%; border-radius: 0; }
+  .pj-grid, .pj-ws-grid { 
+    grid-template-columns: 1fr; 
+  }
+  
+  .pj-ws-modal { 
+    max-width: 100%; 
+    max-height: 100%; 
+    border-radius: 0; 
+  }
+  
+  .pj-sidebar {
+    width: 100%;
+  }
+  
+  .pj-toolbar__filters {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  
+  .pj-search-wrap {
+    max-width: none;
+  }
+  
+  .pj-ws-panel__header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+}
+
+/* Slide Animation for Sidebar */
+.pj-slide-enter-active,
+.pj-slide-leave-active {
+  transition: transform 0.3s var(--ease);
+}
+.pj-slide-enter-from {
+  transform: translateX(-100%);
+}
+.pj-slide-leave-to {
+  transform: translateX(-100%);
+}
+
+/* Fade Animation for Overlay */
+.pj-fade-enter-active,
+.pj-fade-leave-active {
+  transition: opacity 0.3s ease;
+}
+.pj-fade-enter-from,
+.pj-fade-leave-to {
+  opacity: 0;
 }
 </style>

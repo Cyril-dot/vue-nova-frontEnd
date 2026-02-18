@@ -3,25 +3,26 @@
   <section class="hero">
     <!-- Font Awesome CDN -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css" integrity="sha512-z3gLpd7yknf1YoNbCzqRKc4qyor8gaKU1qmn+CShxbuBusANI9QpRohGBreCFkKxLhei6S9CQXFEbbKuqLg0DA==" crossorigin="anonymous" referrerpolicy="no-referrer" />
-    
+
     <div class="container hero-container">
       <div class="hero-content">
         <h1>Powering Intelligent Collaboration with Nova Space</h1>
         <p class="hero-subtitle">
-          A unified AI-powered workspace for collaboration, live chat, conferencing, 
+          A unified AI-powered workspace for collaboration, live chat, conferencing,
           and multi-format document creation.
         </p>
         <div class="hero-buttons">
-          <button class="btn btn-primary btn-large">
+          <button class="btn btn-primary btn-large" @click="$router.push('/auth')">
             <i class="fas fa-rocket icon"></i>
             Get Started Free
           </button>
-          <button class="btn btn-outline btn-large">
+          <button class="btn btn-outline btn-large" @click="openDemo">
             <i class="fas fa-play-circle icon"></i>
             Watch Demo
           </button>
         </div>
       </div>
+
       <div class="hero-image">
         <div class="dashboard-mockup">
           <div class="mockup-header">
@@ -40,7 +41,7 @@
               </div>
               <div class="editor-content">
                 <div class="code-line"></div>
-                <div class="code-line"></div>
+                <div class="code-line short"></div>
                 <div class="code-line"></div>
               </div>
             </div>
@@ -72,16 +73,65 @@
         </div>
       </div>
     </div>
+
+    <!-- ===== DEMO MODAL ===== -->
+    <transition name="fade">
+      <div v-if="demoOpen" class="modal-overlay" @click.self="closeDemo">
+        <div class="modal-box">
+          <button class="modal-close" @click="closeDemo" aria-label="Close demo">
+            <i class="fas fa-times"></i>
+          </button>
+          <div class="modal-header">
+            <i class="fas fa-play-circle modal-icon"></i>
+            <span>Nova Space — Product Demo</span>
+          </div>
+          <div class="video-wrapper">
+            <iframe
+              v-if="demoOpen"
+              :src="`https://www.youtube.com/embed/BxNWGgSvAWY?autoplay=1&rel=0&modestbranding=1`"
+              title="Nova Space Demo"
+              frameborder="0"
+              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+              allowfullscreen
+            ></iframe>
+          </div>
+        </div>
+      </div>
+    </transition>
   </section>
 </template>
 
 <script>
 export default {
-  name: 'HeroSection'
+  name: 'HeroSection',
+  data() {
+    return {
+      demoOpen: false,
+    }
+  },
+  methods: {
+    openDemo() {
+      this.demoOpen = true
+      document.body.style.overflow = 'hidden'
+    },
+    closeDemo() {
+      this.demoOpen = false
+      document.body.style.overflow = ''
+    },
+  },
+  mounted() {
+    window.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && this.demoOpen) this.closeDemo()
+    })
+  },
+  beforeUnmount() {
+    document.body.style.overflow = ''
+  },
 }
 </script>
 
 <style scoped>
+/* ========== HERO ========== */
 .hero {
   background: linear-gradient(135deg, #ffffff 0%, #e6f0fa 100%);
   padding: 60px 0;
@@ -143,6 +193,7 @@ export default {
   transform: scale(1.15);
 }
 
+/* ========== MOCKUP ========== */
 .hero-image {
   position: relative;
 }
@@ -231,6 +282,10 @@ export default {
   border-radius: 4px;
 }
 
+.code-line.short {
+  width: 60%;
+}
+
 .chat-messages {
   display: flex;
   flex-direction: column;
@@ -264,20 +319,116 @@ export default {
   justify-content: center;
 }
 
+/* ========== MODAL ========== */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(10, 20, 40, 0.75);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+
+.modal-box {
+  background: #ffffff;
+  border-radius: 16px;
+  width: 100%;
+  max-width: 860px;
+  box-shadow: 0 32px 80px rgba(0, 0, 0, 0.35);
+  overflow: hidden;
+  position: relative;
+  animation: modal-pop 0.25s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+
+@keyframes modal-pop {
+  from { opacity: 0; transform: scale(0.92) translateY(20px); }
+  to   { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+.modal-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 16px 20px;
+  background: linear-gradient(90deg, #1B4F72 0%, #2E86C1 100%);
+  color: #ffffff;
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: 0.3px;
+}
+
+.modal-icon {
+  font-size: 18px;
+  color: #90caf9;
+}
+
+.modal-close {
+  position: absolute;
+  top: 10px;
+  right: 14px;
+  background: rgba(255, 255, 255, 0.15);
+  border: none;
+  color: #ffffff;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  font-size: 14px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.2s ease;
+  z-index: 10;
+}
+
+.modal-close:hover {
+  background: rgba(255, 255, 255, 0.3);
+}
+
+.video-wrapper {
+  position: relative;
+  width: 100%;
+  padding-bottom: 56.25%; /* 16:9 */
+  background: #000;
+}
+
+.video-wrapper iframe {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  border: none;
+}
+
+/* ========== MODAL TRANSITION ========== */
+.fade-enter-active,
+.fade-leave-active {
+  transition: opacity 0.2s ease;
+}
+.fade-enter-from,
+.fade-leave-to {
+  opacity: 0;
+}
+
+/* ========== RESPONSIVE ========== */
 @media (max-width: 968px) {
   .hero-container {
     grid-template-columns: 1fr;
     text-align: center;
   }
-  
+
   .hero-content {
     margin: 0 auto;
   }
-  
+
   .hero-buttons {
     justify-content: center;
   }
-  
+
   .dashboard-mockup {
     max-width: 600px;
     margin: 0 auto;
@@ -288,9 +439,13 @@ export default {
   .mockup-content {
     grid-template-columns: 1fr;
   }
-  
+
   .workspace-panel {
     grid-column: span 1;
+  }
+
+  .modal-box {
+    border-radius: 12px;
   }
 }
 </style>

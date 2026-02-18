@@ -47,7 +47,7 @@
               @mouseleave="queueClose"
             >
               <button class="ns-nav__link ns-nav__link--active" type="button">
-                Solutions
+                Features
                 <svg class="ns-nav__chev" :class="{ 'ns-nav__chev--open': dropOpen }" width="11" height="11" viewBox="0 0 12 12" fill="none">
                   <path d="M2.5 4.5L6 8L9.5 4.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
                 </svg>
@@ -145,7 +145,6 @@
                     Conferencing
                   </router-link>
                 </li>
-                <!-- ✅ Chat added to Solutions submenu (mobile) -->
                 <li>
                   <router-link to="/chat" class="ns-drawer__sub-link ns-drawer__sub-link--chat" @click="mobileOpen = false">
                     Live Chat
@@ -241,7 +240,6 @@
           Projects
         </router-link>
 
-        <!-- ✅ Chat added to user dropdown -->
         <router-link to="/chat" class="ns-user-dropdown__item ns-user-dropdown__item--chat" @click="closeUserMenu">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
             <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" stroke="#4a90e2" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
@@ -276,7 +274,7 @@
 <script>
 import { TokenService, apiRequest, AuthAPI } from '@/utils/apiService';
 
-// ─── Fallback avatars (dicebear v9 — stable URL format) ──────────────────────
+// ─── Fallback avatars ─────────────────────────────────────────────────────────
 const FALLBACK_AVATARS = [
   'https://api.dicebear.com/9.x/avataaars/svg?seed=Felix&backgroundColor=b6e3f4',
   'https://api.dicebear.com/9.x/avataaars/svg?seed=Aneka&backgroundColor=c0aede',
@@ -336,6 +334,10 @@ export default {
 
   data() {
     return {
+      // ✅ FIX: Reactive auth state — localStorage is NOT reactive in Vue,
+      // so we store it here and update it via events
+      authToken:    !!(localStorage.getItem('accessToken') || sessionStorage.getItem('accessToken')),
+
       isScrolled:   false,
       mobileOpen:   false,
       mSubOpen:     false,
@@ -351,10 +353,9 @@ export default {
   },
 
   computed: {
+    // ✅ FIX: Now reads from reactive `authToken` data property instead of localStorage directly
     isAuthenticated() {
-      const localToken   = localStorage.getItem('accessToken');
-      const sessionToken = sessionStorage.getItem('accessToken');
-      return !!(localToken || sessionToken);
+      return this.authToken;
     },
     userName() {
       if (!this.userData) return 'User';
@@ -384,20 +385,40 @@ export default {
     document.addEventListener('click', this.handleOutsideClick);
     this._buildDrop();
     if (this.isAuthenticated) this.fetchUserData();
-    window.addEventListener('auth-login',  this.fetchUserData);
-    window.addEventListener('auth-logout', this.handleAuthLogout);
+
+    window.addEventListener('auth-login',         this.fetchUserData);
+    window.addEventListener('auth-logout',        this.handleAuthLogout);
+    // ✅ FIX: Listen for token updates dispatched by TokenService.setTokens()
+    window.addEventListener('auth-token-updated', this.refreshAuthState);
+    // ✅ FIX: Listen for storage changes (cross-tab support)
+    window.addEventListener('storage',            this.refreshAuthState);
   },
 
   beforeUnmount() {
     window.removeEventListener('scroll', this.onScroll);
     document.removeEventListener('click', this.handleOutsideClick);
-    window.removeEventListener('auth-login',  this.fetchUserData);
-    window.removeEventListener('auth-logout', this.handleAuthLogout);
+    window.removeEventListener('auth-login',         this.fetchUserData);
+    window.removeEventListener('auth-logout',        this.handleAuthLogout);
+    // ✅ FIX: Clean up new listeners
+    window.removeEventListener('auth-token-updated', this.refreshAuthState);
+    window.removeEventListener('storage',            this.refreshAuthState);
     clearTimeout(this._closeT);
     if (this._dropEl?.parentNode) this._dropEl.parentNode.removeChild(this._dropEl);
   },
 
   methods: {
+
+    // ✅ FIX: New method — refreshes authToken from storage and fetches user if newly logged in
+    refreshAuthState() {
+      const hadToken = this.authToken;
+      this.authToken = !!(localStorage.getItem('accessToken') || sessionStorage.getItem('accessToken'));
+      console.log('🔄 NavBar auth state refreshed:', this.authToken);
+      if (!hadToken && this.authToken) {
+        // Just became authenticated — load user data
+        this.fetchUserData();
+      }
+    },
+
     onScroll() {
       this.isScrolled = window.scrollY > 50;
       if (this.dropOpen) this._positionDrop();
@@ -475,7 +496,6 @@ export default {
           icon: 'M15 10l4.553-2.069A1 1 0 0121 8.82v6.36a1 1 0 01-1.447.894L15 14M3 8a2 2 0 012-2h10a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2V8z',
           isRoute: true
         },
-        // ✅ Chat added to Solutions dropdown
         {
           title: 'Live Chat',
           desc:  'Real-time messaging & Q&A sessions',
@@ -506,7 +526,6 @@ export default {
         </div>
       `;
 
-      // Handle route clicks
       el.querySelectorAll('.ns-body-drop__item[data-route="true"]').forEach(link => {
         link.addEventListener('click', (e) => {
           e.preventDefault();
@@ -527,7 +546,6 @@ export default {
         s.id = 'ns-body-drop-styles';
         s.textContent = `
           @import url('https://fonts.googleapis.com/css2?family=Manrope:wght@500;600;700&display=swap');
-
           .ns-body-drop { animation: ns-dropin 0.18s cubic-bezier(0.22,1,0.36,1); }
           .ns-body-drop__arrow {
             position:absolute; top:-6px; left:50%;
@@ -572,12 +590,8 @@ export default {
             flex-shrink:0; padding:3px 8px; background:#ede9fe; color:#8b5cf6;
             font-size:11px; font-weight:700; border-radius:20px; letter-spacing:0.3px;
           }
-          .ns-body-drop__badge--workspace {
-            background:#d1fae5; color:#10b981;
-          }
-          .ns-body-drop__badge--teams {
-            background:#fef3c7; color:#f59e0b;
-          }
+          .ns-body-drop__badge--workspace { background:#d1fae5; color:#10b981; }
+          .ns-body-drop__badge--teams { background:#fef3c7; color:#f59e0b; }
           @keyframes ns-dropin {
             from { opacity:0; transform:translateY(6px); }
             to   { opacity:1; transform:translateY(0); }
@@ -654,6 +668,8 @@ export default {
           await AuthAPI.logout();
           this.userData   = null;
           this.userAvatar = getAvatarForSeed('default');
+          // ✅ FIX: Update reactive auth state on logout
+          this.authToken  = false;
           this.closeAll();
           window.dispatchEvent(new Event('auth-logout'));
           this.$router.push('/auth');
@@ -666,6 +682,8 @@ export default {
     handleAuthLogout() {
       this.userData   = null;
       this.userAvatar = getAvatarForSeed('default');
+      // ✅ FIX: Update reactive auth state on logout event
+      this.authToken  = false;
       this.closeAll();
     }
   }
@@ -783,7 +801,6 @@ button { font:inherit; cursor:pointer; }
 .ns-nav__chev { color:var(--ink-m); transition:transform 0.22s var(--ease); }
 .ns-nav__chev--open { transform:rotate(180deg); }
 
-/* AI Assistant nav link — purple active */
 .ns-nav__item:last-child .ns-nav__link.router-link-active { color:var(--purple) !important; }
 .ns-nav__item:last-child .ns-nav__link.router-link-active::after { background:var(--purple) !important; }
 .ns-nav__item:last-child .ns-nav__link:hover { color:var(--purple) !important; }
@@ -822,7 +839,6 @@ button { font:inherit; cursor:pointer; }
   cursor:pointer; transition:all 0.2s var(--ease);
 }
 .ns-user-profile:hover { border-color:var(--blue-mid); box-shadow:0 2px 8px var(--blue-glow); }
-
 .ns-user-avatar-wrap {
   width:36px; height:36px; border-radius:10px;
   overflow:hidden; flex-shrink:0;
@@ -830,9 +846,7 @@ button { font:inherit; cursor:pointer; }
   border:2px solid var(--border);
   display:flex; align-items:center; justify-content:center;
 }
-.ns-user-avatar {
-  width:100%; height:100%; object-fit:cover; display:block;
-}
+.ns-user-avatar { width:100%; height:100%; object-fit:cover; display:block; }
 .ns-user-name { font-size:15px; font-weight:600; color:var(--ink); max-width:140px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .ns-user-chev { color:var(--blue); transition:transform 0.22s var(--ease); flex-shrink:0; margin-left:4px; }
 .ns-user-chev--open { transform:rotate(180deg); }
@@ -864,7 +878,6 @@ button { font:inherit; cursor:pointer; }
 .ns-user-dropdown__item:hover { background:var(--blue-soft); color:var(--blue); }
 .ns-user-dropdown__item svg { flex-shrink:0; opacity:0.7; }
 .ns-user-dropdown__item:hover svg { opacity:1; }
-/* ✅ Chat item in dropdown */
 .ns-user-dropdown__item--chat:hover { background:var(--blue-soft); color:var(--blue); }
 .ns-user-dropdown__item--ai:hover { background:var(--purple-soft); color:var(--purple); }
 .ns-user-dropdown__item--danger { color:var(--red); }
@@ -911,7 +924,6 @@ button { font:inherit; cursor:pointer; }
 .ns-drawer__link--ai { color:var(--purple) !important; }
 .ns-drawer__link--ai::before { background:var(--purple) !important; }
 .ns-drawer__link--ai.router-link-active { color:var(--purple) !important; }
-/* ✅ Chat drawer link colour */
 .ns-drawer__link--chat { color:var(--blue) !important; }
 .ns-drawer__link--chat::before { background:var(--blue) !important; }
 .ns-drawer__link--chat.router-link-active { color:var(--blue); font-weight:700; }
@@ -929,11 +941,9 @@ button { font:inherit; cursor:pointer; }
 .ns-drawer__sub li:first-child .ns-drawer__sub-link::before { color:var(--purple); }
 .ns-drawer__sub li:first-child .ns-drawer__sub-link:hover { color:var(--purple); }
 .ns-drawer__sub li:first-child .ns-drawer__sub-link.router-link-active { color:var(--purple); }
-/* WorkSpace */
 .ns-drawer__sub li:nth-child(2) .ns-drawer__sub-link::before { color:var(--green); }
 .ns-drawer__sub li:nth-child(2) .ns-drawer__sub-link:hover { color:var(--green); }
 .ns-drawer__sub li:nth-child(2) .ns-drawer__sub-link.router-link-active { color:var(--green); }
-/* Teams */
 .ns-drawer__sub li:nth-child(3) .ns-drawer__sub-link::before { color:var(--amber); }
 .ns-drawer__sub li:nth-child(3) .ns-drawer__sub-link:hover { color:var(--amber); }
 .ns-drawer__sub li:nth-child(3) .ns-drawer__sub-link.router-link-active { color:var(--amber); }
@@ -942,7 +952,6 @@ button { font:inherit; cursor:pointer; }
 .ns-drawer__foot { margin-top:auto; padding-top:32px; border-top:1px solid var(--border); display:flex; flex-direction:column; gap:12px; }
 .ns-drawer__foot--user { gap:16px; }
 .ns-drawer__user { display:flex; align-items:center; gap:14px; padding:14px; border-radius:12px; background:var(--blue-soft); border:1px solid var(--blue-mid); }
-
 .ns-drawer__avatar-wrap {
   width:52px; height:52px; border-radius:12px; overflow:hidden; flex-shrink:0;
   background:linear-gradient(135deg,#c0aede,#b6e3f4);

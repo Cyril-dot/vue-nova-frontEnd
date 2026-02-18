@@ -1,1196 +1,1504 @@
-<!-- MeetingsDashboard.vue -->
+<!-- Meeting.vue -->
+<!--
+  Two-phase component:
+    Phase 1 (view === 'create')  → Create Meeting form (replaces novaCreate.html)
+    Phase 2 (view === 'meeting') → Live meeting room (Google Meet-inspired)
+
+  All CSS classes are prefixed with  nv-  so nothing leaks to other pages.
+-->
 <template>
-  <div class="md-wrap">
+  <div class="nv-root">
 
-    <!-- ════════════════════════════════════════
-         TOP NAV
-    ════════════════════════════════════════ -->
-    <nav class="md-nav">
-      <div class="md-nav-inner">
-        <div class="md-nav-left">
-          <router-link to="/dashboard" class="md-back">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
-            Dashboard
-          </router-link>
+    <!-- ════════════════════════════════════════════════════════
+         PHASE 1 — CREATE MEETING
+    ═════════════════════════════════════════════════════════ -->
+    <div v-if="view === 'create'" class="nv-create-wrap">
 
-          <div class="md-nav-divider"></div>
+      <!-- Nav bar -->
+      <nav class="nv-cnav">
+        <div class="nv-cbrand" @click="goToDashboard">
+          <svg width="28" height="28" viewBox="0 0 32 32" fill="none">
+            <rect width="32" height="32" rx="8" fill="#1a73e8"/>
+            <path d="M20 16L26 11V21L20 16Z" fill="white"/>
+            <rect x="6" y="10" width="15" height="12" rx="2" fill="white"/>
+          </svg>
+          <span>Nova</span>
+        </div>
+        <button class="nv-cnav-back" @click="goToDashboard">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+          Dashboard
+        </button>
+      </nav>
 
-          <div class="md-page-id">
-            <div class="md-brand">
-              <svg width="26" height="26" viewBox="0 0 32 32" fill="none">
-                <rect width="32" height="32" rx="8" fill="#4a90e2"/>
-                <path d="M20 16L26 11V21L20 16Z" fill="white"/>
-                <rect x="6" y="10" width="15" height="12" rx="2" fill="white"/>
-              </svg>
-              <span class="md-brand-name">Nova</span>
-            </div>
-            <div class="md-page-meta">
-              <span class="md-page-title">Video Meetings</span>
-              <span class="md-page-sub">Manage your conferencing</span>
-            </div>
-          </div>
+      <main class="nv-cmain">
+        <div class="nv-chead">
+          <h1 class="nv-ctitle">New meeting</h1>
+          <p class="nv-csub">Configure and launch your meeting instantly.</p>
         </div>
 
-        <div class="md-nav-right">
-          <button class="md-btn md-btn--ghost" @click="joinMeeting">
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><polyline points="10 17 15 12 10 7"/><line x1="15" y1="12" x2="3" y2="12"/></svg>
-            Join meeting
-          </button>
-          <button class="md-btn md-btn--primary" @click="createMeeting">
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-            New meeting
-          </button>
-        </div>
-      </div>
-    </nav>
+        <div class="nv-card">
 
-    <!-- ════════════════════════════════════════
-         MAIN CONTENT
-    ════════════════════════════════════════ -->
-    <main class="md-main">
-
-      <!-- Loading -->
-      <div v-if="loading" class="md-state-panel">
-        <div class="md-spinner"></div>
-        <p class="md-state-text">Loading meetings…</p>
-      </div>
-
-      <!-- Error -->
-      <div v-else-if="error" class="md-state-panel">
-        <div class="md-state-icon md-state-icon--red">
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
-        </div>
-        <p class="md-state-text">{{ error }}</p>
-        <button class="md-btn md-btn--primary" @click="fetchMeetingsData">Try again</button>
-      </div>
-
-      <!-- Dashboard -->
-      <div v-else class="md-content">
-
-        <!-- ── Stats row ── -->
-        <div class="md-stats-row">
-
-          <div class="md-stat" @click="setFilter('all')">
-            <div class="md-stat-icon md-stat-icon--blue">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="7" width="20" height="15" rx="2"/><polygon points="23 7 16 12 23 17 23 7"/></svg>
+          <!-- ── Success banner ── -->
+          <div v-if="created.code" class="nv-success-banner">
+            <div class="nv-success-check">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="20 6 9 17 4 12"/></svg>
             </div>
-            <div class="md-stat-body">
-              <span class="md-stat-label">Total meetings</span>
-              <span class="md-stat-val">{{ stats.totalMeetings }}</span>
-              <span class="md-stat-sub">{{ stats.scheduled }} scheduled · {{ stats.completed }} completed</span>
+            <div>
+              <div class="nv-success-title">Meeting created!</div>
+              <div class="nv-success-sub">Share this code with participants</div>
+            </div>
+            <div class="nv-code-pill" @click="copyCreatedCode" title="Click to copy">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+              {{ created.code }}
             </div>
           </div>
 
-          <div class="md-stat" :class="{ 'md-stat--live': stats.activeNow > 0 }">
-            <div class="md-stat-icon md-stat-icon--red">
-              <span v-if="stats.activeNow > 0" class="md-live-ring"></span>
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="3" fill="currentColor" stroke="none"/></svg>
+          <!-- ── Form section ── -->
+          <div v-if="!created.code" class="nv-form-body">
+
+            <div class="nv-section-label">Meeting details</div>
+
+            <div class="nv-field">
+              <label class="nv-flabel">Title <span class="nv-req">*</span></label>
+              <input class="nv-finput" v-model="form.title" type="text" placeholder="e.g. Weekly team standup" />
             </div>
-            <div class="md-stat-body">
-              <div class="md-stat-label-row">
-                <span class="md-stat-label">Active now</span>
-                <span v-if="stats.activeNow > 0" class="md-live-chip">LIVE</span>
+
+            <div class="nv-field">
+              <label class="nv-flabel">Description <span class="nv-opt">(optional)</span></label>
+              <textarea class="nv-finput nv-ftextarea" v-model="form.description" placeholder="What's this meeting about?"></textarea>
+            </div>
+
+            <div class="nv-row2">
+              <div class="nv-field">
+                <label class="nv-flabel">Max participants</label>
+                <input class="nv-finput" v-model.number="form.maxParticipants" type="number" min="2" max="500" />
               </div>
-              <span class="md-stat-val">{{ stats.activeNow }}</span>
-              <span class="md-stat-sub">
-                {{ stats.activeNow > 0 ? `${stats.totalParticipants} participants online` : 'No active meetings' }}
-              </span>
-            </div>
-          </div>
-
-          <div class="md-stat">
-            <div class="md-stat-icon md-stat-icon--green">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/><circle cx="12" cy="16" r="2" fill="currentColor" stroke="none"/></svg>
-            </div>
-            <div class="md-stat-body">
-              <span class="md-stat-label">Upcoming</span>
-              <span class="md-stat-val">{{ stats.upcomingThisWeek }}</span>
-              <span class="md-stat-sub">{{ stats.upcomingToday }} today · {{ stats.upcomingTomorrow }} tomorrow</span>
-            </div>
-          </div>
-
-          <div class="md-stat">
-            <div class="md-stat-icon md-stat-icon--amber">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg>
-            </div>
-            <div class="md-stat-body">
-              <span class="md-stat-label">Participants</span>
-              <span class="md-stat-val">{{ stats.totalUniqueParticipants }}</span>
-              <span class="md-stat-sub">Avg {{ stats.averageParticipants }} per meeting</span>
-            </div>
-          </div>
-
-        </div><!-- /md-stats-row -->
-
-        <!-- ── Filter tabs ── -->
-        <div class="md-filters">
-          <div class="md-filter-tabs">
-            <button
-              v-for="tab in filterTabs"
-              :key="tab.value"
-              class="md-tab"
-              :class="{ 'md-tab--active': activeFilter === tab.value }"
-              @click="setFilter(tab.value)"
-            >
-              {{ tab.label }}
-              <span v-if="tab.count > 0" class="md-tab-count">{{ tab.count }}</span>
-            </button>
-          </div>
-
-          <div class="md-sort-wrap" ref="sortWrap">
-            <button class="md-sort-btn" @click="toggleSortMenu">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 6h18M7 12h10M11 18h2"/></svg>
-              {{ currentSort.label }}
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="6 9 12 15 18 9"/></svg>
-            </button>
-            <transition name="md-drop">
-              <div v-if="showSortMenu" class="md-sort-menu">
-                <button
-                  v-for="opt in sortOptions"
-                  :key="opt.value"
-                  class="md-sort-opt"
-                  :class="{ 'md-sort-opt--active': currentSort.value === opt.value }"
-                  @click="setSortOption(opt)"
-                >
-                  <svg v-if="currentSort.value === opt.value" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="20 6 9 17 4 12"/></svg>
-                  <span v-else style="width:13px;display:inline-block"></span>
-                  {{ opt.label }}
-                </button>
+              <div class="nv-field">
+                <label class="nv-flabel">Password <span class="nv-opt">(optional)</span></label>
+                <input class="nv-finput" v-model="form.password" type="text" placeholder="Leave blank = open" />
               </div>
-            </transition>
+            </div>
+
+            <div class="nv-section-label" style="margin-top:28px">Options</div>
+
+            <div class="nv-toggle-list">
+              <label class="nv-trow" v-for="opt in toggleOpts" :key="opt.key">
+                <div>
+                  <div class="nv-trow-label">{{ opt.label }}</div>
+                  <div v-if="opt.sub" class="nv-trow-sub">{{ opt.sub }}</div>
+                </div>
+                <div class="nv-switch" :class="{ 'nv-switch--on': form[opt.key] }" @click="form[opt.key] = !form[opt.key]">
+                  <div class="nv-switch-thumb"></div>
+                </div>
+              </label>
+            </div>
+
+            <button class="nv-btn-primary" @click="createMeeting" :disabled="creating">
+              <span v-if="creating" class="nv-spinner"></span>
+              <svg v-else width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+              {{ creating ? 'Creating…' : 'Create meeting' }}
+            </button>
+
+            <div v-if="createError" class="nv-alert-error">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+              {{ createError }}
+            </div>
           </div>
+
+          <!-- ── Post-create action ── -->
+          <div v-if="created.code" class="nv-postcreate">
+            <button class="nv-btn-primary nv-btn-go" @click="enterMeeting">
+              <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+              Start meeting now
+            </button>
+            <button class="nv-btn-ghost" @click="goToDashboard">Back to dashboard</button>
+          </div>
+
+        </div>
+      </main>
+    </div>
+
+    <!-- ════════════════════════════════════════════════════════
+         PHASE 2 — LIVE MEETING ROOM
+    ═════════════════════════════════════════════════════════ -->
+    <div v-if="view === 'meeting'" class="nv-meet">
+
+      <!-- Header -->
+      <header class="nv-header">
+        <div class="nv-hleft">
+          <div class="nv-brand">
+            <svg width="28" height="28" viewBox="0 0 32 32" fill="none">
+              <rect width="32" height="32" rx="8" fill="#1a73e8"/>
+              <path d="M20 16L26 11V21L20 16Z" fill="white"/>
+              <rect x="6" y="10" width="15" height="12" rx="2" fill="white"/>
+            </svg>
+            <span class="nv-brand-name">Nova</span>
+            <span class="nv-live-pill"><span class="nv-live-dot"></span>LIVE</span>
+          </div>
+
+          <button class="nv-code-chip" @click="copyMeetingCode" title="Copy meeting code">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+            <span>{{ meetingCode }}</span>
+          </button>
+
+          <div class="nv-pcount">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+            {{ participantCount }}
+          </div>
+
+          <!-- Host badge -->
+          <span v-if="isHost" class="nv-host-badge">
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+            Host
+          </span>
         </div>
 
-        <!-- ── Body grid: list + sidebar ── -->
-        <div class="md-body-grid">
+        <div class="nv-hright">
+          <span class="nv-clock">{{ currentTime }}</span>
+          <button class="nv-hbtn" :class="{ 'nv-hbtn--on': chatOpen }" @click="toggleChat">
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+            Chat
+            <span v-if="unreadCount > 0" class="nv-unread">{{ unreadCount }}</span>
+          </button>
+          <button class="nv-hbtn nv-hbtn--danger" @click="goBack">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+            Back
+          </button>
+        </div>
+      </header>
 
-          <!-- Left: active + meeting cards -->
-          <div class="md-left-col">
+      <!-- Video Grid -->
+      <div class="nv-grid" :class="{ 'nv-grid--presenting': activePresenterId || screenStream }" ref="videosGrid">
 
-            <!-- Active meetings banner -->
-            <div v-if="activeMeetings.length > 0" class="md-panel md-active-panel">
-              <div class="md-panel-hdr">
-                <h2 class="md-panel-title">Active meetings</h2>
-                <span class="md-live-badge">
-                  <span class="md-live-dot"></span>
-                  LIVE
+        <template v-if="activePresenterId || screenStream">
+          <div class="nv-gmain">
+            <div v-if="screenStream" class="nv-tile nv-tile--screen" id="local-screen">
+              <video ref="screenVideo" autoplay playsinline></video>
+              <div class="nv-tilebar">
+                <div class="nv-tilemeta">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>
+                  {{ userName }} · Presenting
+                </div>
+              </div>
+            </div>
+            <div v-else-if="activePresenterId" class="nv-tile nv-tile--screen" :id="`nv-tile-${activePresenterId}`"></div>
+          </div>
+
+          <div class="nv-gsidebar">
+            <div class="nv-tile" id="nv-local">
+              <video ref="localVideo" autoplay muted playsinline></video>
+              <div class="nv-tilebar">
+                <div class="nv-tilemeta"><span class="nv-you-dot"></span>{{ userName }}</div>
+                <div class="nv-tilebadges" id="nv-local-badges">
+                  <span v-if="!audioOn" class="nv-badge nv-badge--red">
+                    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="1" y1="1" x2="23" y2="23"/><path d="M9 9v3a3 3 0 0 0 5.12 2.12M15 9.34V4a3 3 0 0 0-5.94-.6"/><path d="M17 16.95A7 7 0 0 1 5 12v-2"/></svg>
+                  </span>
+                  <span v-if="!videoOn" class="nv-badge nv-badge--red">
+                    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M16 16v1a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h2"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+                  </span>
+                </div>
+              </div>
+              <div v-if="!videoOn" class="nv-nocam">
+                <div class="nv-avatar">{{ userInitials }}</div>
+              </div>
+            </div>
+            <div v-for="pid in Object.keys(peers).filter(i => i !== activePresenterId)" :key="pid" class="nv-tile" :id="`nv-tile-${pid}`"></div>
+          </div>
+        </template>
+
+        <template v-else>
+          <div class="nv-tile" id="nv-local">
+            <video ref="localVideo" autoplay muted playsinline></video>
+            <div class="nv-tilebar">
+              <div class="nv-tilemeta"><span class="nv-you-dot"></span>{{ userName }} (you)</div>
+              <div class="nv-tilebadges" id="nv-local-badges">
+                <span v-if="!audioOn" class="nv-badge nv-badge--red">
+                  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="1" y1="1" x2="23" y2="23"/><path d="M9 9v3a3 3 0 0 0 5.12 2.12M15 9.34V4a3 3 0 0 0-5.94-.6"/><path d="M17 16.95A7 7 0 0 1 5 12v-2"/></svg>
+                </span>
+                <span v-if="!videoOn" class="nv-badge nv-badge--red">
+                  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M16 16v1a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h2"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
                 </span>
               </div>
-              <div class="md-panel-body">
-                <div class="md-active-list">
-                  <div v-for="m in activeMeetings" :key="m.id" class="md-active-row">
-                    <div class="md-active-pulse-wrap">
-                      <span class="md-active-pulse"></span>
-                    </div>
-                    <div class="md-active-info">
-                      <div class="md-active-top">
-                        <span class="md-active-title">{{ m.title }}</span>
-                        <code class="md-active-code">{{ m.meetingCode }}</code>
-                      </div>
-                      <div class="md-active-meta">
-                        <span>
-                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
-                          {{ getRelativeTime(m.actualStartTime) }}
-                        </span>
-                        <span>
-                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>
-                          {{ m.currentParticipants }}/{{ m.maxParticipants }}
-                        </span>
-                      </div>
-                    </div>
-                    <button class="md-join-now-btn" @click="joinActiveMeeting(m.meetingCode)">
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"/></svg>
-                      Join now
-                    </button>
-                  </div>
-                </div>
-              </div>
             </div>
-
-            <!-- Meeting cards panel -->
-            <div class="md-panel md-list-panel">
-              <div class="md-panel-hdr">
-                <h2 class="md-panel-title">{{ getFilterTitle() }}</h2>
-              </div>
-              <div class="md-panel-body">
-
-                <!-- Empty state -->
-                <div v-if="filteredMeetings.length === 0" class="md-empty">
-                  <div class="md-empty-icon">
-                    <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="7" width="20" height="15" rx="2"/><polygon points="23 7 16 12 23 17 23 7"/></svg>
-                  </div>
-                  <p class="md-empty-msg">{{ getEmptyStateMessage() }}</p>
-                  <div class="md-empty-actions">
-                    <button class="md-btn md-btn--primary" @click="createMeeting">New meeting</button>
-                    <button class="md-btn md-btn--ghost" @click="joinMeeting">Join instead</button>
-                  </div>
-                </div>
-
-                <!-- Card grid -->
-                <div v-else class="md-card-grid">
-                  <div v-for="m in filteredMeetings" :key="m.id" class="md-mcard">
-
-                    <div class="md-mcard-top">
-                      <span class="md-status-chip" :class="`md-status--${getStatusClass(m.status)}`">
-                        <span v-if="m.status === 'ACTIVE'" class="md-status-dot"></span>
-                        {{ getStatusLabel(m.status) }}
-                      </span>
-                      <button class="md-menu-btn" @click="toggleMeetingMenu(m.id)" title="Options">
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="5" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="12" cy="19" r="1.5"/></svg>
-                      </button>
-                    </div>
-
-                    <div class="md-mcard-body">
-                      <h3 class="md-mcard-title">{{ m.title }}</h3>
-                      <p v-if="m.description" class="md-mcard-desc">{{ m.description }}</p>
-
-                      <div class="md-mcard-code" @click="copyMeetingCode(m.meetingCode)" title="Click to copy">
-                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
-                        <code>{{ m.meetingCode }}</code>
-                        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" class="md-copy-icon"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
-                      </div>
-
-                      <div class="md-mcard-meta">
-                        <span class="md-meta-item">
-                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
-                          {{ formatMeetingTime(m) }}
-                        </span>
-                        <span class="md-meta-item">
-                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>
-                          {{ m.currentParticipants }}/{{ m.maxParticipants }}
-                        </span>
-                        <span v-if="m.allowGuests" class="md-meta-item">
-                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="8.5" cy="7" r="4"/><line x1="20" y1="8" x2="20" y2="14"/><line x1="23" y1="11" x2="17" y2="11"/></svg>
-                          Guests allowed
-                        </span>
-                      </div>
-
-                      <div class="md-mcard-features">
-                        <span v-if="m.videoEnabled" class="md-feat">
-                          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2"/></svg>
-                          Video
-                        </span>
-                        <span v-if="m.audioEnabled" class="md-feat">
-                          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/></svg>
-                          Audio
-                        </span>
-                        <span v-if="m.screenShareEnabled" class="md-feat">
-                          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>
-                          Share
-                        </span>
-                        <span v-if="m.chatEnabled" class="md-feat">
-                          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
-                          Chat
-                        </span>
-                      </div>
-                    </div>
-
-                    <div class="md-mcard-foot">
-                      <div class="md-host">
-                        <div class="md-host-av">{{ getHostInitials(m.hostName) }}</div>
-                        <div class="md-host-info">
-                          <span class="md-host-lbl">Host</span>
-                          <span class="md-host-name">{{ m.hostName }}</span>
-                        </div>
-                      </div>
-                      <div class="md-mcard-actions">
-                        <button
-                          v-if="m.status === 'SCHEDULED' || m.status === 'ACTIVE'"
-                          class="md-btn-join"
-                          @click="joinMeetingWithCode(m.meetingCode)"
-                        >
-                          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"/></svg>
-                          {{ m.status === 'ACTIVE' ? 'Join now' : 'Start' }}
-                        </button>
-                        <button class="md-btn-details" @click="viewMeetingDetails(m.id)">Details</button>
-                      </div>
-                    </div>
-
-                  </div>
-                </div><!-- /md-card-grid -->
-
-              </div>
-            </div><!-- /md-list-panel -->
-
-          </div><!-- /md-left-col -->
-
-          <!-- Right: stats sidebar -->
-          <aside class="md-sidebar">
-            <div class="md-panel">
-              <div class="md-panel-hdr">
-                <h2 class="md-panel-title">Statistics</h2>
-              </div>
-              <div class="md-panel-body">
-
-                <div class="md-sidebar-stats">
-                  <div class="md-ss-item">
-                    <div class="md-ss-icon md-ss-icon--blue">
-                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="7" width="20" height="15" rx="2"/><polygon points="23 7 16 12 23 17 23 7"/></svg>
-                    </div>
-                    <div class="md-ss-body">
-                      <span class="md-ss-val">{{ stats.totalMeetings }}</span>
-                      <span class="md-ss-lbl">Total meetings</span>
-                    </div>
-                  </div>
-                  <div class="md-ss-item">
-                    <div class="md-ss-icon md-ss-icon--green">
-                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
-                    </div>
-                    <div class="md-ss-body">
-                      <span class="md-ss-val">{{ formatDuration(stats.totalDuration) }}</span>
-                      <span class="md-ss-lbl">Total duration</span>
-                    </div>
-                  </div>
-                  <div class="md-ss-item">
-                    <div class="md-ss-icon md-ss-icon--amber">
-                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>
-                    </div>
-                    <div class="md-ss-body">
-                      <span class="md-ss-val">{{ stats.totalUniqueParticipants }}</span>
-                      <span class="md-ss-lbl">Unique participants</span>
-                    </div>
-                  </div>
-                  <div class="md-ss-item">
-                    <div class="md-ss-icon md-ss-icon--purple">
-                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
-                    </div>
-                    <div class="md-ss-body">
-                      <span class="md-ss-val">{{ stats.meetingsThisMonth }}</span>
-                      <span class="md-ss-lbl">This month</span>
-                    </div>
-                  </div>
-                </div>
-
-                <!-- Activity chart -->
-                <div class="md-chart-section">
-                  <h3 class="md-chart-title">Meeting activity</h3>
-                  <div class="md-chart">
-                    <div v-for="(day, i) in activityData" :key="i" class="md-chart-col">
-                      <div class="md-chart-track">
-                        <div class="md-chart-bar" :style="{ height: day.percentage + '%' }"></div>
-                      </div>
-                      <span class="md-chart-lbl">{{ day.label }}</span>
-                    </div>
-                  </div>
-                </div>
-
-                <!-- Quick stats -->
-                <div class="md-quick-stats">
-                  <div class="md-qs-row">
-                    <span class="md-qs-lbl">Avg. duration</span>
-                    <span class="md-qs-val">{{ formatDuration(stats.averageDuration) }}</span>
-                  </div>
-                  <div class="md-qs-row">
-                    <span class="md-qs-lbl">Avg. participants</span>
-                    <span class="md-qs-val">{{ stats.averageParticipants }}</span>
-                  </div>
-                  <div class="md-qs-row">
-                    <span class="md-qs-lbl">Completion rate</span>
-                    <span class="md-qs-val">{{ stats.completionRate }}%</span>
-                  </div>
-                </div>
-
-              </div>
+            <div v-if="!videoOn" class="nv-nocam">
+              <div class="nv-avatar">{{ userInitials }}</div>
             </div>
-          </aside>
-
-        </div><!-- /md-body-grid -->
-      </div><!-- /md-content -->
-    </main>
-
-    <!-- ── Toast ── -->
-    <transition name="md-toast-fx">
-      <div v-if="toast.show" class="md-toast" :class="'md-toast--' + toast.type">
-        <svg v-if="toast.type === 'success'" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="20 6 9 17 4 12"/></svg>
-        <svg v-else width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
-        <span>{{ toast.message }}</span>
+          </div>
+          <!-- Remote peers injected here -->
+        </template>
       </div>
-    </transition>
 
-  </div>
+      <!-- Controls -->
+      <div class="nv-controls">
+        <div class="nv-ctrl-row">
+
+          <div class="nv-cslot">
+            <button class="nv-ctrl" :class="audioOn ? 'nv-ctrl--on' : 'nv-ctrl--off'" @click="toggleAudio" :title="audioOn ? 'Mute' : 'Unmute'">
+              <svg v-if="audioOn" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2M12 19v4M8 23h8"/></svg>
+              <svg v-else width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="1" y1="1" x2="23" y2="23"/><path d="M9 9v3a3 3 0 0 0 5.12 2.12M15 9.34V4a3 3 0 0 0-5.94-.6"/><path d="M17 16.95A7 7 0 0 1 5 12v-2m14 0v2a7 7 0 0 1-.11 1.23M12 19v4M8 23h8"/></svg>
+            </button>
+            <span class="nv-clabel">{{ audioOn ? 'Mute' : 'Unmute' }}</span>
+          </div>
+
+          <div class="nv-cslot">
+            <button class="nv-ctrl" :class="videoOn ? 'nv-ctrl--on' : 'nv-ctrl--off'" @click="toggleVideo" :title="videoOn ? 'Stop video' : 'Start video'">
+              <svg v-if="videoOn" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2"/></svg>
+              <svg v-else width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M16 16v1a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h2m5.66 0H14a2 2 0 0 1 2 2v3.34l1 1L23 7v10"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+            </button>
+            <span class="nv-clabel">{{ videoOn ? 'Stop video' : 'Start video' }}</span>
+          </div>
+
+          <div class="nv-cslot">
+            <button class="nv-ctrl" :class="screenStream ? 'nv-ctrl--sharing' : 'nv-ctrl--on'" @click="toggleScreen" :title="screenStream ? 'Stop sharing' : 'Present now'">
+              <svg v-if="!screenStream" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/><polyline points="8 10 12 6 16 10"/><line x1="12" y1="6" x2="12" y2="14"/></svg>
+              <svg v-else width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/><line x1="9" y1="9" x2="15" y2="15"/><line x1="15" y1="9" x2="9" y2="15"/></svg>
+            </button>
+            <span class="nv-clabel">{{ screenStream ? 'Stop sharing' : 'Present' }}</span>
+          </div>
+
+          <div class="nv-cdivider"></div>
+
+          <!-- HOST-ONLY CONTROLS -->
+          <template v-if="isHost">
+            <div class="nv-cslot">
+              <button class="nv-ctrl nv-ctrl--restart" @click="restartMeeting" :disabled="restarting" title="Restart meeting">
+                <span v-if="restarting" class="nv-spinner nv-spinner--sm"></span>
+                <svg v-else width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-4.5"/></svg>
+              </button>
+              <span class="nv-clabel">Restart</span>
+            </div>
+
+            <div class="nv-cslot">
+              <button class="nv-ctrl nv-ctrl--end" @click="endMeeting" :disabled="ending" title="End meeting for everyone">
+                <span v-if="ending" class="nv-spinner nv-spinner--sm"></span>
+                <svg v-else width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <rect x="3" y="3" width="18" height="18" rx="2"/>
+                  <line x1="9" y1="9" x2="15" y2="15"/><line x1="15" y1="9" x2="9" y2="15"/>
+                </svg>
+              </button>
+              <span class="nv-clabel nv-clabel--orange">End</span>
+            </div>
+
+            <div class="nv-cdivider"></div>
+          </template>
+
+          <div class="nv-cslot">
+            <button class="nv-ctrl nv-ctrl--leave" @click="leave" title="Leave call">
+              <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M10.68 13.31a16 16 0 0 0 3.41 2.6l1.27-1.27a2 2 0 0 1 2.11-.45c1.12.45 2.3.78 3.53.978a2 2 0 0 1 1.67 1.98V20a2 2 0 0 1-2 2h-1C7.82 22 2 16.18 2 9V8a2 2 0 0 1 2-2h3.5a2 2 0 0 1 1.98 1.67c.19 1.23.52 2.41.978 3.53a2 2 0 0 1-.45 2.11L10.68 13.31z"/>
+                <line x1="22" y1="2" x2="11" y2="13"/>
+              </svg>
+            </button>
+            <span class="nv-clabel nv-clabel--red">Leave</span>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- Chat Panel -->
+      <div class="nv-chat" :class="{ 'nv-chat--open': chatOpen }">
+        <div class="nv-chdr">
+          <div class="nv-chdr-title">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+            In-call messages
+          </div>
+          <button class="nv-chdr-close" @click="toggleChat">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+          </button>
+        </div>
+
+        <div class="nv-cmsgs" ref="messagesContainer">
+          <div v-if="messages.length === 0" class="nv-cempty">
+            <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" opacity="0.2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+            <p>No messages yet</p>
+          </div>
+          <div v-for="msg in messages" :key="msg.id" class="nv-cmsg" :class="{ 'nv-cmsg--self': msg.isSelf }">
+            <div class="nv-cmsg-who">{{ msg.sender }}{{ msg.isSelf ? ' (you)' : '' }}</div>
+            <div class="nv-cmsg-body">{{ msg.text }}</div>
+          </div>
+        </div>
+
+        <div class="nv-cfoot">
+          <input class="nv-cinput" type="text" v-model="chatMessage" @keypress.enter="sendMessage" placeholder="Message everyone…" />
+          <button class="nv-csend" @click="sendMessage" :disabled="!chatMessage.trim()">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+          </button>
+        </div>
+      </div>
+
+      <!-- ── End Meeting Confirmation Modal ── -->
+      <div v-if="showEndModal" class="nv-modal-overlay" @click.self="showEndModal = false">
+        <div class="nv-modal">
+          <div class="nv-modal-icon nv-modal-icon--red">
+            <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="3" y="3" width="18" height="18" rx="2"/>
+              <line x1="9" y1="9" x2="15" y2="15"/><line x1="15" y1="9" x2="9" y2="15"/>
+            </svg>
+          </div>
+          <h2 class="nv-modal-title">End meeting for everyone?</h2>
+          <p class="nv-modal-body">This will end the call for all participants and mark the meeting as completed. You can restart it later if needed.</p>
+          <div class="nv-modal-actions">
+            <button class="nv-modal-btn nv-modal-btn--ghost" @click="showEndModal = false">Cancel</button>
+            <button class="nv-modal-btn nv-modal-btn--danger" @click="confirmEndMeeting" :disabled="ending">
+              <span v-if="ending" class="nv-spinner nv-spinner--sm"></span>
+              End for everyone
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── Restart Meeting Confirmation Modal ── -->
+      <div v-if="showRestartModal" class="nv-modal-overlay" @click.self="showRestartModal = false">
+        <div class="nv-modal">
+          <div class="nv-modal-icon nv-modal-icon--blue">
+            <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-4.5"/></svg>
+          </div>
+          <h2 class="nv-modal-title">Restart this meeting?</h2>
+          <p class="nv-modal-body">All current participants will be disconnected and the meeting will restart fresh. The meeting code stays the same.</p>
+          <div class="nv-modal-actions">
+            <button class="nv-modal-btn nv-modal-btn--ghost" @click="showRestartModal = false">Cancel</button>
+            <button class="nv-modal-btn nv-modal-btn--primary" @click="confirmRestartMeeting" :disabled="restarting">
+              <span v-if="restarting" class="nv-spinner nv-spinner--sm"></span>
+              Restart meeting
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Toast -->
+      <transition name="nv-toast-fx">
+        <div v-if="toastVisible" class="nv-toast" :class="toastType === 'error' ? 'nv-toast--error' : ''">
+          <svg v-if="toastType !== 'error'" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="20 6 9 17 4 12"/></svg>
+          <svg v-else width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+          {{ toastMessage }}
+        </div>
+      </transition>
+
+    </div><!-- /nv-meet -->
+
+  </div><!-- /nv-root -->
 </template>
 
 <script>
-import { TokenService, apiRequest } from '@/utils/apiService';
+import { TokenService } from '@/utils/apiService';
+
+const API = 'https://nova-test-ctne.onrender.com/api';
+const WS_URL = 'wss://nova-test-ctne.onrender.com/ws/webrtc';
 
 export default {
-  name: 'MeetingsDashboard',
+  name: 'Meeting',
+
   data() {
     return {
-      loading: true,
-      error: null,
+      // ── Phase control ──────────────────────
+      view: 'create',   // 'create' | 'meeting'
 
-      allMeetings: [],
-      activeMeetings: [],
-
-      stats: {
-        totalMeetings: 0, scheduled: 0, completed: 0, cancelled: 0,
-        activeNow: 0, totalParticipants: 0,
-        upcomingThisWeek: 0, upcomingToday: 0, upcomingTomorrow: 0,
-        totalUniqueParticipants: 0, averageParticipants: 0,
-        totalDuration: 0, averageDuration: 0,
-        meetingsThisMonth: 0, completionRate: 0,
+      // ── Create Meeting form ────────────────
+      form: {
+        title: '',
+        description: '',
+        maxParticipants: 50,
+        password: '',
+        allowGuests: true,
+        videoEnabled: true,
+        audioEnabled: true,
+        chatEnabled: true,
+        screenShareEnabled: true,
       },
-
-      activityData: [],
-
-      activeFilter: 'all',
-      filterTabs: [
-        { label: 'All',       value: 'all',       count: 0 },
-        { label: 'Scheduled', value: 'scheduled', count: 0 },
-        { label: 'Completed', value: 'completed', count: 0 },
-        { label: 'Cancelled', value: 'cancelled', count: 0 },
+      toggleOpts: [
+        { key: 'allowGuests',        label: 'Allow guests',          sub: 'Anyone can join without an account' },
+        { key: 'videoEnabled',       label: 'Video on by default' },
+        { key: 'audioEnabled',       label: 'Audio on by default' },
+        { key: 'chatEnabled',        label: 'Enable chat' },
+        { key: 'screenShareEnabled', label: 'Screen sharing' },
       ],
+      creating: false,
+      createError: '',
+      created: { code: null, title: null },
 
-      showSortMenu: false,
-      currentSort: { label: 'Most recent', value: 'recent' },
-      sortOptions: [
-        { label: 'Most recent',     value: 'recent' },
-        { label: 'Oldest first',    value: 'oldest' },
-        { label: 'Title A→Z',       value: 'title-asc' },
-        { label: 'Title Z→A',       value: 'title-desc' },
-        { label: 'By participants', value: 'participants' },
-      ],
+      // ── WebRTC / WebSocket ─────────────────
+      ws: null,
+      peers: {},
+      localStream: null,
+      screenStream: null,
 
-      toast: { show: false, message: '', type: 'success' },
+      // ── Meeting state ──────────────────────
+      meetingCode: '',
+      myPeerId: `peer_${Math.random().toString(36).substr(2, 9)}`,
+      participantCount: 1,
+      isHost: false,          // ← tracks if this user is the meeting host
+
+      // ── Host actions state ─────────────────
+      showEndModal:     false,
+      showRestartModal: false,
+      ending:           false,
+      restarting:       false,
+
+      // ── User ──────────────────────────────
+      userName: 'Guest',
+      userInitials: 'G',
+
+      // ── Media ─────────────────────────────
+      videoOn: true,
+      audioOn: true,
+
+      // ── Screen share ──────────────────────
+      activePresenterId: null,
+
+      // ── Chat ──────────────────────────────
+      chatOpen: false,
+      chatMessage: '',
+      messages: [],
+      unreadCount: 0,
+
+      // ── Toast ─────────────────────────────
+      toastVisible: false,
+      toastMessage: '',
+      toastType: 'success',   // 'success' | 'error'
+
+      // ── Clock ─────────────────────────────
+      currentTime: '',
+      clockInterval: null,
+
+      // ── ICE ───────────────────────────────
+      ICE_SERVERS: {
+        iceServers: [
+          { urls: 'stun:stun.l.google.com:19302' },
+          { urls: 'stun:stun1.l.google.com:19302' },
+        ],
+      },
     };
   },
 
   computed: {
     isAuthenticated() { return TokenService.isAuthenticated(); },
-
-    filteredMeetings() {
-      let list = [...this.allMeetings];
-
-      if (this.activeFilter !== 'all') {
-        list = list.filter(m => {
-          const status = m.status.toLowerCase();
-          if (this.activeFilter === 'completed') return status === 'ended';
-          return status === this.activeFilter;
-        });
-      }
-
-      list.sort((a, b) => {
-        switch (this.currentSort.value) {
-          case 'recent':       return new Date(b.createdAt)        - new Date(a.createdAt);
-          case 'oldest':       return new Date(a.createdAt)        - new Date(b.createdAt);
-          case 'title-asc':    return a.title.localeCompare(b.title);
-          case 'title-desc':   return b.title.localeCompare(a.title);
-          case 'participants': return b.currentParticipants        - a.currentParticipants;
-          default: return 0;
-        }
-      });
-      return list;
-    },
+    token()           { return TokenService.getAccessToken(); },
   },
 
   methods: {
-    // ── Normalise raw backend object ──────────────────────────
-    normalizeM(raw) {
-      let hostName = raw.hostName || raw.host_name || '';
-      if (!hostName && raw.host && typeof raw.host === 'object') {
-        const h = raw.host;
-        const first = h.firstName || h.first_name || '';
-        const last  = h.lastName  || h.last_name  || '';
-        hostName = [first, last].filter(Boolean).join(' ').trim()
-                   || h.username || h.email || 'Unknown';
-      }
-      if (!hostName) hostName = 'Unknown';
-
-      let currentParticipants = raw.currentParticipants ?? raw.current_participants ?? 0;
-      if (Array.isArray(raw.participants)) {
-        currentParticipants = raw.participants.length;
-      }
-
-      const meetingCode        = raw.meetingCode        || raw.meeting_code        || '';
-      const maxParticipants    = raw.maxParticipants    ?? raw.max_participants    ?? 0;
-      const scheduledStartTime = raw.scheduledStartTime || raw.scheduled_start_time|| null;
-      const actualStartTime    = raw.actualStartTime    || raw.actual_start_time   || null;
-      const endTime            = raw.endTime            || raw.end_time            || null;
-      const createdAt          = raw.createdAt          || raw.created_at          || new Date().toISOString();
-      const allowGuests        = raw.allowGuests        ?? raw.allow_guests        ?? false;
-      const videoEnabled       = raw.videoEnabled       ?? raw.video_enabled       ?? false;
-      const audioEnabled       = raw.audioEnabled       ?? raw.audio_enabled       ?? false;
-      const screenShareEnabled = raw.screenShareEnabled ?? raw.screen_share_enabled?? false;
-      const chatEnabled        = raw.chatEnabled        ?? raw.chat_enabled        ?? false;
-
-      let status = (raw.status || 'UNKNOWN').toUpperCase();
-      if (status === 'COMPLETED') status = 'ENDED';
-
-      return {
-        id: raw.id,
-        title: raw.title || 'Untitled',
-        description: raw.description || '',
-        status,
-        meetingCode,
-        maxParticipants,
-        currentParticipants,
-        scheduledStartTime,
-        actualStartTime,
-        endTime,
-        createdAt,
-        allowGuests,
-        videoEnabled,
-        audioEnabled,
-        screenShareEnabled,
-        chatEnabled,
-        hostName,
-        participants:      raw.participants      || [],
-        participantEmails: raw.participantEmails || raw.participant_emails || [],
-      };
+    // ═══════════════════════════════════════
+    //  CREATE MEETING
+    // ═══════════════════════════════════════
+    goToDashboard() {
+      this.$router.push(this.isAuthenticated ? '/meeting-dashboard' : '/join-meeting');
     },
 
-    // ── Data ──────────────────────────────────────────────────
-    async fetchMeetingsData() {
-      this.loading = true;
-      this.error   = null;
+    async createMeeting() {
+      if (!this.form.title.trim()) { this.createError = 'Please enter a meeting title.'; return; }
+      if (!this.token) { this.createError = 'Session expired — please sign in again.'; return; }
+
+      this.creating = true;
+      this.createError = '';
+
+      const pw = this.form.password.trim();
+      const body = {
+        title:              this.form.title.trim(),
+        description:        this.form.description.trim() || null,
+        maxParticipants:    this.form.maxParticipants || 50,
+        allowGuests:        this.form.allowGuests,
+        requiresPassword:   pw.length > 0,
+        password:           pw || null,
+        videoEnabled:       this.form.videoEnabled,
+        audioEnabled:       this.form.audioEnabled,
+        chatEnabled:        this.form.chatEnabled,
+        screenShareEnabled: this.form.screenShareEnabled,
+        isPublic:           false,
+      };
+
       try {
-        if (!TokenService.getAccessToken()) {
-          this.$router.push('/auth');
-          return;
-        }
+        const res  = await fetch(`${API}/meetings/create`, {
+          method: 'POST',
+          headers: {
+            'Content-Type':  'application/json',
+            'Authorization': `Bearer ${this.token}`,
+            'ngrok-skip-browser-warning': 'true',
+          },
+          body: JSON.stringify(body),
+        });
 
-        const res = await apiRequest('/meetings/my-meetings', { method: 'GET' });
-        if (!res.ok) throw new Error(`Server returned ${res.status}`);
+        let data;
+        try { data = await res.json(); } catch { throw new Error(`HTTP ${res.status}`); }
 
-        const body = await res.json();
+        if (!res.ok || data.success === false)
+          throw new Error(data.message || data.error || `HTTP ${res.status}`);
 
-        let raw = [];
-        if (Array.isArray(body))               raw = body;
-        else if (Array.isArray(body.data))     raw = body.data;
-        else if (body.data?.meetings)          raw = body.data.meetings;
-        else if (Array.isArray(body.meetings)) raw = body.meetings;
-        else if (body.data && typeof body.data === 'object') raw = [body.data];
+        const code =
+          data?.data?.meetingCode    || data?.data?.meeting_code    ||
+          data?.data?.code           || data?.data?.meeting?.meetingCode ||
+          data?.data?.meeting?.code  || data?.meetingCode           ||
+          data?.code                 || null;
 
-        this.allMeetings = raw.map(m => this.normalizeM(m));
-        this.processActiveMeetings();
-        this.calculateStatistics();
-        this.updateFilterCounts();
-        this.generateActivityData();
-      } catch (e) {
-        console.error('[MeetingsDashboard] fetch error:', e);
-        this.error = 'Failed to load meetings. Please try again.';
+        if (!code) throw new Error('No meeting code returned from server.');
+
+        // Try to start (non-fatal)
+        try {
+          await fetch(`${API}/meetings/start/${code}`, {
+            method: 'POST',
+            headers: { 'Authorization': `Bearer ${this.token}`, 'ngrok-skip-browser-warning': 'true' },
+          });
+        } catch (_) {}
+
+        // Save to recent
+        const recent = JSON.parse(sessionStorage.getItem('nova_recent') || '[]');
+        recent.unshift({ code, title: body.title, date: new Date().toLocaleDateString() });
+        sessionStorage.setItem('nova_recent', JSON.stringify(recent.slice(0, 10)));
+
+        this.created = { code, title: body.title };
+
+      } catch (err) {
+        this.createError = err.message || 'Unexpected error.';
       } finally {
-        this.loading = false;
+        this.creating = false;
       }
     },
 
-    processActiveMeetings() {
-      this.activeMeetings = this.allMeetings.filter(m => m.status === 'ACTIVE');
-    },
-
-    calculateStatistics() {
-      const all = this.allMeetings;
-      const now = new Date();
-
-      this.stats.totalMeetings = all.length;
-      this.stats.scheduled     = all.filter(m => m.status === 'SCHEDULED').length;
-      this.stats.completed     = all.filter(m => m.status === 'ENDED').length;
-      this.stats.cancelled     = all.filter(m => m.status === 'CANCELLED').length;
-      this.stats.activeNow     = this.activeMeetings.length;
-      this.stats.totalParticipants = this.activeMeetings.reduce(
-        (s, m) => s + (m.currentParticipants || 0), 0
-      );
-
-      const unique = new Set();
-      all.forEach(m => {
-        if (Array.isArray(m.participants)) {
-          m.participants.forEach(p =>
-            unique.add(p.email || p.displayName || p.id || JSON.stringify(p))
-          );
-        }
-        if (Array.isArray(m.participantEmails)) {
-          m.participantEmails.forEach(e => unique.add(e));
-        }
-      });
-      this.stats.totalUniqueParticipants = unique.size > 0
-        ? unique.size
-        : all.reduce((s, m) => s + (m.currentParticipants || 0), 0);
-
-      const totalP = all.reduce((s, m) => s + (m.currentParticipants || 0), 0);
-      this.stats.averageParticipants = all.length > 0 ? Math.round(totalP / all.length) : 0;
-
-      const tomorrow = new Date(now);
-      tomorrow.setDate(tomorrow.getDate() + 1);
-      const nextWeek = new Date(now);
-      nextWeek.setDate(nextWeek.getDate() + 7);
-
-      const sched = all.filter(m => m.status === 'SCHEDULED');
-      this.stats.upcomingToday = sched.filter(m =>
-        m.scheduledStartTime &&
-        new Date(m.scheduledStartTime).toDateString() === now.toDateString()
-      ).length;
-      this.stats.upcomingTomorrow = sched.filter(m =>
-        m.scheduledStartTime &&
-        new Date(m.scheduledStartTime).toDateString() === tomorrow.toDateString()
-      ).length;
-      this.stats.upcomingThisWeek = sched.filter(m => {
-        if (!m.scheduledStartTime) return false;
-        const d = new Date(m.scheduledStartTime);
-        return d >= now && d <= nextWeek;
-      }).length;
-
-      let totalDur = 0, durCount = 0;
-      all.forEach(m => {
-        if (m.actualStartTime && m.endTime) {
-          const diff = (new Date(m.endTime) - new Date(m.actualStartTime)) / 60000;
-          if (diff > 0) { totalDur += diff; durCount++; }
-        }
-      });
-      this.stats.totalDuration   = Math.round(totalDur);
-      this.stats.averageDuration = durCount > 0 ? Math.round(totalDur / durCount) : 0;
-
-      this.stats.meetingsThisMonth = all.filter(m => {
-        const d = new Date(m.createdAt);
-        return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
-      }).length;
-
-      const everStarted = this.stats.completed + this.stats.cancelled + this.stats.activeNow;
-      this.stats.completionRate = everStarted > 0
-        ? Math.round((this.stats.completed / everStarted) * 100)
-        : 0;
-    },
-
-    updateFilterCounts() {
-      this.filterTabs.forEach(t => {
-        if (t.value === 'all') {
-          t.count = this.allMeetings.length;
-        } else if (t.value === 'completed') {
-          t.count = this.allMeetings.filter(m => m.status === 'ENDED').length;
-        } else {
-          t.count = this.allMeetings.filter(m => m.status.toLowerCase() === t.value).length;
-        }
+    copyCreatedCode() {
+      if (!this.created.code) return;
+      navigator.clipboard.writeText(this.created.code).then(() => {
+        this.showToast('Code copied!');
       });
     },
 
-    generateActivityData() {
-      const days   = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-      const counts = new Array(7).fill(0);
-      this.allMeetings.forEach(m => {
-        const idx = (new Date(m.createdAt).getDay() + 6) % 7;
-        counts[idx]++;
-      });
-      const maxCount = Math.max(...counts, 1);
-      this.activityData = days.map((label, i) => ({
-        label,
-        count: counts[i],
-        percentage: Math.max((counts[i] / maxCount) * 100, counts[i] > 0 ? 8 : 3),
-      }));
+    enterMeeting() {
+      if (!this.created.code) return;
+      sessionStorage.setItem('nova_meeting_code', this.created.code);
+      this.meetingCode = this.created.code;
+      this.isHost = true; // creator is always host
+      this.view = 'meeting';
+      this.$nextTick(() => this.initMeeting());
     },
 
-    // ── UI ────────────────────────────────────────────────────
-    setFilter(v)       { this.activeFilter = v; },
-    toggleSortMenu()   { this.showSortMenu = !this.showSortMenu; },
-    setSortOption(opt) { this.currentSort = opt; this.showSortMenu = false; },
-
-    getFilterTitle() {
-      return (this.filterTabs.find(t => t.value === this.activeFilter) || {}).label || 'Meetings';
-    },
-    getEmptyStateMessage() {
-      const map = {
-        scheduled: 'No scheduled meetings.',
-        completed: 'No completed meetings yet.',
-        cancelled: 'No cancelled meetings.',
-      };
-      return map[this.activeFilter] || 'No meetings yet. Create your first!';
+    // ═══════════════════════════════════════
+    //  MEETING ROOM — INIT
+    // ═══════════════════════════════════════
+    updateClock() {
+      this.currentTime = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
     },
 
-    // ── Actions ───────────────────────────────────────────────
+    async initMeeting() {
+      if (!this.meetingCode) {
+        this.meetingCode = this.$route?.params?.code || sessionStorage.getItem('nova_meeting_code');
+      }
+      if (!this.meetingCode) { this.$router.push('/join-meeting'); return; }
 
-    // FIX: Use router object form (not raw string with ?query)
-    //      Clear stale sessionStorage code so Meeting.vue knows it's a new meeting
-    createMeeting() {
-      sessionStorage.removeItem('nova_meeting_code');
-      this.$router.push({ path: '/meeting', query: { create: 'true' } });
+      const user = JSON.parse(sessionStorage.getItem('nova_user') || '{}');
+      this.userName     = user.name || 'Guest';
+      this.userInitials = this.userName.charAt(0).toUpperCase();
+
+      // Determine host status: authenticated creator gets host rights
+      // If they created this session (enterMeeting set isHost=true) keep it,
+      // otherwise check sessionStorage flag
+      if (!this.isHost) {
+        this.isHost = sessionStorage.getItem('nova_is_host') === 'true';
+      }
+      if (this.isHost) {
+        sessionStorage.setItem('nova_is_host', 'true');
+      }
+
+      this.updateClock();
+      this.clockInterval = setInterval(this.updateClock, 10000);
+
+      try {
+        this.localStream = await navigator.mediaDevices.getUserMedia({ video: { width: 1280, height: 720 }, audio: true });
+        await this.$nextTick();
+        if (this.$refs.localVideo) this.$refs.localVideo.srcObject = this.localStream;
+      } catch (err) {
+        console.warn('No camera/mic:', err.message);
+        this.videoOn = false;
+        this.audioOn = false;
+      }
+
+      this.connectWebSocket();
     },
 
-    joinMeeting() {
-      this.$router.push({ path: '/join-meeting' });
+    // ═══════════════════════════════════════
+    //  WEBSOCKET
+    // ═══════════════════════════════════════
+    connectWebSocket() {
+      const url = this.token ? `${WS_URL}?token=${this.token}` : WS_URL;
+      this.ws = new WebSocket(url);
+      this.ws.onopen    = () => this.sendWs({ type: 'JOIN' });
+      this.ws.onmessage = async (e) => await this.handleWsMsg(JSON.parse(e.data));
+      this.ws.onerror   = (e) => console.error('WS error', e);
+      this.ws.onclose   = ()  => console.log('WS closed');
     },
 
-    joinActiveMeeting(code) {
-      sessionStorage.setItem('nova_meeting_code', code);
-      this.$router.push({ path: '/meeting' });
-    },
-
-    joinMeetingWithCode(code) {
-      sessionStorage.setItem('nova_meeting_code', code);
-      this.$router.push({ path: '/meeting' });
-    },
-
-    viewMeetingDetails(id) {
-      const m = this.allMeetings.find(m => m.id === id);
-      if (m) {
-        sessionStorage.setItem('nova_meeting_code', m.meetingCode);
-        this.$router.push({ path: '/meeting' });
+    sendWs(obj) {
+      if (this.ws?.readyState === WebSocket.OPEN) {
+        obj.meetingCode = this.meetingCode;
+        obj.fromPeerId  = this.myPeerId;
+        this.ws.send(JSON.stringify(obj));
       }
     },
 
-    toggleMeetingMenu(id) { console.log('Menu:', id); },
-
-    copyMeetingCode(code) {
-      navigator.clipboard.writeText(code)
-        .then(()  => this.showToast('Code copied!', 'success'))
-        .catch(()  => this.showToast('Failed to copy', 'error'));
+    async handleWsMsg(msg) {
+      switch (msg.type) {
+        case 'PARTICIPANT_LIST':
+          msg.data.peers.forEach(id => this.createPC(id, true));
+          this.participantCount = msg.data.peers.length + 1;
+          break;
+        case 'JOIN':             this.participantCount++;                      break;
+        case 'LEAVE':            this.peerLeave(msg.fromPeerId);               break;
+        case 'OFFER':            await this.handleOffer(msg);                  break;
+        case 'ANSWER':           await this.handleAnswer(msg);                 break;
+        case 'ICE_CANDIDATE':    await this.handleICE(msg);                    break;
+        case 'CHAT_MESSAGE':
+          this.addMsg(msg.data.senderName, msg.data.message, false);
+          if (!this.chatOpen) this.unreadCount++;
+          break;
+        case 'TOGGLE_VIDEO':
+        case 'TOGGLE_AUDIO':     this.updatePeerBadge(msg);                   break;
+        case 'SCREEN_SHARE_START': this.remoteScreenStart(msg.fromPeerId);    break;
+        case 'SCREEN_SHARE_STOP':  this.remoteScreenStop(msg.fromPeerId);     break;
+        // ── New events ──
+        case 'MEETING_ENDED':
+          this.showToast('Meeting ended by host.', 'error');
+          setTimeout(() => this.cleanupAndNavigate(), 1800);
+          break;
+        case 'MEETING_RESTARTED':
+          this.showToast('Meeting restarted by host.');
+          // Re-init WebRTC connections
+          this.cleanupPeers();
+          this.connectWebSocket();
+          break;
+      }
     },
 
-    // ── Helpers ───────────────────────────────────────────────
-    getStatusClass(s) {
-      return ({ ACTIVE: 'live', SCHEDULED: 'scheduled', ENDED: 'completed', CANCELLED: 'cancelled' })[s] || '';
-    },
-    getStatusLabel(s) {
-      return ({ ACTIVE: 'Live', SCHEDULED: 'Scheduled', ENDED: 'Completed', CANCELLED: 'Cancelled' })[s] || s;
-    },
-    getHostInitials(n) {
-      if (!n) return '?';
-      const p = n.trim().split(/\s+/);
-      return p.length >= 2 ? (p[0][0] + p[p.length - 1][0]).toUpperCase() : n[0].toUpperCase();
-    },
-
-    formatMeetingTime(m) {
-      if (m.status === 'ACTIVE')    return `Started ${this.getRelativeTime(m.actualStartTime)}`;
-      if (m.status === 'SCHEDULED') return this.formatDate(m.scheduledStartTime);
-      if (m.status === 'ENDED')     return `Ended ${this.getRelativeTime(m.endTime)}`;
-      return 'Not started';
+    // ═══════════════════════════════════════
+    //  WEBRTC
+    // ═══════════════════════════════════════
+    createPC(peerId, isInit) {
+      const pc = new RTCPeerConnection(this.ICE_SERVERS);
+      this.peers[peerId] = pc;
+      if (this.localStream) this.localStream.getTracks().forEach(t => pc.addTrack(t, this.localStream));
+      pc.ontrack = (e) => this.addRemoteVideo(peerId, e.streams[0]);
+      pc.onicecandidate = (e) => { if (e.candidate) this.sendWs({ type: 'ICE_CANDIDATE', toPeerId: peerId, data: e.candidate }); };
+      pc.onconnectionstatechange = () => { if (['disconnected', 'failed'].includes(pc.connectionState)) this.peerLeave(peerId); };
+      if (isInit) pc.createOffer().then(o => pc.setLocalDescription(o)).then(() => this.sendWs({ type: 'OFFER', toPeerId: peerId, data: pc.localDescription })).catch(console.error);
+      return pc;
     },
 
-    formatDate(ds) {
-      if (!ds) return '';
-      return new Date(ds).toLocaleDateString('en-US', {
-        month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit',
-      });
+    async handleOffer(msg) {
+      const id = msg.fromPeerId;
+      if (!this.peers[id]) this.createPC(id, false);
+      await this.peers[id].setRemoteDescription(new RTCSessionDescription(msg.data));
+      const ans = await this.peers[id].createAnswer();
+      await this.peers[id].setLocalDescription(ans);
+      this.sendWs({ type: 'ANSWER', toPeerId: id, data: this.peers[id].localDescription });
     },
 
-    getRelativeTime(ds) {
-      if (!ds) return '';
-      const d = Math.floor((Date.now() - new Date(ds)) / 1000);
-      if (d < 60)     return 'just now';
-      if (d < 3600)   return `${Math.floor(d / 60)}m ago`;
-      if (d < 86400)  return `${Math.floor(d / 3600)}h ago`;
-      if (d < 604800) return `${Math.floor(d / 86400)}d ago`;
-      return `${Math.floor(d / 604800)}w ago`;
+    async handleAnswer(msg) {
+      if (this.peers[msg.fromPeerId]) await this.peers[msg.fromPeerId].setRemoteDescription(new RTCSessionDescription(msg.data));
     },
 
-    formatDuration(m) {
-      if (!m || m < 1) return '—';
-      if (m < 60) return `${m}m`;
-      const h = Math.floor(m / 60);
-      const r = m % 60;
-      return r > 0 ? `${h}h ${r}m` : `${h}h`;
+    async handleICE(msg) {
+      if (this.peers[msg.fromPeerId]) await this.peers[msg.fromPeerId].addIceCandidate(new RTCIceCandidate(msg.data));
+    },
+
+    peerLeave(id) {
+      this.peers[id]?.close(); delete this.peers[id];
+      document.getElementById(`nv-tile-${id}`)?.remove();
+      if (this.activePresenterId === id) this.remoteScreenStop(id);
+      this.participantCount = Math.max(1, this.participantCount - 1);
+    },
+
+    cleanupPeers() {
+      Object.values(this.peers).forEach(pc => pc.close());
+      this.peers = {};
+      // Remove remote video tiles from DOM
+      document.querySelectorAll('[id^="nv-tile-"]').forEach(el => el.remove());
+      this.participantCount = 1;
+      this.activePresenterId = null;
+    },
+
+    addRemoteVideo(id, stream) {
+      let w = document.getElementById(`nv-tile-${id}`);
+      if (w) { const v = w.querySelector('video'); if (v) v.srcObject = stream; return; }
+
+      w = document.createElement('div'); w.className = 'nv-tile'; w.id = `nv-tile-${id}`;
+      const v  = document.createElement('video'); v.srcObject = stream; v.autoplay = true; v.playsinline = true;
+      const bar = document.createElement('div'); bar.className = 'nv-tilebar';
+      const meta = document.createElement('div'); meta.className = 'nv-tilemeta'; meta.textContent = `Peer ${id.slice(-4)}`;
+      const badges = document.createElement('div'); badges.className = 'nv-tilebadges'; badges.id = `nv-badges-${id}`;
+      bar.append(meta, badges); w.append(v, bar);
+      this.$refs.videosGrid.appendChild(w);
+    },
+
+    updatePeerBadge(msg) {
+      const box = document.getElementById(`nv-badges-${msg.fromPeerId}`); if (!box) return;
+      const eid = `${msg.type === 'TOGGLE_AUDIO' ? 'nv-ai' : 'nv-vi'}-${msg.fromPeerId}`;
+      let el = document.getElementById(eid);
+      if (!msg.data.enabled) {
+        if (!el) {
+          el = document.createElement('span'); el.id = eid; el.className = 'nv-badge nv-badge--red';
+          el.innerHTML = msg.type === 'TOGGLE_AUDIO'
+            ? `<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="1" y1="1" x2="23" y2="23"/><path d="M9 9v3a3 3 0 0 0 5.12 2.12"/></svg>`
+            : `<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="1" y1="1" x2="23" y2="23"/></svg>`;
+          box.appendChild(el);
+        }
+      } else { el?.remove(); }
+    },
+
+    // ═══════════════════════════════════════
+    //  MEDIA CONTROLS
+    // ═══════════════════════════════════════
+    toggleAudio() {
+      if (!this.localStream) return;
+      this.audioOn = !this.audioOn;
+      this.localStream.getAudioTracks().forEach(t => { t.enabled = this.audioOn; });
+      this.sendWs({ type: 'TOGGLE_AUDIO', data: { enabled: this.audioOn } });
+    },
+
+    toggleVideo() {
+      if (!this.localStream) return;
+      this.videoOn = !this.videoOn;
+      this.localStream.getVideoTracks().forEach(t => { t.enabled = this.videoOn; });
+      this.sendWs({ type: 'TOGGLE_VIDEO', data: { enabled: this.videoOn } });
+    },
+
+    async toggleScreen() {
+      if (this.screenStream) {
+        this.screenStream.getTracks().forEach(t => t.stop()); this.screenStream = null;
+        if (this.localStream) {
+          const vt = this.localStream.getVideoTracks()[0];
+          Object.values(this.peers).forEach(pc => { const s = pc.getSenders().find(s => s.track?.kind === 'video'); if (s && vt) s.replaceTrack(vt); });
+        }
+        this.sendWs({ type: 'SCREEN_SHARE_STOP' });
+        await this.$nextTick();
+        if (this.$refs.localVideo && this.localStream) this.$refs.localVideo.srcObject = this.localStream;
+      } else {
+        try {
+          this.screenStream = await navigator.mediaDevices.getDisplayMedia({ video: true });
+          const st = this.screenStream.getVideoTracks()[0];
+          Object.values(this.peers).forEach(pc => { const s = pc.getSenders().find(s => s.track?.kind === 'video'); if (s) s.replaceTrack(st); });
+          await this.$nextTick();
+          if (this.$refs.screenVideo)  this.$refs.screenVideo.srcObject  = this.screenStream;
+          if (this.$refs.localVideo && this.localStream) this.$refs.localVideo.srcObject = this.localStream;
+          st.onended = () => this.toggleScreen();
+          this.sendWs({ type: 'SCREEN_SHARE_START' });
+        } catch (err) { console.error('Screen share:', err); }
+      }
+    },
+
+    remoteScreenStart(peerId) {
+      this.activePresenterId = peerId;
+      const box = document.getElementById(`nv-badges-${peerId}`);
+      if (box) {
+        const el = document.createElement('span'); el.id = `nv-pres-${peerId}`; el.className = 'nv-badge nv-badge--blue';
+        el.innerHTML = `<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>`;
+        box.appendChild(el);
+      }
+    },
+
+    remoteScreenStop(peerId) {
+      if (this.activePresenterId === peerId) this.activePresenterId = null;
+      document.getElementById(`nv-pres-${peerId}`)?.remove();
+    },
+
+    // ═══════════════════════════════════════
+    //  HOST: END MEETING
+    // ═══════════════════════════════════════
+    endMeeting() {
+      this.showEndModal = true;
+    },
+
+    async confirmEndMeeting() {
+      this.ending = true;
+      try {
+        // 1. Call backend to mark meeting as ended
+        const res = await fetch(`${API}/meetings/end/${this.meetingCode}`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${this.token}`,
+            'Content-Type': 'application/json',
+            'ngrok-skip-browser-warning': 'true',
+          },
+        });
+
+        // Non-fatal if endpoint doesn't exist yet — we still broadcast and cleanup
+        if (!res.ok) {
+          console.warn('End API returned non-OK, continuing with broadcast');
+        }
+
+        // 2. Broadcast MEETING_ENDED to all peers via WS so their UI updates
+        this.sendWs({ type: 'MEETING_ENDED', data: { endedBy: this.userName } });
+
+      } catch (err) {
+        console.error('End meeting error:', err);
+        // Still proceed with local cleanup even if API fails
+      }
+
+      // 3. Small delay so WS message propagates
+      setTimeout(() => {
+        this.ending = false;
+        this.showEndModal = false;
+        sessionStorage.removeItem('nova_is_host');
+        sessionStorage.removeItem('nova_meeting_code');
+        this.cleanupAndNavigate();
+      }, 600);
+    },
+
+    // ═══════════════════════════════════════
+    //  HOST: RESTART MEETING
+    // ═══════════════════════════════════════
+    restartMeeting() {
+      this.showRestartModal = true;
+    },
+
+    async confirmRestartMeeting() {
+      this.restarting = true;
+      try {
+        // 1. End the current session on backend
+        await fetch(`${API}/meetings/end/${this.meetingCode}`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${this.token}`,
+            'Content-Type': 'application/json',
+            'ngrok-skip-browser-warning': 'true',
+          },
+        }).catch(() => {});
+
+        // 2. Start a fresh session on backend
+        await fetch(`${API}/meetings/start/${this.meetingCode}`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${this.token}`,
+            'ngrok-skip-browser-warning': 'true',
+          },
+        }).catch(() => {});
+
+        // 3. Notify all peers
+        this.sendWs({ type: 'MEETING_RESTARTED', data: { restartedBy: this.userName } });
+
+        // 4. Cleanup and re-init local state
+        this.cleanupPeers();
+
+        // Close old WebSocket
+        if (this.ws) {
+          this.ws.onclose = null; // prevent stray handler
+          this.ws.close();
+          this.ws = null;
+        }
+
+        this.showRestartModal = false;
+        this.restarting = false;
+        this.messages = [];
+        this.showToast('Meeting restarted!');
+
+        // Re-connect
+        await this.$nextTick();
+        this.connectWebSocket();
+
+      } catch (err) {
+        console.error('Restart meeting error:', err);
+        this.restarting = false;
+        this.showToast('Failed to restart meeting.', 'error');
+      }
+    },
+
+    // ═══════════════════════════════════════
+    //  CHAT
+    // ═══════════════════════════════════════
+    toggleChat() {
+      this.chatOpen = !this.chatOpen;
+      if (this.chatOpen) this.unreadCount = 0;
+    },
+
+    sendMessage() {
+      const text = this.chatMessage.trim(); if (!text) return;
+      this.addMsg(this.userName, text, true);
+      this.sendWs({ type: 'CHAT_MESSAGE', data: { message: text, senderName: this.userName, timestamp: Date.now() } });
+      this.chatMessage = '';
+    },
+
+    addMsg(sender, text, isSelf) {
+      this.messages.push({ id: Date.now() + Math.random(), sender, text, isSelf });
+      this.$nextTick(() => { const c = this.$refs.messagesContainer; if (c) c.scrollTop = c.scrollHeight; });
+    },
+
+    // ═══════════════════════════════════════
+    //  UTILITIES
+    // ═══════════════════════════════════════
+    copyMeetingCode() {
+      navigator.clipboard.writeText(this.meetingCode).then(() => this.showToast('Code copied!'));
     },
 
     showToast(msg, type = 'success') {
-      this.toast = { show: true, message: msg, type };
-      setTimeout(() => { this.toast.show = false; }, 3000);
+      this.toastMessage = msg;
+      this.toastType = type;
+      this.toastVisible = true;
+      setTimeout(() => { this.toastVisible = false; }, 2800);
+    },
+
+    goBack() {
+      this.$router.push(this.isAuthenticated ? '/meeting-dashboard' : '/join-meeting');
+    },
+
+    // ── Shared cleanup helper ──
+    cleanupAndNavigate() {
+      this.localStream?.getTracks().forEach(t => t.stop());
+      this.screenStream?.getTracks().forEach(t => t.stop());
+      Object.values(this.peers).forEach(pc => pc.close()); this.peers = {};
+      if (this.ws) { this.sendWs({ type: 'LEAVE' }); this.ws.close(); }
+      sessionStorage.removeItem('nova_meeting_code');
+      sessionStorage.removeItem('nova_is_host');
+      clearInterval(this.clockInterval);
+      this.$router.push(this.isAuthenticated ? '/meeting-dashboard' : '/join-meeting');
+    },
+
+    leave() {
+      const msg = this.isHost
+        ? 'Leave this meeting? (Other participants will stay. Use "End" to close for everyone.)'
+        : 'Leave this meeting?';
+      if (!confirm(msg)) return;
+      this.cleanupAndNavigate();
     },
   },
 
   mounted() {
-    if (!this.isAuthenticated) { this.$router.push('/auth'); return; }
-    document.addEventListener('click', e => {
-      if (this.$refs.sortWrap && !this.$refs.sortWrap.contains(e.target)) {
-        this.showSortMenu = false;
+    const forceCreate = this.$route?.query?.create === 'true';
+    if (forceCreate) {
+      sessionStorage.removeItem('nova_meeting_code');
+      sessionStorage.removeItem('nova_is_host');
+      this.view = 'create';
+    } else {
+      const routeCode = this.$route?.params?.code || sessionStorage.getItem('nova_meeting_code');
+      if (routeCode) {
+        this.meetingCode = routeCode;
+        this.isHost = sessionStorage.getItem('nova_is_host') === 'true';
+        this.view = 'meeting';
+        this.$nextTick(() => this.initMeeting());
       }
+    }
+
+    window.addEventListener('keydown', (e) => {
+      if (this.view !== 'meeting') return;
+      if (e.key === 'd') this.toggleVideo();
+      if (e.key === 'a') this.toggleAudio();
     });
-    this.fetchMeetingsData();
+  },
+
+  beforeUnmount() {
+    clearInterval(this.clockInterval);
+    this.localStream?.getTracks().forEach(t => t.stop());
+    this.screenStream?.getTracks().forEach(t => t.stop());
+    Object.values(this.peers).forEach(pc => pc.close());
+    this.ws?.close();
   },
 };
 </script>
 
 <style scoped>
-@import url('https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Space+Grotesk:wght@400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Google+Sans:wght@400;500;600&family=Google+Sans+Mono&display=swap');
 
-.md-wrap {
-  --md-blue:      #4a90e2;
-  --md-blue-dk:   #2c6fbd;
-  --md-blue-soft: #e8f2fc;
-  --md-blue-mid:  #c9dff5;
-  --md-blue-glow: rgba(74, 144, 226, 0.22);
-  --md-ink:       #0d1b36;
-  --md-ink-s:     #2d3748;
-  --md-ink-m:     #64748b;
-  --md-white:     #ffffff;
-  --md-border:    #e2ecf6;
-  --md-bg:        #f8fafc;
-  --md-purple:    #8b5cf6;
-  --md-green:     #10b981;
-  --md-orange:    #f59e0b;
-  --md-red:       #ef4444;
-  --md-pink:      #ec4899;
-  --md-cyan:      #06b6d4;
-  --md-surf:      #ffffff;
-  --md-surf2:     #f0f6fd;
-  --md-surf3:     #e8f2fc;
-  --md-shadow-sm: 0 1px 3px rgba(13, 27, 54, 0.08);
-  --md-shadow-md: 0 4px 12px rgba(13, 27, 54, 0.10);
-  --md-shadow-lg: 0 10px 28px rgba(13, 27, 54, 0.12);
-  --md-r: 12px;
+.nv-root {
+  --c-bg:      #202124;
+  --c-surf:    #292b2f;
+  --c-surf2:   #3c4043;
+  --c-line:    #3c4043;
+  --c-blue:    #1a73e8;
+  --c-blue2:   #174ea6;
+  --c-green:   #34a853;
+  --c-red:     #ea4335;
+  --c-red-bg:  rgba(234,67,53,.15);
+  --c-orange:  #fa7b17;
+  --c-text:    #e8eaed;
+  --c-text2:   #9aa0a6;
+  --c-r:       8px;
+  font-family: 'Google Sans', 'DM Sans', system-ui, sans-serif;
+}
 
-  font-family: 'Manrope', system-ui, sans-serif;
-  background: var(--md-bg);
-  color: var(--md-ink);
+/* ══════════════════════════════════════════════════
+   CREATE MEETING — Phase 1
+══════════════════════════════════════════════════ */
+.nv-create-wrap {
   min-height: 100vh;
+  background: var(--c-bg);
+  color: var(--c-text);
   display: flex;
   flex-direction: column;
 }
-.md-wrap * { box-sizing: border-box; margin: 0; padding: 0; }
 
-/* NAV */
-.md-nav {
-  height: 64px; flex-shrink: 0;
-  background: var(--md-white);
-  border-bottom: 1px solid var(--md-border);
-  position: sticky; top: 0; z-index: 100;
-  box-shadow: var(--md-shadow-sm);
-}
-.md-nav-inner {
-  height: 100%; max-width: 1600px; margin: 0 auto; padding: 0 28px;
+.nv-cnav {
   display: flex; align-items: center; justify-content: space-between;
+  padding: 14px 32px;
+  background: var(--c-surf);
+  border-bottom: 1px solid var(--c-line);
 }
-.md-nav-left, .md-nav-right { display: flex; align-items: center; gap: 14px; }
-
-.md-back {
+.nv-cbrand {
+  display: flex; align-items: center; gap: 10px;
+  font-size: 17px; font-weight: 600; color: var(--c-text);
+  cursor: pointer;
+}
+.nv-cnav-back {
   display: flex; align-items: center; gap: 7px;
-  color: var(--md-ink-m); text-decoration: none;
-  font-size: 13px; font-weight: 600;
-  padding: 7px 12px; border-radius: var(--md-r); transition: all .15s;
+  padding: 7px 16px; border: 1px solid var(--c-line);
+  border-radius: var(--c-r); background: transparent;
+  color: var(--c-text2); font-family: inherit; font-size: 13px;
+  font-weight: 500; cursor: pointer; transition: all .15s;
 }
-.md-back:hover { background: var(--md-blue-soft); color: var(--md-blue); }
-.md-nav-divider { width: 1px; height: 22px; background: var(--md-border); }
-.md-page-id    { display: flex; align-items: center; gap: 12px; }
-.md-brand      { display: flex; align-items: center; gap: 8px; }
-.md-brand svg  { border-radius: 8px; box-shadow: var(--md-shadow-sm); }
-.md-brand-name { font-family: 'Space Grotesk', sans-serif; font-size: 16px; font-weight: 700; color: var(--md-ink); }
-.md-page-meta  { display: flex; flex-direction: column; gap: 1px; padding-left: 12px; border-left: 1px solid var(--md-border); }
-.md-page-title { font-size: 14px; font-weight: 700; color: var(--md-ink); line-height: 1.2; }
-.md-page-sub   { font-size: 11px; color: var(--md-ink-m); font-weight: 500; }
+.nv-cnav-back:hover { border-color: var(--c-blue); color: var(--c-text); background: rgba(26,115,232,.08); }
 
-.md-btn {
-  display: inline-flex; align-items: center; gap: 7px;
-  padding: 8px 18px; border-radius: var(--md-r);
-  font-family: 'Manrope', sans-serif; font-size: 13px; font-weight: 700;
-  cursor: pointer; border: none; transition: all .18s;
-}
-.md-btn--ghost { background: transparent; border: 1.5px solid var(--md-border); color: var(--md-ink-m); }
-.md-btn--ghost:hover { border-color: var(--md-blue); color: var(--md-blue); background: var(--md-blue-soft); }
-.md-btn--primary { background: var(--md-blue); color: var(--md-white); box-shadow: 0 2px 10px var(--md-blue-glow); }
-.md-btn--primary:hover { background: var(--md-blue-dk); transform: translateY(-1px); box-shadow: 0 4px 16px var(--md-blue-glow); }
+.nv-cmain { max-width: 560px; margin: 0 auto; padding: 44px 24px 60px; width: 100%; }
+.nv-chead { margin-bottom: 28px; }
+.nv-ctitle { font-size: 26px; font-weight: 600; color: var(--c-text); letter-spacing: -.3px; margin-bottom: 6px; }
+.nv-csub   { font-size: 14px; color: var(--c-text2); }
 
-/* MAIN */
-.md-main { flex: 1; max-width: 1600px; margin: 0 auto; padding: 28px; width: 100%; }
+.nv-card {
+  background: var(--c-surf);
+  border: 1px solid var(--c-line);
+  border-radius: 16px;
+  padding: 32px;
+  box-shadow: 0 8px 40px rgba(0,0,0,.4);
+}
 
-.md-state-panel {
-  display: flex; flex-direction: column; align-items: center; justify-content: center;
-  min-height: 380px; gap: 16px; background: var(--md-white);
-  border: 1px solid var(--md-border); border-radius: 16px; padding: 48px;
-  box-shadow: var(--md-shadow-sm);
+.nv-success-banner {
+  display: flex; align-items: center; gap: 14px;
+  padding: 16px 18px; border-radius: 12px;
+  background: rgba(52,168,83,.1); border: 1px solid rgba(52,168,83,.3);
+  margin-bottom: 24px; flex-wrap: wrap;
 }
-.md-state-text { font-size: 15px; color: var(--md-ink-m); font-weight: 600; }
-.md-spinner {
-  width: 40px; height: 40px;
-  border: 3px solid var(--md-blue-mid); border-top-color: var(--md-blue);
-  border-radius: 50%; animation: md-spin .75s linear infinite;
-}
-@keyframes md-spin { to { transform: rotate(360deg); } }
-.md-state-icon { width: 52px; height: 52px; border-radius: 50%; display: flex; align-items: center; justify-content: center; }
-.md-state-icon--red { background: rgba(239,68,68,0.1); color: var(--md-red); border: 1px solid rgba(239,68,68,0.2); }
-
-.md-content { display: flex; flex-direction: column; gap: 20px; }
-
-/* STATS ROW */
-.md-stats-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; }
-.md-stat {
-  background: var(--md-white); border: 1px solid var(--md-border); border-radius: 14px;
-  padding: 18px 20px; display: flex; align-items: flex-start; gap: 14px;
-  cursor: default; transition: border-color .15s, box-shadow .15s, transform .15s;
-  box-shadow: var(--md-shadow-sm);
-}
-.md-stat:hover { border-color: var(--md-blue-mid); box-shadow: var(--md-shadow-md); transform: translateY(-1px); }
-.md-stat--live { border-color: rgba(239,68,68,0.3); }
-.md-stat-icon {
-  width: 44px; height: 44px; border-radius: 12px; flex-shrink: 0;
-  display: flex; align-items: center; justify-content: center; position: relative;
-}
-.md-stat-icon--blue  { background: var(--md-blue-soft);         color: var(--md-blue); }
-.md-stat-icon--red   { background: rgba(239,68,68,0.10);        color: var(--md-red); }
-.md-stat-icon--green { background: rgba(16,185,129,0.12);       color: var(--md-green); }
-.md-stat-icon--amber { background: rgba(245,158,11,0.12);       color: var(--md-orange); }
-.md-live-ring {
-  position: absolute; inset: -5px; border-radius: 50%;
-  border: 2px solid rgba(239,68,68,0.35);
-  animation: md-ring-pulse 2s ease-out infinite;
-}
-@keyframes md-ring-pulse { 0% { opacity:.8; transform:scale(1); } 100% { opacity:0; transform:scale(1.6); } }
-.md-stat-body      { flex: 1; display: flex; flex-direction: column; gap: 3px; }
-.md-stat-label-row { display: flex; align-items: center; gap: 8px; }
-.md-stat-label { font-size: 12px; font-weight: 700; color: var(--md-ink-m); letter-spacing: .2px; text-transform: uppercase; }
-.md-stat-val   { font-family: 'Space Grotesk', sans-serif; font-size: 30px; font-weight: 700; color: var(--md-ink); line-height: 1.1; }
-.md-stat-sub   { font-size: 11px; color: var(--md-ink-m); font-weight: 500; }
-.md-live-chip {
-  font-size: 9px; font-weight: 800; letter-spacing: .6px; padding: 2px 6px; border-radius: 4px;
-  background: rgba(239,68,68,0.10); color: var(--md-red); border: 1px solid rgba(239,68,68,0.25);
-  animation: md-blink 2s ease-in-out infinite;
-}
-@keyframes md-blink { 0%, 100% { opacity: 1; } 50% { opacity: .5; } }
-
-/* FILTER BAR */
-.md-filters { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
-.md-filter-tabs {
-  display: flex; gap: 4px; background: var(--md-white);
-  border: 1px solid var(--md-border); border-radius: 12px; padding: 4px;
-  box-shadow: var(--md-shadow-sm);
-}
-.md-tab {
-  display: flex; align-items: center; gap: 7px; padding: 8px 16px;
-  border: none; background: transparent; color: var(--md-ink-m);
-  font-family: 'Manrope', sans-serif; font-size: 13px; font-weight: 600;
-  border-radius: 8px; cursor: pointer; transition: all .15s;
-}
-.md-tab:hover { color: var(--md-blue); background: var(--md-blue-soft); }
-.md-tab--active { background: var(--md-blue); color: var(--md-white); box-shadow: 0 2px 8px var(--md-blue-glow); }
-.md-tab--active:hover { background: var(--md-blue); }
-.md-tab-count {
-  min-width: 18px; height: 18px; padding: 0 5px; border-radius: 9px;
-  font-size: 10px; font-weight: 700; display: inline-flex; align-items: center; justify-content: center;
-  background: rgba(255,255,255,0.25);
-}
-.md-tab:not(.md-tab--active) .md-tab-count { background: var(--md-blue-soft); color: var(--md-blue); }
-
-.md-sort-wrap { position: relative; }
-.md-sort-btn {
-  display: flex; align-items: center; gap: 7px; padding: 8px 14px;
-  background: var(--md-white); border: 1px solid var(--md-border); border-radius: var(--md-r);
-  color: var(--md-ink-m); font-family: 'Manrope', sans-serif; font-size: 13px; font-weight: 600;
-  cursor: pointer; transition: all .15s; box-shadow: var(--md-shadow-sm);
-}
-.md-sort-btn:hover { border-color: var(--md-blue); color: var(--md-blue); background: var(--md-blue-soft); }
-.md-sort-menu {
-  position: absolute; top: calc(100% + 6px); right: 0; min-width: 190px;
-  background: var(--md-white); border: 1px solid var(--md-border);
-  border-radius: 12px; box-shadow: var(--md-shadow-lg); padding: 6px; z-index: 50;
-}
-.md-sort-opt {
-  display: flex; align-items: center; gap: 8px; width: 100%; padding: 9px 12px;
-  border: none; background: transparent; border-radius: 8px; color: var(--md-ink-m);
-  font-family: 'Manrope', sans-serif; font-size: 13px; font-weight: 600;
-  cursor: pointer; transition: all .12s;
-}
-.md-sort-opt:hover     { background: var(--md-blue-soft); color: var(--md-blue); }
-.md-sort-opt--active   { color: var(--md-blue); background: var(--md-blue-soft); }
-.md-drop-enter-active, .md-drop-leave-active { transition: opacity .15s, transform .15s; }
-.md-drop-enter-from,   .md-drop-leave-to     { opacity: 0; transform: translateY(-6px); }
-
-/* BODY GRID */
-.md-body-grid { display: grid; grid-template-columns: 1fr 300px; gap: 18px; }
-.md-left-col  { display: flex; flex-direction: column; gap: 18px; min-width: 0; }
-
-.md-panel { background: var(--md-white); border: 1px solid var(--md-border); border-radius: 16px; overflow: hidden; box-shadow: var(--md-shadow-sm); }
-.md-panel-hdr {
-  padding: 18px 22px; border-bottom: 1px solid var(--md-border);
-  display: flex; align-items: center; justify-content: space-between;
-  background: linear-gradient(to right, var(--md-white), var(--md-surf2));
-}
-.md-panel-title { font-family: 'Space Grotesk', sans-serif; font-size: 16px; font-weight: 700; color: var(--md-ink); }
-.md-panel-body  { padding: 20px 22px; }
-
-.md-active-panel { border-color: rgba(239,68,68,0.25); }
-.md-live-badge {
-  display: flex; align-items: center; gap: 6px;
-  font-size: 10px; font-weight: 800; letter-spacing: .5px;
-  padding: 4px 10px; border-radius: 20px;
-  background: rgba(239,68,68,0.10); border: 1px solid rgba(239,68,68,0.25); color: var(--md-red);
-}
-.md-live-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--md-red); animation: md-blink 2s ease-in-out infinite; }
-.md-active-list { display: flex; flex-direction: column; gap: 10px; }
-.md-active-row {
-  display: flex; align-items: center; gap: 14px; padding: 14px 16px;
-  border-radius: 12px; background: var(--md-surf2); border: 1px solid var(--md-border);
-  border-left: 3px solid var(--md-red); transition: background .15s, box-shadow .15s;
-}
-.md-active-row:hover { background: var(--md-blue-soft); box-shadow: var(--md-shadow-sm); }
-.md-active-pulse-wrap { position: relative; width: 10px; height: 10px; flex-shrink: 0; }
-.md-active-pulse { position: absolute; inset: 0; border-radius: 50%; background: var(--md-red); }
-.md-active-pulse::after {
-  content: ''; position: absolute; inset: -3px; border-radius: 50%;
-  border: 2px solid var(--md-red); animation: md-ring-pulse 1.8s ease-out infinite;
-}
-.md-active-info  { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 5px; }
-.md-active-top   { display: flex; align-items: center; gap: 10px; }
-.md-active-title { font-size: 14px; font-weight: 700; color: var(--md-ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.md-active-code  {
-  font-family: 'Space Grotesk', monospace; font-size: 11px; color: var(--md-blue);
-  background: var(--md-blue-soft); padding: 3px 8px; border-radius: 5px;
-  border: 1px solid var(--md-blue-mid); white-space: nowrap; flex-shrink: 0;
-}
-.md-active-meta { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
-.md-active-meta span { display: flex; align-items: center; gap: 5px; font-size: 12px; color: var(--md-ink-m); font-weight: 600; }
-.md-join-now-btn {
-  display: flex; align-items: center; gap: 6px; padding: 8px 16px;
-  background: var(--md-red); color: var(--md-white); border: none; border-radius: 8px;
-  font-family: 'Manrope', sans-serif; font-size: 13px; font-weight: 700;
-  cursor: pointer; white-space: nowrap; flex-shrink: 0;
-  box-shadow: 0 2px 10px rgba(239,68,68,0.25); transition: all .15s;
-}
-.md-join-now-btn:hover { background: #dc2626; transform: translateY(-1px); box-shadow: 0 4px 16px rgba(239,68,68,0.3); }
-
-/* MEETING CARDS */
-.md-card-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 14px; }
-.md-mcard {
-  background: var(--md-white); border: 1px solid var(--md-border); border-radius: 14px;
-  overflow: hidden; display: flex; flex-direction: column;
-  transition: border-color .15s, box-shadow .15s, transform .15s; box-shadow: var(--md-shadow-sm);
-}
-.md-mcard:hover { border-color: var(--md-blue-mid); box-shadow: var(--md-shadow-lg); transform: translateY(-2px); }
-.md-mcard-top { display: flex; align-items: center; justify-content: space-between; padding: 14px 16px 10px; }
-.md-status-chip {
-  display: inline-flex; align-items: center; gap: 5px;
-  font-size: 10px; font-weight: 800; letter-spacing: .5px;
-  padding: 4px 10px; border-radius: 20px; text-transform: uppercase;
-}
-.md-status--live      { background: rgba(239,68,68,0.10); color: var(--md-red);   border: 1px solid rgba(239,68,68,0.25); }
-.md-status--scheduled { background: var(--md-blue-soft);  color: var(--md-blue);  border: 1px solid var(--md-blue-mid); }
-.md-status--completed { background: rgba(16,185,129,0.10);color: var(--md-green); border: 1px solid rgba(16,185,129,0.25); }
-.md-status--cancelled { background: var(--md-surf2);       color: var(--md-ink-m); border: 1px solid var(--md-border); }
-.md-status-dot { width: 5px; height: 5px; border-radius: 50%; background: var(--md-red); animation: md-blink 2s ease-in-out infinite; }
-.md-menu-btn {
-  width: 30px; height: 30px; border-radius: 8px; border: none;
-  background: transparent; color: var(--md-ink-m); cursor: pointer;
-  display: flex; align-items: center; justify-content: center; transition: all .12s;
-}
-.md-menu-btn:hover { background: var(--md-blue-soft); color: var(--md-blue); }
-.md-mcard-body { padding: 0 16px 14px; flex: 1; display: flex; flex-direction: column; gap: 10px; }
-.md-mcard-title { font-family: 'Space Grotesk', sans-serif; font-size: 16px; font-weight: 700; color: var(--md-ink); line-height: 1.3; }
-.md-mcard-desc  { font-size: 13px; color: var(--md-ink-m); line-height: 1.5; font-weight: 500; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
-.md-mcard-code {
-  display: inline-flex; align-items: center; gap: 7px; align-self: flex-start;
-  padding: 7px 11px; background: var(--md-blue-soft); border: 1px solid var(--md-blue-mid);
-  border-radius: 8px; cursor: pointer; transition: border-color .15s, background .15s;
-}
-.md-mcard-code:hover { border-color: var(--md-blue); background: var(--md-blue-mid); }
-.md-mcard-code code { font-family: 'Space Grotesk', monospace; font-size: 12px; color: var(--md-blue-dk); font-weight: 600; letter-spacing: .5px; }
-.md-copy-icon { color: var(--md-ink-m); opacity: 0; transition: opacity .15s; }
-.md-mcard-code:hover .md-copy-icon { opacity: 1; }
-.md-mcard-meta { display: flex; flex-wrap: wrap; gap: 8px 14px; }
-.md-meta-item  { display: flex; align-items: center; gap: 5px; font-size: 12px; color: var(--md-ink-m); font-weight: 600; }
-.md-meta-item svg { flex-shrink: 0; color: var(--md-blue); }
-.md-mcard-features { display: flex; flex-wrap: wrap; gap: 6px; }
-.md-feat {
-  display: flex; align-items: center; gap: 4px; padding: 3px 9px;
-  background: var(--md-surf2); border: 1px solid var(--md-border);
-  border-radius: 6px; font-size: 11px; font-weight: 600; color: var(--md-ink-m);
-}
-.md-feat svg { color: var(--md-blue); }
-.md-mcard-foot {
-  display: flex; align-items: center; justify-content: space-between; gap: 10px;
-  padding: 12px 16px; border-top: 1px solid var(--md-border); background: var(--md-surf2);
-}
-.md-host { display: flex; align-items: center; gap: 9px; min-width: 0; flex: 1; }
-.md-host-av {
-  width: 34px; height: 34px; border-radius: 50%; flex-shrink: 0;
-  background: linear-gradient(135deg, var(--md-blue), var(--md-blue-dk));
+.nv-success-check {
+  width: 36px; height: 36px; border-radius: 50%;
+  background: rgba(52,168,83,.2); border: 1px solid rgba(52,168,83,.4);
   display: flex; align-items: center; justify-content: center;
-  font-size: 13px; font-weight: 800; color: var(--md-white);
-  box-shadow: 0 2px 8px var(--md-blue-glow);
+  color: #81c995; flex-shrink: 0;
 }
-.md-host-info  { display: flex; flex-direction: column; min-width: 0; }
-.md-host-lbl   { font-size: 10px; font-weight: 700; color: var(--md-ink-m); text-transform: uppercase; letter-spacing: .4px; }
-.md-host-name  { font-size: 13px; font-weight: 600; color: var(--md-ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.md-mcard-actions { display: flex; gap: 7px; flex-shrink: 0; }
-.md-btn-join {
-  display: flex; align-items: center; gap: 5px; padding: 7px 14px;
-  background: var(--md-blue); color: var(--md-white); border: none; border-radius: 8px;
-  font-family: 'Manrope', sans-serif; font-size: 12px; font-weight: 700;
-  cursor: pointer; white-space: nowrap; transition: all .15s; box-shadow: 0 2px 8px var(--md-blue-glow);
+.nv-success-title { font-size: 14px; font-weight: 600; color: var(--c-text); }
+.nv-success-sub   { font-size: 12px; color: var(--c-text2); margin-top: 2px; }
+.nv-code-pill {
+  display: flex; align-items: center; gap: 7px;
+  margin-left: auto;
+  padding: 8px 16px; border-radius: 24px;
+  background: rgba(52,168,83,.12); border: 1px solid rgba(52,168,83,.3);
+  font-family: 'Google Sans Mono', monospace; font-size: 15px;
+  font-weight: 600; color: #81c995; cursor: pointer;
+  letter-spacing: 1px; transition: background .15s;
 }
-.md-btn-join:hover { background: var(--md-blue-dk); transform: translateY(-1px); }
-.md-btn-details {
-  padding: 7px 14px; background: transparent; border: 1.5px solid var(--md-border);
-  border-radius: 8px; color: var(--md-ink-m); font-family: 'Manrope', sans-serif;
-  font-size: 12px; font-weight: 600; cursor: pointer; transition: all .15s;
-}
-.md-btn-details:hover { border-color: var(--md-blue); color: var(--md-blue); background: var(--md-blue-soft); }
+.nv-code-pill:hover { background: rgba(52,168,83,.22); }
 
-/* EMPTY STATE */
-.md-empty { display: flex; flex-direction: column; align-items: center; padding: 64px 24px; text-align: center; gap: 12px; }
-.md-empty-icon {
-  width: 72px; height: 72px; border-radius: 50%;
-  background: var(--md-blue-soft); border: 1.5px solid var(--md-blue-mid);
-  display: flex; align-items: center; justify-content: center; color: var(--md-blue);
+.nv-section-label {
+  font-size: 11px; font-weight: 600; letter-spacing: .8px;
+  text-transform: uppercase; color: var(--c-text2); margin-bottom: 14px;
 }
-.md-empty-msg { font-size: 15px; font-weight: 600; color: var(--md-ink-m); }
-.md-empty-actions { display: flex; gap: 10px; margin-top: 8px; flex-wrap: wrap; justify-content: center; }
+.nv-field { margin-bottom: 16px; }
+.nv-flabel { display: block; font-size: 13px; font-weight: 500; color: var(--c-text2); margin-bottom: 7px; }
+.nv-req { color: var(--c-red); }
+.nv-opt { color: #5f6368; font-weight: 400; }
+.nv-finput {
+  width: 100%; padding: 11px 14px;
+  background: var(--c-surf2); border: 1px solid var(--c-line);
+  border-radius: var(--c-r); color: var(--c-text);
+  font-family: inherit; font-size: 14px;
+  transition: border-color .15s, box-shadow .15s;
+}
+.nv-finput::placeholder { color: #5f6368; }
+.nv-finput:focus { outline: none; border-color: var(--c-blue); box-shadow: 0 0 0 3px rgba(26,115,232,.18); }
+.nv-ftextarea { resize: vertical; min-height: 70px; line-height: 1.5; }
+.nv-row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
 
-/* SIDEBAR */
-.md-sidebar { position: sticky; top: 82px; align-self: flex-start; }
-.md-sidebar-stats { display: flex; flex-direction: column; gap: 10px; margin-bottom: 22px; }
-.md-ss-item {
-  display: flex; align-items: center; gap: 12px; padding: 12px 14px;
-  background: var(--md-surf2); border-radius: 10px; border: 1px solid var(--md-border);
-  transition: background .15s, border-color .15s;
+.nv-toggle-list { border: 1px solid var(--c-line); border-radius: var(--c-r); overflow: hidden; }
+.nv-trow {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 13px 16px; cursor: pointer;
+  border-bottom: 1px solid var(--c-line);
+  transition: background .12s;
 }
-.md-ss-item:hover { background: var(--md-blue-soft); border-color: var(--md-blue-mid); }
-.md-ss-icon { width: 36px; height: 36px; border-radius: 9px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; }
-.md-ss-icon--blue   { background: var(--md-blue-soft);         color: var(--md-blue); }
-.md-ss-icon--green  { background: rgba(16,185,129,0.12);       color: var(--md-green); }
-.md-ss-icon--amber  { background: rgba(245,158,11,0.12);       color: var(--md-orange); }
-.md-ss-icon--purple { background: rgba(139,92,246,0.12);       color: var(--md-purple); }
-.md-ss-body { display: flex; flex-direction: column; }
-.md-ss-val  { font-family: 'Space Grotesk', sans-serif; font-size: 20px; font-weight: 700; color: var(--md-ink); line-height: 1.1; }
-.md-ss-lbl  { font-size: 11px; color: var(--md-ink-m); font-weight: 600; margin-top: 2px; }
+.nv-trow:last-child { border-bottom: none; }
+.nv-trow:hover { background: rgba(255,255,255,.03); }
+.nv-trow-label { font-size: 14px; color: var(--c-text); }
+.nv-trow-sub   { font-size: 12px; color: var(--c-text2); margin-top: 2px; }
+.nv-switch {
+  width: 40px; height: 22px; border-radius: 22px;
+  background: var(--c-surf2); border: 1px solid var(--c-line);
+  position: relative; flex-shrink: 0; transition: background .2s, border-color .2s;
+}
+.nv-switch--on { background: var(--c-blue); border-color: var(--c-blue); }
+.nv-switch-thumb {
+  position: absolute; width: 16px; height: 16px; border-radius: 50%;
+  background: var(--c-text2); top: 2px; left: 2px;
+  transition: transform .2s, background .2s;
+}
+.nv-switch--on .nv-switch-thumb { transform: translateX(18px); background: #fff; }
 
-.md-chart-section { border-top: 1px solid var(--md-border); padding-top: 20px; margin-top: 4px; }
-.md-chart-title   { font-family: 'Space Grotesk', sans-serif; font-size: 13px; font-weight: 700; color: var(--md-ink); margin-bottom: 14px; }
-.md-chart {
-  display: flex; align-items: flex-end; justify-content: space-between; gap: 5px;
-  height: 90px; padding: 10px; background: var(--md-surf2); border-radius: 10px; border: 1px solid var(--md-border);
+.nv-btn-primary {
+  width: 100%; margin-top: 24px; padding: 13px 20px;
+  background: var(--c-blue); border: none; border-radius: var(--c-r);
+  color: #fff; font-family: inherit; font-size: 15px; font-weight: 600;
+  cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px;
+  transition: background .15s, transform .1s, box-shadow .15s;
+  box-shadow: 0 2px 12px rgba(26,115,232,.35);
 }
-.md-chart-col    { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 6px; height: 100%; }
-.md-chart-track  { flex: 1; width: 100%; display: flex; align-items: flex-end; }
-.md-chart-bar    { width: 100%; border-radius: 4px 4px 0 0; min-height: 3px; background: linear-gradient(180deg, var(--md-blue) 0%, var(--md-blue-dk) 100%); opacity: 0.65; transition: opacity .2s; }
-.md-chart-col:hover .md-chart-bar { opacity: 1; }
-.md-chart-lbl    { font-size: 9px; font-weight: 700; color: var(--md-ink-m); text-transform: uppercase; letter-spacing: .3px; }
+.nv-btn-primary:hover:not(:disabled) { background: var(--c-blue2); transform: translateY(-1px); box-shadow: 0 6px 20px rgba(26,115,232,.45); }
+.nv-btn-primary:disabled { opacity: .55; cursor: not-allowed; }
 
-.md-quick-stats { border-top: 1px solid var(--md-border); padding-top: 18px; margin-top: 18px; display: flex; flex-direction: column; gap: 8px; }
-.md-qs-row {
-  display: flex; align-items: center; justify-content: space-between; padding: 9px 12px;
-  background: var(--md-surf2); border-radius: 8px; border: 1px solid var(--md-border); transition: background .15s;
-}
-.md-qs-row:hover { background: var(--md-blue-soft); }
-.md-qs-lbl { font-size: 12px; font-weight: 600; color: var(--md-ink-m); }
-.md-qs-val { font-family: 'Space Grotesk', sans-serif; font-size: 14px; font-weight: 700; color: var(--md-ink); }
+.nv-btn-go { background: #34a853; box-shadow: 0 2px 12px rgba(52,168,83,.35); }
+.nv-btn-go:hover:not(:disabled) { background: #2d9248; box-shadow: 0 6px 20px rgba(52,168,83,.45); }
 
-/* TOAST */
-.md-toast {
-  position: fixed; bottom: 28px; right: 28px; z-index: 1000;
-  display: flex; align-items: center; gap: 10px; padding: 12px 20px;
-  border-radius: 12px; font-size: 13px; font-weight: 700;
-  box-shadow: var(--md-shadow-lg); pointer-events: none;
+.nv-btn-ghost {
+  width: 100%; margin-top: 10px; padding: 12px 20px;
+  background: transparent; border: 1px solid var(--c-line);
+  border-radius: var(--c-r); color: var(--c-text2);
+  font-family: inherit; font-size: 14px; font-weight: 500;
+  cursor: pointer; transition: all .15s;
 }
-.md-toast--success { background: rgba(16,185,129,0.12); border: 1px solid rgba(16,185,129,0.3); color: var(--md-green); }
-.md-toast--error   { background: rgba(239,68,68,0.10);  border: 1px solid rgba(239,68,68,0.25);  color: var(--md-red); }
-.md-toast-fx-enter-active, .md-toast-fx-leave-active { transition: opacity .2s, transform .2s; }
-.md-toast-fx-enter-from  { opacity: 0; transform: translateY(14px); }
-.md-toast-fx-leave-to    { opacity: 0; transform: translateY(14px); }
+.nv-btn-ghost:hover { border-color: var(--c-blue); color: var(--c-text); background: rgba(26,115,232,.06); }
 
-/* RESPONSIVE */
-@media (max-width: 1280px) { .md-body-grid { grid-template-columns: 1fr 280px; } }
-@media (max-width: 1024px) {
-  .md-body-grid { grid-template-columns: 1fr; }
-  .md-sidebar   { position: static; }
-  .md-stats-row { grid-template-columns: repeat(2, 1fr); }
-  .md-card-grid { grid-template-columns: 1fr; }
+.nv-postcreate { margin-top: 8px; }
+
+.nv-alert-error {
+  display: flex; align-items: center; gap: 8px;
+  margin-top: 14px; padding: 11px 14px; border-radius: var(--c-r);
+  background: rgba(234,67,53,.1); border: 1px solid rgba(234,67,53,.3);
+  font-size: 13px; color: #f28b82;
 }
-@media (max-width: 640px) {
-  .md-nav-inner   { padding: 0 16px; }
-  .md-page-meta   { display: none; }
-  .md-main        { padding: 16px; }
-  .md-stats-row   { grid-template-columns: 1fr 1fr; gap: 10px; }
-  .md-stat-val    { font-size: 24px; }
-  .md-filter-tabs { overflow-x: auto; }
-  .md-card-grid   { grid-template-columns: 1fr; }
-  .md-active-row  { flex-wrap: wrap; }
-  .md-join-now-btn { width: 100%; justify-content: center; }
-  .md-empty-actions { flex-direction: column; width: 100%; }
+
+.nv-spinner {
+  display: inline-block; width: 14px; height: 14px;
+  border: 2px solid rgba(255,255,255,.3); border-top-color: #fff;
+  border-radius: 50%; animation: nv-spin .65s linear infinite;
 }
-@media (max-width: 480px) { .md-stats-row { grid-template-columns: 1fr; } }
+.nv-spinner--sm {
+  width: 13px; height: 13px;
+  border: 2px solid rgba(255,255,255,.25); border-top-color: currentColor;
+}
+@keyframes nv-spin { to { transform: rotate(360deg); } }
+
+/* ══════════════════════════════════════════════════
+   MEETING ROOM — Phase 2
+══════════════════════════════════════════════════ */
+.nv-meet {
+  background: var(--c-bg);
+  color: var(--c-text);
+  display: flex; flex-direction: column;
+  position: fixed; inset: 0; z-index: 9999; overflow: hidden;
+}
+
+/* Header */
+.nv-header {
+  height: 60px; flex-shrink: 0;
+  background: var(--c-bg); border-bottom: 1px solid var(--c-line);
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 0 20px; z-index: 10;
+}
+.nv-hleft, .nv-hright { display: flex; align-items: center; gap: 12px; }
+
+.nv-brand { display: flex; align-items: center; gap: 8px; }
+.nv-brand-name { font-size: 16px; font-weight: 600; letter-spacing: -.2px; }
+
+.nv-live-pill {
+  display: flex; align-items: center; gap: 5px;
+  font-size: 10px; font-weight: 600; letter-spacing: .5px;
+  padding: 3px 8px; border-radius: 20px;
+  background: rgba(234,67,53,.14); border: 1px solid rgba(234,67,53,.3); color: #f28b82;
+}
+.nv-live-dot {
+  width: 6px; height: 6px; border-radius: 50%; background: var(--c-red);
+  animation: nv-pulse 2s ease-in-out infinite;
+}
+@keyframes nv-pulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:.3;transform:scale(.65)} }
+
+/* Host badge */
+.nv-host-badge {
+  display: flex; align-items: center; gap: 5px;
+  font-size: 10px; font-weight: 600; letter-spacing: .4px;
+  padding: 3px 9px; border-radius: 20px;
+  background: rgba(250,123,23,.14); border: 1px solid rgba(250,123,23,.35);
+  color: #fba45c;
+}
+
+.nv-code-chip {
+  display: flex; align-items: center; gap: 6px;
+  padding: 5px 12px; background: var(--c-surf); border: 1px solid var(--c-line);
+  border-radius: var(--c-r); color: #8ab4f8;
+  font-family: 'Google Sans Mono', monospace; font-size: 12px;
+  cursor: pointer; transition: background .15s, border-color .15s;
+}
+.nv-code-chip:hover { background: var(--c-surf2); border-color: #8ab4f8; }
+
+.nv-pcount { display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--c-text2); }
+.nv-clock  { font-size: 13px; color: var(--c-text2); font-variant-numeric: tabular-nums; min-width: 42px; text-align: right; }
+
+.nv-hbtn {
+  display: flex; align-items: center; gap: 6px;
+  padding: 7px 14px; border: 1px solid var(--c-line); border-radius: var(--c-r);
+  background: transparent; color: var(--c-text2);
+  font-family: inherit; font-size: 13px; font-weight: 500;
+  cursor: pointer; transition: all .15s; position: relative;
+}
+.nv-hbtn:hover, .nv-hbtn--on { background: var(--c-surf2); color: var(--c-text); border-color: var(--c-surf2); }
+.nv-hbtn--danger { border-color: rgba(234,67,53,.35); color: #f28b82; }
+.nv-hbtn--danger:hover { background: rgba(234,67,53,.14); border-color: var(--c-red); color: var(--c-red); }
+
+.nv-unread {
+  min-width: 17px; height: 17px; border-radius: 9px;
+  background: var(--c-blue); color: #fff;
+  font-size: 10px; font-weight: 700;
+  display: inline-flex; align-items: center; justify-content: center; padding: 0 4px;
+}
+
+/* Grid */
+.nv-grid {
+  flex: 1; min-height: 0;
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 8px; padding: 10px; overflow-y: auto; align-content: center;
+  background: var(--c-bg);
+}
+.nv-grid--presenting { grid-template-columns: 1fr 220px; grid-template-rows: 1fr; align-content: stretch; }
+.nv-gmain    { grid-column:1; grid-row:1; display:flex; min-height:0; }
+.nv-gsidebar {
+  grid-column:2; grid-row:1;
+  display:flex; flex-direction:column; gap:8px; overflow-y:auto; min-height:0;
+}
+.nv-gsidebar .nv-tile { flex-shrink:0; aspect-ratio:16/9; }
+
+.nv-tile {
+  position: relative; background: var(--c-surf);
+  border-radius: 12px; overflow: hidden; aspect-ratio: 16/9;
+  border: 1px solid var(--c-line);
+}
+.nv-tile--screen {
+  width:100%; height:100%; aspect-ratio:unset;
+  border: 2px solid var(--c-blue);
+  box-shadow: 0 0 0 1px rgba(26,115,232,.25), 0 8px 32px rgba(26,115,232,.12);
+}
+.nv-tile video { width:100%; height:100%; object-fit:cover; display:block; }
+.nv-tile--screen video { object-fit:contain; background:#000; }
+
+.nv-tilebar {
+  position:absolute; bottom:0; left:0; right:0;
+  padding: 22px 10px 9px;
+  background: linear-gradient(to top, rgba(0,0,0,.72) 0%, transparent 100%);
+  display:flex; align-items:flex-end; justify-content:space-between;
+}
+.nv-tilemeta { display:flex; align-items:center; gap:6px; font-size:13px; font-weight:500; color:#fff; text-shadow:0 1px 3px rgba(0,0,0,.5); }
+.nv-tilebadges { display:flex; gap:4px; }
+.nv-you-dot { width:6px; height:6px; border-radius:50%; background:var(--c-green); flex-shrink:0; }
+
+.nv-badge {
+  width:22px; height:22px; border-radius:5px;
+  display:flex; align-items:center; justify-content:center;
+  backdrop-filter:blur(8px);
+}
+.nv-badge--red  { background:rgba(234,67,53,.88); }
+.nv-badge--blue { background:rgba(26,115,232,.88); }
+
+.nv-nocam {
+  position:absolute; inset:0;
+  display:flex; align-items:center; justify-content:center;
+  background:var(--c-surf);
+}
+.nv-avatar {
+  width:64px; height:64px; border-radius:50%;
+  background:linear-gradient(135deg, #1a73e8, #0d47a1);
+  display:flex; align-items:center; justify-content:center;
+  font-size:24px; font-weight:600; color:#fff;
+  box-shadow:0 4px 16px rgba(26,115,232,.35);
+}
+
+/* Controls */
+.nv-controls {
+  height:80px; flex-shrink:0;
+  background:var(--c-bg); border-top:1px solid var(--c-line);
+  display:flex; align-items:center; justify-content:center;
+}
+.nv-ctrl-row { display:flex; align-items:center; gap:6px; }
+.nv-cslot    { display:flex; flex-direction:column; align-items:center; gap:5px; }
+
+.nv-ctrl {
+  width:48px; height:48px; border-radius:50%; border:none;
+  cursor:pointer; display:flex; align-items:center; justify-content:center;
+  transition:background .15s, transform .1s; color:var(--c-text);
+}
+.nv-ctrl:hover:not(:disabled) { transform:scale(1.06); }
+.nv-ctrl:disabled { opacity: .5; cursor: not-allowed; }
+.nv-ctrl--on      { background:var(--c-surf2); border:1px solid var(--c-line); }
+.nv-ctrl--on:hover { background:#4e5256; }
+.nv-ctrl--off      { background:var(--c-red-bg); color:#f28b82; border:1px solid rgba(234,67,53,.3); }
+.nv-ctrl--off:hover { background:rgba(234,67,53,.25); }
+.nv-ctrl--sharing  { background:rgba(26,115,232,.2); color:#8ab4f8; border:1px solid rgba(26,115,232,.3); }
+.nv-ctrl--sharing:hover { background:rgba(26,115,232,.3); }
+.nv-ctrl--leave {
+  width:52px; height:52px; background:var(--c-red); color:#fff;
+  box-shadow:0 2px 12px rgba(234,67,53,.4);
+}
+.nv-ctrl--leave:hover { background:#d33828; }
+
+/* End button — bold red */
+.nv-ctrl--end {
+  width:52px; height:52px;
+  background: rgba(234,67,53,.18);
+  color: #f28b82;
+  border: 2px solid rgba(234,67,53,.5);
+  box-shadow: 0 2px 12px rgba(234,67,53,.2);
+}
+.nv-ctrl--end:hover:not(:disabled) {
+  background: var(--c-red); color: #fff;
+  border-color: var(--c-red);
+  box-shadow: 0 4px 18px rgba(234,67,53,.5);
+}
+
+/* Restart button — orange */
+.nv-ctrl--restart {
+  background: rgba(250,123,23,.15);
+  color: #fba45c;
+  border: 1.5px solid rgba(250,123,23,.4);
+}
+.nv-ctrl--restart:hover:not(:disabled) {
+  background: rgba(250,123,23,.3);
+  border-color: var(--c-orange);
+}
+
+.nv-clabel { font-size:10px; color:var(--c-text2); white-space:nowrap; font-weight:500; }
+.nv-clabel--red    { color:#f28b82; }
+.nv-clabel--orange { color:#fba45c; }
+.nv-cdivider { width:1px; height:32px; background:var(--c-line); margin:0 8px; }
+
+/* Chat */
+.nv-chat {
+  position:fixed; top:0; right:-380px; height:100%; width:360px;
+  background:var(--c-surf); border-left:1px solid var(--c-line);
+  display:flex; flex-direction:column; z-index:10000;
+  transition:right .25s cubic-bezier(.4,0,.2,1);
+}
+.nv-chat--open { right:0; }
+
+.nv-chdr {
+  height:56px; flex-shrink:0;
+  border-bottom:1px solid var(--c-line);
+  display:flex; align-items:center; justify-content:space-between; padding:0 18px;
+}
+.nv-chdr-title { display:flex; align-items:center; gap:8px; font-size:14px; font-weight:600; }
+.nv-chdr-close {
+  width:32px; height:32px; border:none; background:transparent; border-radius:50%;
+  color:var(--c-text2); cursor:pointer; display:flex; align-items:center; justify-content:center;
+  transition:background .15s;
+}
+.nv-chdr-close:hover { background:var(--c-surf2); color:var(--c-text); }
+
+.nv-cmsgs {
+  flex:1; overflow-y:auto; padding:14px;
+  display:flex; flex-direction:column; gap:10px;
+  scrollbar-width:thin; scrollbar-color:var(--c-surf2) transparent;
+}
+.nv-cempty {
+  display:flex; flex-direction:column; align-items:center; gap:8px;
+  color:var(--c-text2); font-size:13px; padding-top:40px;
+}
+.nv-cmsg { padding:10px 13px; background:var(--c-surf2); border-radius:10px; }
+.nv-cmsg--self { background:rgba(26,115,232,.18); border:1px solid rgba(26,115,232,.25); }
+.nv-cmsg-who  { font-size:11px; font-weight:600; color:#8ab4f8; margin-bottom:4px; }
+.nv-cmsg-body { font-size:14px; line-height:1.5; word-break:break-word; }
+
+.nv-cfoot {
+  padding:12px 14px; border-top:1px solid var(--c-line);
+  display:flex; gap:8px; flex-shrink:0;
+}
+.nv-cinput {
+  flex:1; padding:10px 14px; background:var(--c-surf2); border:1px solid var(--c-line);
+  border-radius:24px; color:var(--c-text); font-family:inherit; font-size:14px;
+  transition:border-color .15s;
+}
+.nv-cinput::placeholder { color:var(--c-text2); }
+.nv-cinput:focus { outline:none; border-color:var(--c-blue); }
+.nv-csend {
+  width:38px; height:38px; border:none; border-radius:50%;
+  background:var(--c-blue); color:#fff; cursor:pointer;
+  display:flex; align-items:center; justify-content:center;
+  transition:background .15s; flex-shrink:0;
+}
+.nv-csend:disabled { opacity:.4; cursor:default; }
+.nv-csend:not(:disabled):hover { background:var(--c-blue2); }
+
+/* ═══════════════════════════════════════
+   MODALS — End & Restart confirmation
+═══════════════════════════════════════ */
+.nv-modal-overlay {
+  position: fixed; inset: 0; z-index: 20000;
+  background: rgba(0,0,0,.65);
+  display: flex; align-items: center; justify-content: center;
+  backdrop-filter: blur(4px);
+  animation: nv-fade-in .18s ease;
+}
+@keyframes nv-fade-in { from { opacity: 0; } to { opacity: 1; } }
+
+.nv-modal {
+  background: var(--c-surf);
+  border: 1px solid var(--c-line);
+  border-radius: 20px;
+  padding: 36px 32px 28px;
+  width: 100%; max-width: 420px;
+  text-align: center;
+  box-shadow: 0 24px 80px rgba(0,0,0,.6);
+  animation: nv-slide-up .2s cubic-bezier(.34,1.56,.64,1);
+}
+@keyframes nv-slide-up { from { opacity:0; transform:translateY(20px); } to { opacity:1; transform:translateY(0); } }
+
+.nv-modal-icon {
+  width: 64px; height: 64px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  margin: 0 auto 20px; font-size: 28px;
+}
+.nv-modal-icon--red  { background: rgba(234,67,53,.15); color: #f28b82; border: 1.5px solid rgba(234,67,53,.4); }
+.nv-modal-icon--blue { background: rgba(26,115,232,.15); color: #8ab4f8; border: 1.5px solid rgba(26,115,232,.4); }
+
+.nv-modal-title {
+  font-size: 20px; font-weight: 600; color: var(--c-text);
+  margin-bottom: 12px; line-height: 1.3;
+}
+.nv-modal-body {
+  font-size: 14px; color: var(--c-text2); line-height: 1.6;
+  margin-bottom: 28px;
+}
+.nv-modal-actions {
+  display: flex; gap: 10px; justify-content: center;
+}
+.nv-modal-btn {
+  flex: 1; padding: 12px 20px; border-radius: var(--c-r);
+  font-family: inherit; font-size: 14px; font-weight: 600;
+  cursor: pointer; transition: all .15s; display: flex;
+  align-items: center; justify-content: center; gap: 7px;
+  max-width: 180px;
+}
+.nv-modal-btn--ghost {
+  background: transparent; border: 1px solid var(--c-line); color: var(--c-text2);
+}
+.nv-modal-btn--ghost:hover { border-color: var(--c-text2); color: var(--c-text); }
+.nv-modal-btn--danger {
+  background: var(--c-red); border: none; color: #fff;
+  box-shadow: 0 2px 12px rgba(234,67,53,.4);
+}
+.nv-modal-btn--danger:hover:not(:disabled) { background: #d33828; }
+.nv-modal-btn--danger:disabled { opacity: .55; cursor: not-allowed; }
+.nv-modal-btn--primary {
+  background: var(--c-blue); border: none; color: #fff;
+  box-shadow: 0 2px 12px rgba(26,115,232,.4);
+}
+.nv-modal-btn--primary:hover:not(:disabled) { background: var(--c-blue2); }
+.nv-modal-btn--primary:disabled { opacity: .55; cursor: not-allowed; }
+
+/* Toast */
+.nv-toast {
+  position:fixed; bottom:96px; left:50%; transform:translateX(-50%);
+  display:flex; align-items:center; gap:8px;
+  padding:10px 20px; border-radius:24px;
+  background:var(--c-surf2); border:1px solid var(--c-line);
+  font-size:13px; font-weight:500; color:#81c995;
+  box-shadow:0 4px 24px rgba(0,0,0,.4);
+  z-index:10001; pointer-events:none; white-space:nowrap;
+}
+.nv-toast--error { color: #f28b82; border-color: rgba(234,67,53,.35); }
+.nv-toast-fx-enter-active, .nv-toast-fx-leave-active { transition:opacity .2s, transform .2s; }
+.nv-toast-fx-enter-from  { opacity:0; transform:translateX(-50%) translateY(10px); }
+.nv-toast-fx-leave-to    { opacity:0; transform:translateX(-50%) translateY(10px); }
+
+/* Responsive */
+@media (max-width:960px) {
+  .nv-grid--presenting { grid-template-columns:1fr; grid-template-rows:1fr auto; }
+  .nv-gmain    { grid-column:1; grid-row:1; }
+  .nv-gsidebar { grid-column:1; grid-row:2; flex-direction:row; max-height:130px; overflow-x:auto; overflow-y:hidden; }
+  .nv-gsidebar .nv-tile { min-width:160px; }
+  .nv-chat { width:100vw; right:-100vw; }
+  .nv-modal { margin: 0 16px; }
+}
 </style>

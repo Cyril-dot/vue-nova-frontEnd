@@ -3,7 +3,7 @@
 // NO DEPENDENCIES on apiService.js
 
 // ==================== CONFIGURATION ====================
-const API_BASE_URL = 'https://nova-test-ctne.onrender.com/api';
+const API = 'https://nova-test-ctne.onrender.com/api';  // ✅ your Render backend
 
 // ==================== TOKEN MANAGEMENT ====================
 const getAccessToken = () => {
@@ -56,7 +56,7 @@ const apiRequest = async (endpoint, options = {}) => {
   }
 
   try {
-    const response = await fetch(`${API_BASE_URL}${endpoint}`, config);
+    const response = await fetch(`${API}${endpoint}`, config);  // ✅
     
     // Handle token expiration - logout and redirect
     if (response.status === 401) {

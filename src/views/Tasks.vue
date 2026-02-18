@@ -6,6 +6,15 @@
     <nav class="tasks-header-nav">
       <div class="tasks-header-inner">
         <div class="tasks-header-left">
+          <!-- Mobile Menu Toggle Button -->
+          <button class="tasks-mobile-menu-btn" @click="toggleMobileSidebar">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+              <line x1="3" y1="12" x2="21" y2="12"/>
+              <line x1="3" y1="6" x2="21" y2="6"/>
+              <line x1="3" y1="18" x2="21" y2="18"/>
+            </svg>
+          </button>
+
           <div class="tasks-brand-block">
             <div class="tasks-brand-logo">
               <svg width="28" height="28" viewBox="0 0 42 42" fill="none">
@@ -45,111 +54,136 @@
       </div>
     </nav>
 
+    <!-- Mobile Sidebar Overlay -->
+    <transition name="tasks-fade">
+      <div v-if="mobileSidebarOpen" class="tasks-mobile-overlay" @click="mobileSidebarOpen = false"></div>
+    </transition>
+
     <!-- Sidebar -->
-    <aside class="tasks-side-panel">
-      <router-link to="/tasks/create" class="tasks-create-btn">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
-          <path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-        </svg>
-        Add New Task
-      </router-link>
-
-      <div class="tasks-panel-section">
-        <div class="tasks-section-label">QUICK ACCESS</div>
-        <nav class="tasks-side-nav">
-          <button 
-            @click="currentView = 'my-tasks'"
-            :class="['tasks-side-link', currentView === 'my-tasks' ? 'tasks-side-link--active' : '']"
-          >
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
-              <path d="M9 11l3 3L22 4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-              <path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+    <transition name="tasks-slide">
+      <aside class="tasks-side-panel" :class="{ 'tasks-side-panel--mobile-open': mobileSidebarOpen }">
+        <!-- Mobile Sidebar Header with Close Button -->
+        <div class="tasks-sidebar-mobile-header">
+          <div class="tasks-sidebar-mobile-brand">
+            <svg width="28" height="28" viewBox="0 0 42 42" fill="none">
+              <rect width="42" height="42" rx="11" fill="#4a90e2"/>
+              <polygon points="21,10 33,16 21,22 9,16" fill="white" opacity="0.95"/>
+              <rect x="13" y="25" width="16" height="7" rx="2" fill="white"/>
             </svg>
-            <span>My Tasks</span>
-          </button>
-
-          <button 
-            @click="currentView = 'team-tasks'"
-            :class="['tasks-side-link', currentView === 'team-tasks' ? 'tasks-side-link--active' : '']"
-          >
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
-              <path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-              <circle cx="9" cy="7" r="4" stroke="currentColor" stroke-width="2"/>
-              <path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-            </svg>
-            <span>Team Tasks</span>
-          </button>
-
-          <button class="tasks-side-link" @click="showFilterDialog = true">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
-              <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-            </svg>
-            <span>Filter Tasks</span>
-          </button>
-        </nav>
-      </div>
-
-      <div class="tasks-panel-section">
-        <div class="tasks-section-label">MAIN</div>
-        <nav class="tasks-side-nav">
-          <router-link to="/dashboard" class="tasks-side-link">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
-              <rect x="3" y="3" width="7" height="7" rx="1" stroke="currentColor" stroke-width="2"/>
-              <rect x="14" y="3" width="7" height="7" rx="1" stroke="currentColor" stroke-width="2"/>
-              <rect x="3" y="14" width="7" height="7" rx="1" stroke="currentColor" stroke-width="2"/>
-              <rect x="14" y="14" width="7" height="7" rx="1" stroke="currentColor" stroke-width="2"/>
-            </svg>
-            <span>Dashboard</span>
-          </router-link>
-
-          <router-link to="/tasks" class="tasks-side-link tasks-side-link--active">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
-              <path d="M9 11l3 3L22 4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-              <path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-            </svg>
-            <span>My Tasks</span>
-          </router-link>
-
-          <router-link to="/projects" class="tasks-side-link">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
-              <path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-            </svg>
-            <span>Projects</span>
-          </router-link>
-
-          <router-link to="/calendar" class="tasks-side-link">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
-              <rect x="3" y="4" width="18" height="18" rx="2" stroke="currentColor" stroke-width="2"/>
-              <path d="M16 2v4M8 2v4M3 10h18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-            </svg>
-            <span>Calendar</span>
-          </router-link>
-        </nav>
-      </div>
-
-      <!-- Task Overview Stats -->
-      <div class="tasks-stats-widget">
-        <h3 class="tasks-stats-title">Task Overview</h3>
-        <div class="tasks-stats-list">
-          <div class="tasks-stats-row">
-            <span class="tasks-stats-key">Total Tasks</span>
-            <span class="tasks-stats-val">{{ taskStats.total }}</span>
+            <span class="tasks-sidebar-mobile-title">NovaSpace</span>
           </div>
-          <div class="tasks-stats-row">
-            <span class="tasks-stats-key">Completed</span>
-            <span class="tasks-stats-val tasks-stats-val--done">{{ taskStats.completed }}</span>
-          </div>
-          <div class="tasks-stats-row">
-            <span class="tasks-stats-key">In Progress</span>
-            <span class="tasks-stats-val tasks-stats-val--wip">{{ taskStats.inProgress }}</span>
-          </div>
-          <div class="tasks-stats-row">
-            <span class="tasks-stats-key">Overdue</span>
-            <span class="tasks-stats-val tasks-stats-val--late">{{ taskStats.overdue }}</span>
+          <button class="tasks-sidebar-mobile-close" @click="mobileSidebarOpen = false">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
+              <line x1="18" y1="6" x2="6" y2="18"/>
+              <line x1="6" y1="6" x2="18" y2="18"/>
+            </svg>
+          </button>
+        </div>
+
+        <router-link to="/tasks/create" class="tasks-create-btn" @click="mobileSidebarOpen = false">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+            <path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+          </svg>
+          Add New Task
+        </router-link>
+
+        <div class="tasks-panel-section">
+          <div class="tasks-section-label">QUICK ACCESS</div>
+          <nav class="tasks-side-nav">
+            <button 
+              @click="currentView = 'my-tasks'; mobileSidebarOpen = false"
+              :class="['tasks-side-link', currentView === 'my-tasks' ? 'tasks-side-link--active' : '']"
+            >
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+                <path d="M9 11l3 3L22 4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                <path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+              </svg>
+              <span>My Tasks</span>
+            </button>
+
+            <button 
+              @click="currentView = 'team-tasks'; mobileSidebarOpen = false"
+              :class="['tasks-side-link', currentView === 'team-tasks' ? 'tasks-side-link--active' : '']"
+            >
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+                <path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                <circle cx="9" cy="7" r="4" stroke="currentColor" stroke-width="2"/>
+                <path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+              </svg>
+              <span>Team Tasks</span>
+            </button>
+
+            <button class="tasks-side-link" @click="showFilterDialog = true; mobileSidebarOpen = false">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+                <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+              <span>Filter Tasks</span>
+            </button>
+          </nav>
+        </div>
+
+        <div class="tasks-panel-section">
+          <div class="tasks-section-label">MAIN</div>
+          <nav class="tasks-side-nav">
+            <router-link to="/dashboard" class="tasks-side-link" @click="mobileSidebarOpen = false">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+                <rect x="3" y="3" width="7" height="7" rx="1" stroke="currentColor" stroke-width="2"/>
+                <rect x="14" y="3" width="7" height="7" rx="1" stroke="currentColor" stroke-width="2"/>
+                <rect x="3" y="14" width="7" height="7" rx="1" stroke="currentColor" stroke-width="2"/>
+                <rect x="14" y="14" width="7" height="7" rx="1" stroke="currentColor" stroke-width="2"/>
+              </svg>
+              <span>Dashboard</span>
+            </router-link>
+
+            <router-link to="/tasks" class="tasks-side-link tasks-side-link--active" @click="mobileSidebarOpen = false">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+                <path d="M9 11l3 3L22 4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                <path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+              </svg>
+              <span>My Tasks</span>
+            </router-link>
+
+            <router-link to="/projects" class="tasks-side-link" @click="mobileSidebarOpen = false">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+                <path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+              </svg>
+              <span>Projects</span>
+            </router-link>
+
+            <router-link to="/calendar" class="tasks-side-link" @click="mobileSidebarOpen = false">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+                <rect x="3" y="4" width="18" height="18" rx="2" stroke="currentColor" stroke-width="2"/>
+                <path d="M16 2v4M8 2v4M3 10h18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+              </svg>
+              <span>Calendar</span>
+            </router-link>
+          </nav>
+        </div>
+
+        <!-- Task Overview Stats -->
+        <div class="tasks-stats-widget">
+          <h3 class="tasks-stats-title">Task Overview</h3>
+          <div class="tasks-stats-list">
+            <div class="tasks-stats-row">
+              <span class="tasks-stats-key">Total Tasks</span>
+              <span class="tasks-stats-val">{{ taskStats.total }}</span>
+            </div>
+            <div class="tasks-stats-row">
+              <span class="tasks-stats-key">Completed</span>
+              <span class="tasks-stats-val tasks-stats-val--done">{{ taskStats.completed }}</span>
+            </div>
+            <div class="tasks-stats-row">
+              <span class="tasks-stats-key">In Progress</span>
+              <span class="tasks-stats-val tasks-stats-val--wip">{{ taskStats.inProgress }}</span>
+            </div>
+            <div class="tasks-stats-row">
+              <span class="tasks-stats-key">Overdue</span>
+              <span class="tasks-stats-val tasks-stats-val--late">{{ taskStats.overdue }}</span>
+            </div>
           </div>
         </div>
-      </div>
-    </aside>
+      </aside>
+    </transition>
 
     <!-- Main Content -->
     <main class="tasks-content-area">
@@ -377,7 +411,9 @@ export default {
         message: '',
         type: 'success'
       },
-      searchTimeout: null
+      searchTimeout: null,
+      // Mobile sidebar state
+      mobileSidebarOpen: false
     };
   },
   computed: {
@@ -394,6 +430,11 @@ export default {
     }
   },
   methods: {
+    // Mobile sidebar toggle
+    toggleMobileSidebar() {
+      this.mobileSidebarOpen = !this.mobileSidebarOpen;
+    },
+
     goToCreateTask() {
       this.$router.push('/tasks/create');
     },
@@ -665,6 +706,27 @@ export default {
   max-width: 60%;
 }
 
+/* Mobile Menu Button */
+.tasks-mobile-menu-btn {
+  display: none;
+  width: 38px;
+  height: 38px;
+  border: 1px solid var(--tasks-border);
+  background: var(--tasks-white);
+  border-radius: 8px;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  color: var(--tasks-ink-m);
+  transition: all 0.2s var(--tasks-ease);
+}
+
+.tasks-mobile-menu-btn:hover {
+  border-color: var(--tasks-purple);
+  color: var(--tasks-purple);
+  background: var(--tasks-blue-soft);
+}
+
 .tasks-brand-block {
   display: flex;
   align-items: center;
@@ -758,6 +820,64 @@ export default {
   border: 1.5px solid var(--tasks-white);
 }
 
+/* Mobile Sidebar Components */
+.tasks-mobile-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(13, 27, 54, 0.6);
+  backdrop-filter: blur(4px);
+  z-index: 200;
+  animation: tasks-fade-in 0.2s ease;
+}
+
+.tasks-sidebar-mobile-header {
+  display: none;
+  align-items: center;
+  justify-content: space-between;
+  padding-bottom: 20px;
+  margin-bottom: 20px;
+  border-bottom: 1px solid var(--tasks-border);
+}
+
+.tasks-sidebar-mobile-brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.tasks-sidebar-mobile-title {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--tasks-ink);
+  font-family: var(--tasks-fdisp);
+}
+
+.tasks-sidebar-mobile-close {
+  width: 36px;
+  height: 36px;
+  border: 1px solid var(--tasks-border);
+  background: var(--tasks-white);
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  color: var(--tasks-ink-m);
+  transition: all 0.2s var(--tasks-ease);
+}
+
+.tasks-sidebar-mobile-close:hover {
+  border-color: var(--tasks-red);
+  color: var(--tasks-red);
+  background: #fee2e2;
+}
+
+@keyframes tasks-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
 /* ===== SIDEBAR ===== */
 .tasks-side-panel {
   grid-area: sidebar;
@@ -768,6 +888,7 @@ export default {
   height: calc(100vh - var(--tasks-bar-h));
   position: sticky;
   top: var(--tasks-bar-h);
+  transition: transform 0.3s var(--tasks-ease);
 }
 
 .tasks-side-panel::-webkit-scrollbar { width: 6px; }
@@ -1378,6 +1499,26 @@ a.tasks-create-btn {
 .tasks-toast-enter-active, .tasks-toast-leave-active { transition: all 0.3s var(--tasks-ease); }
 .tasks-toast-enter-from, .tasks-toast-leave-to { opacity: 0; transform: translateY(20px); }
 
+.tasks-slide-enter-active,
+.tasks-slide-leave-active {
+  transition: transform 0.3s var(--tasks-ease);
+}
+.tasks-slide-enter-from {
+  transform: translateX(-100%);
+}
+.tasks-slide-leave-to {
+  transform: translateX(-100%);
+}
+
+.tasks-fade-enter-active,
+.tasks-fade-leave-active {
+  transition: opacity 0.3s ease;
+}
+.tasks-fade-enter-from,
+.tasks-fade-leave-to {
+  opacity: 0;
+}
+
 /* ===== RESPONSIVE ===== */
 @media (max-width: 1200px) {
   .tasks-card-grid { grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); }
@@ -1388,13 +1529,53 @@ a.tasks-create-btn {
     grid-template-areas: "nav" "main";
     grid-template-columns: 1fr;
   }
-  .tasks-side-panel { display: none; }
+  
+  .tasks-mobile-menu-btn {
+    display: flex;
+  }
+  
+  .tasks-mobile-overlay {
+    display: block;
+  }
+  
+  .tasks-side-panel {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 280px;
+    height: 100vh;
+    z-index: 300;
+    transform: translateX(-100%);
+    border-right: 1px solid var(--tasks-border);
+    box-shadow: none;
+    padding-top: 20px;
+  }
+  
+  .tasks-side-panel--mobile-open {
+    transform: translateX(0);
+    box-shadow: var(--tasks-shadow-lg);
+  }
+  
+  .tasks-sidebar-mobile-header {
+    display: flex;
+  }
+  
   .tasks-header-left { max-width: 100%; }
+  
+  .tasks-brand-block { 
+    border-right: none; 
+    padding-right: 0; 
+  }
+  
   .tasks-content-area { padding: 24px 20px; }
   .tasks-action-bar { flex-direction: column; align-items: stretch; }
   .tasks-filter-controls { flex-direction: column; min-width: auto; }
   .tasks-inline-search { max-width: 100%; }
   .tasks-filter-dropdown { width: 100%; }
+  
+  .tasks-stats-widget {
+    margin-bottom: 20px;
+  }
 }
 
 @media (max-width: 640px) {
@@ -1404,5 +1585,20 @@ a.tasks-create-btn {
   .tasks-card-grid { grid-template-columns: 1fr; }
   .tasks-content-area { padding: 16px; }
   .tasks-content-title { font-size: 22px; }
+  
+  .tasks-side-panel {
+    width: 100%;
+  }
+  
+  .tasks-filter-controls {
+    gap: 8px;
+  }
+  
+  .tasks-toast-msg {
+    left: 16px;
+    right: 16px;
+    bottom: 16px;
+    max-width: none;
+  }
 }
 </style>
