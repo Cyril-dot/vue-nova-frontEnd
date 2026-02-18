@@ -329,15 +329,17 @@ function getAvatarForSeed(seed) {
   return FALLBACK_AVATARS[Math.abs(hash) % FALLBACK_AVATARS.length];
 }
 
+// ─── Helper: read token from either storage ───────────────────────────────────
+function readToken() {
+  return localStorage.getItem('accessToken') || sessionStorage.getItem('accessToken') || null;
+}
+
 export default {
   name: 'NavBar',
 
   data() {
     return {
-      // ✅ FIX: Reactive auth state — localStorage is NOT reactive in Vue,
-      // so we store it here and update it via events
-      authToken:    !!(localStorage.getItem('accessToken') || sessionStorage.getItem('accessToken')),
-
+      authToken:    !!readToken(),
       isScrolled:   false,
       mobileOpen:   false,
       mSubOpen:     false,
@@ -348,12 +350,13 @@ export default {
       userData:     null,
       userAvatar:   getAvatarForSeed('default'),
       _closeT:      null,
-      _dropEl:      null
+      _dropEl:      null,
+      // ✅ FIX: polling interval handle for OAuth redirect detection
+      _pollInterval: null
     };
   },
 
   computed: {
-    // ✅ FIX: Now reads from reactive `authToken` data property instead of localStorage directly
     isAuthenticated() {
       return this.authToken;
     },
@@ -386,35 +389,96 @@ export default {
     this._buildDrop();
     if (this.isAuthenticated) this.fetchUserData();
 
-    window.addEventListener('auth-login',         this.fetchUserData);
+    // ─── Auth event listeners ────────────────────────────────────────────────
+    window.addEventListener('auth-login',         this.handleAuthLogin);
     window.addEventListener('auth-logout',        this.handleAuthLogout);
-    // ✅ FIX: Listen for token updates dispatched by TokenService.setTokens()
     window.addEventListener('auth-token-updated', this.refreshAuthState);
-    // ✅ FIX: Listen for storage changes (cross-tab support)
-    window.addEventListener('storage',            this.refreshAuthState);
+    // Cross-tab storage changes (also fires for OAuth callbacks in same tab via postMessage)
+    window.addEventListener('storage',            this.onStorageChange);
+
+    // ✅ FIX: Watch for route changes — OAuth typically redirects back to a
+    //    callback route (e.g. /auth/callback) which then stores tokens and
+    //    navigates away. The route change itself is our signal to re-check.
+    this.$router.afterEach(() => {
+      this.$nextTick(() => this.refreshAuthState());
+    });
+
+    // ✅ FIX: Start a short-lived poll right after mount so we catch the
+    //    brief window where OAuth sets tokens but hasn't fired any event yet.
+    //    Runs every 300ms for 10 seconds, then stops.
+    this._startAuthPoll();
   },
 
   beforeUnmount() {
     window.removeEventListener('scroll', this.onScroll);
     document.removeEventListener('click', this.handleOutsideClick);
-    window.removeEventListener('auth-login',         this.fetchUserData);
+    window.removeEventListener('auth-login',         this.handleAuthLogin);
     window.removeEventListener('auth-logout',        this.handleAuthLogout);
-    // ✅ FIX: Clean up new listeners
     window.removeEventListener('auth-token-updated', this.refreshAuthState);
-    window.removeEventListener('storage',            this.refreshAuthState);
+    window.removeEventListener('storage',            this.onStorageChange);
     clearTimeout(this._closeT);
+    clearInterval(this._pollInterval);
     if (this._dropEl?.parentNode) this._dropEl.parentNode.removeChild(this._dropEl);
   },
 
   methods: {
 
-    // ✅ FIX: New method — refreshes authToken from storage and fetches user if newly logged in
+    // ✅ FIX: Short-lived poll to catch OAuth token writes that happen without
+    //    firing a custom event (e.g. from a redirect callback page).
+    _startAuthPoll() {
+      let ticks = 0;
+      const MAX_TICKS = 33; // ~10 seconds at 300ms
+      this._pollInterval = setInterval(() => {
+        ticks++;
+        const hasToken = !!readToken();
+        if (hasToken !== this.authToken) {
+          console.log('🔄 NavBar poll detected auth change:', hasToken);
+          this.refreshAuthState();
+        }
+        if (ticks >= MAX_TICKS) {
+          clearInterval(this._pollInterval);
+          this._pollInterval = null;
+        }
+      }, 300);
+    },
+
+    // ✅ FIX: Called for cross-tab storage events AND direct storage writes
+    onStorageChange(e) {
+      // Only react to token-related keys
+      if (!e || !e.key || e.key === 'accessToken' || e.key === 'refreshToken') {
+        this.refreshAuthState();
+      }
+    },
+
+    // ✅ FIX: Unified method — refreshes authToken from storage.
+    //    Works for BOTH normal login and OAuth since both ultimately
+    //    write a token to localStorage/sessionStorage.
     refreshAuthState() {
-      const hadToken = this.authToken;
-      this.authToken = !!(localStorage.getItem('accessToken') || sessionStorage.getItem('accessToken'));
-      console.log('🔄 NavBar auth state refreshed:', this.authToken);
-      if (!hadToken && this.authToken) {
+      const prev = this.authToken;
+      this.authToken = !!readToken();
+      if (!prev && this.authToken) {
         // Just became authenticated — load user data
+        console.log('✅ NavBar: auth state became authenticated, fetching user…');
+        this.fetchUserData();
+      } else if (prev && !this.authToken) {
+        // Just became unauthenticated
+        this.userData   = null;
+        this.userAvatar = getAvatarForSeed('default');
+      }
+    },
+
+    // ✅ FIX: Dedicated handler for the 'auth-login' event.
+    //    Accepts optional user data payload so we can skip the extra API call
+    //    when the login flow already has the user object.
+    handleAuthLogin(e) {
+      const payload = e?.detail;
+      this.authToken = !!readToken();
+      if (payload?.user) {
+        // Login flow passed user data directly — use it
+        this.userData = payload.user;
+        const seed = String(this.userData.id || this.userData.email || this.userData.username || 'user');
+        this.userAvatar = this.userData.profileImage || getAvatarForSeed(seed);
+      } else {
         this.fetchUserData();
       }
     },
@@ -501,7 +565,7 @@ export default {
           desc:  'Real-time messaging & Q&A sessions',
           href:  '/chat',
           iconBg: '#e8f2fc', iconColor: '#4a90e2',
-          icon: 'M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z',
+          icon: 'M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 11.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z',
           isRoute: true
         }
       ];
@@ -668,7 +732,6 @@ export default {
           await AuthAPI.logout();
           this.userData   = null;
           this.userAvatar = getAvatarForSeed('default');
-          // ✅ FIX: Update reactive auth state on logout
           this.authToken  = false;
           this.closeAll();
           window.dispatchEvent(new Event('auth-logout'));
@@ -682,7 +745,6 @@ export default {
     handleAuthLogout() {
       this.userData   = null;
       this.userAvatar = getAvatarForSeed('default');
-      // ✅ FIX: Update reactive auth state on logout event
       this.authToken  = false;
       this.closeAll();
     }
