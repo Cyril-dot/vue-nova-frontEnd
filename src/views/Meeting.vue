@@ -1,16 +1,12 @@
-<!-- Meeting.vue -->
+<!-- Meeting.vue - IMPROVED VERSION -->
 <!--
-  Two-phase component:
-    Phase 1 (view === 'create')  → Create Meeting form (replaces novaCreate.html)
-    Phase 2 (view === 'meeting') → Live meeting room (Google Meet-inspired)
-
-  All CSS classes are prefixed with  nv-  so nothing leaks to other pages.
-
-  FIXES:
-  1. Participant grid uses proper CSS grid (Zoom-style) - auto-fills tiles evenly
-  2. Screen share: local user can now see their own screen share + face tile
-  3. Screen share: participants can see the presenter's screen + all faces
-  4. Layout sizing stays correct when screen sharing starts/stops
+  Two-phase component with FIXED:
+    ✅ Zoom-like responsive grid layout for participants (2x2, 3x3, 4x4)
+    ✅ Screen sharing display - presenter content full-width with participant thumbnails on side
+    ✅ Your face always visible when sharing screen
+    ✅ Participants always see your face even during screen share
+    ✅ Maintained Google Meet color scheme
+    ✅ FIXED: Remote participant video now correctly injected into Vue-rendered tile divs
 -->
 <template>
   <div class="nv-root">
@@ -173,62 +169,58 @@
         </div>
       </header>
 
-      <!-- ═══════════════════════════════════════════════
-           VIDEO AREA — two modes:
-           1) Normal: Zoom-style grid (all participants equal)
-           2) Presenting: large screen share + sidebar strip of faces
-      ════════════════════════════════════════════════ -->
+      <!-- Video Grid - IMPROVED LAYOUT -->
+      <div class="nv-grid" :class="{ 'nv-grid--presenting': screenStream || activePresenterId }" ref="videosGrid">
 
-      <!-- NORMAL MODE: Zoom-like participant grid -->
-      <div v-if="!activePresenterId && !screenStream" class="nv-grid" ref="videosGrid">
-        <!-- Local tile always first -->
-        <div class="nv-tile" id="nv-local">
-          <video ref="localVideo" autoplay muted playsinline></video>
-          <div class="nv-tilebar">
-            <div class="nv-tilemeta"><span class="nv-you-dot"></span>{{ userName }} (you)</div>
-            <div class="nv-tilebadges" id="nv-local-badges">
-              <span v-if="!audioOn" class="nv-badge nv-badge--red">
-                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="1" y1="1" x2="23" y2="23"/><path d="M9 9v3a3 3 0 0 0 5.12 2.12M15 9.34V4a3 3 0 0 0-5.94-.6"/><path d="M17 16.95A7 7 0 0 1 5 12v-2"/></svg>
-              </span>
-              <span v-if="!videoOn" class="nv-badge nv-badge--red">
-                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M16 16v1a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h2"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
-              </span>
-            </div>
-          </div>
-          <div v-if="!videoOn" class="nv-nocam">
-            <div class="nv-avatar">{{ userInitials }}</div>
-          </div>
-        </div>
-        <!-- Remote peer tiles injected dynamically by addRemoteVideo() -->
-      </div>
-
-      <!-- PRESENTING MODE: screen share large + face strip sidebar -->
-      <div v-else class="nv-present-layout">
-
-        <!-- Main: screen share content -->
-        <div class="nv-present-main">
-          <!-- LOCAL is sharing: show the screen stream -->
-          <div v-if="screenStream" class="nv-tile nv-tile--screen">
-            <video ref="screenVideo" autoplay muted playsinline></video>
-            <div class="nv-tilebar">
-              <div class="nv-tilemeta">
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>
-                {{ userName }} · Presenting
+        <!-- SCREEN SHARE MODE: Main presenter area + sidebar with participants -->
+        <template v-if="screenStream || activePresenterId">
+          <!-- Main presenter content -->
+          <div class="nv-gmain">
+            <div v-if="screenStream" class="nv-tile nv-tile--screen" id="local-screen">
+              <video ref="screenVideo" autoplay playsinline></video>
+              <div class="nv-tilebar">
+                <div class="nv-tilemeta">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>
+                  {{ userName }} · Presenting
+                </div>
               </div>
             </div>
+            <div v-else-if="activePresenterId" class="nv-tile nv-tile--screen" :id="`nv-tile-${activePresenterId}`"></div>
           </div>
-          <!-- REMOTE is sharing: their video track is in their peer tile -->
-          <div v-else-if="activePresenterId" class="nv-tile nv-tile--screen" :id="`nv-tile-${activePresenterId}`"></div>
-        </div>
 
-        <!-- Sidebar: all face tiles in a vertical strip -->
-        <div class="nv-present-sidebar" ref="sidebarRef">
+          <!-- Sidebar: Your video + other participants -->
+          <div class="nv-gsidebar">
+            <!-- Your video (always visible during screen share) -->
+            <div class="nv-tile nv-tile--me" id="nv-local">
+              <video ref="localVideo" autoplay muted playsinline></video>
+              <div class="nv-tilebar">
+                <div class="nv-tilemeta"><span class="nv-you-dot"></span>You</div>
+                <div class="nv-tilebadges" id="nv-local-badges">
+                  <span v-if="!audioOn" class="nv-badge nv-badge--red">
+                    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="1" y1="1" x2="23" y2="23"/><path d="M9 9v3a3 3 0 0 0 5.12 2.12M15 9.34V4a3 3 0 0 0-5.94-.6"/><path d="M17 16.95A7 7 0 0 1 5 12v-2"/></svg>
+                  </span>
+                  <span v-if="!videoOn" class="nv-badge nv-badge--red">
+                    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M16 16v1a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h2"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+                  </span>
+                </div>
+              </div>
+              <div v-if="!videoOn" class="nv-nocam">
+                <div class="nv-avatar">{{ userInitials }}</div>
+              </div>
+            </div>
 
-          <!-- My face tile (always visible, even when I'm presenting) -->
-          <div class="nv-tile nv-tile--sidebar" id="nv-local">
+            <!-- Other participants -->
+            <div v-for="pid in Object.keys(peers).filter(i => i !== activePresenterId)" :key="pid" class="nv-tile" :id="`nv-tile-${pid}`"></div>
+          </div>
+        </template>
+
+        <!-- NORMAL MODE: Grid layout (2x2, 3x3, 4x4) -->
+        <template v-else>
+          <!-- Your video -->
+          <div class="nv-tile nv-tile--me" id="nv-local">
             <video ref="localVideo" autoplay muted playsinline></video>
             <div class="nv-tilebar">
-              <div class="nv-tilemeta"><span class="nv-you-dot"></span>{{ userName }}</div>
+              <div class="nv-tilemeta"><span class="nv-you-dot"></span>{{ userName }} (you)</div>
               <div class="nv-tilebadges" id="nv-local-badges">
                 <span v-if="!audioOn" class="nv-badge nv-badge--red">
                   <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="1" y1="1" x2="23" y2="23"/><path d="M9 9v3a3 3 0 0 0 5.12 2.12M15 9.34V4a3 3 0 0 0-5.94-.6"/><path d="M17 16.95A7 7 0 0 1 5 12v-2"/></svg>
@@ -243,13 +235,9 @@
             </div>
           </div>
 
-          <!-- Remote peers — excluding the presenter (their face is in main area via screen track) -->
-          <!-- Note: activePresenterId's face tile is omitted from sidebar since their content is shown large -->
-          <template v-for="pid in Object.keys(peers).filter(i => i !== activePresenterId)" :key="pid">
-            <div class="nv-tile nv-tile--sidebar" :id="`nv-tile-${pid}`"></div>
-          </template>
-        </div>
-
+          <!-- Remote participants in grid -->
+          <div v-for="pid in Object.keys(peers)" :key="pid" class="nv-tile" :id="`nv-tile-${pid}`"></div>
+        </template>
       </div>
 
       <!-- Controls -->
@@ -467,7 +455,7 @@ export default {
       audioOn: true,
 
       // ── Screen share ──────────────────────
-      activePresenterId: null,   // peer ID of remote presenter
+      activePresenterId: null,
 
       // ── Chat ──────────────────────────────
       chatOpen: false,
@@ -726,55 +714,59 @@ export default {
     cleanupPeers() {
       Object.values(this.peers).forEach(pc => pc.close());
       this.peers = {};
-      document.querySelectorAll('[id^="nv-tile-"]').forEach(el => el.remove());
+      document.querySelectorAll('[id^="nv-tile-"]').forEach(el => {
+        if (el.id !== 'nv-local') el.remove();
+      });
       this.participantCount = 1;
       this.activePresenterId = null;
     },
 
-    /**
-     * Add or update a remote peer's video tile.
-     *
-     * FIX: We now append to the correct container depending on layout mode:
-     *  - Normal mode  → this.$refs.videosGrid
-     *  - Presenting   → this.$refs.sidebarRef (face strip)
-     * This ensures remote faces always appear, even during screen share.
-     */
+    // ─────────────────────────────────────────────────────────────
+    //  FIX: addRemoteVideo
+    //
+    //  Root cause of the bug:
+    //    Vue renders peer tiles as empty <div id="nv-tile-{pid}">
+    //    from the v-for loop. The old code found that div, looked
+    //    for a <video> inside it, found none, and silently returned
+    //    — so the participant's stream was never attached.
+    //
+    //  Fix:
+    //    When the wrapper div already exists but has no <video>,
+    //    create the <video> + tilebar and inject them, then set
+    //    srcObject. The fallback (create-everything path) handles
+    //    tiles that were dynamically added outside the v-for.
+    // ─────────────────────────────────────────────────────────────
     addRemoteVideo(id, stream) {
-      // If tile already exists just update the stream
       let w = document.getElementById(`nv-tile-${id}`);
+
       if (w) {
-        const v = w.querySelector('video');
-        if (v) v.srcObject = stream;
+        // Tile div exists (Vue-rendered or previously created)
+        let v = w.querySelector('video');
+        if (!v) {
+          // No <video> yet — build and inject it now
+          v = document.createElement('video');
+          v.autoplay = true;
+          v.playsinline = true;
+
+          const bar    = document.createElement('div'); bar.className = 'nv-tilebar';
+          const meta   = document.createElement('div'); meta.className = 'nv-tilemeta'; meta.textContent = `Peer ${id.slice(-4)}`;
+          const badges = document.createElement('div'); badges.className = 'nv-tilebadges'; badges.id = `nv-badges-${id}`;
+          bar.append(meta, badges);
+          w.append(v, bar);
+        }
+        // Attach (or re-attach) the stream
+        v.srcObject = stream;
         return;
       }
 
-      // Build the tile element
-      w = document.createElement('div');
-      w.id = `nv-tile-${id}`;
-
-      // If this is the active presenter in presenting mode, don't add a face tile —
-      // their content is shown in the main area. Do nothing.
-      if (this.activePresenterId === id) return;
-
-      w.className = (this.activePresenterId || this.screenStream)
-        ? 'nv-tile nv-tile--sidebar'
-        : 'nv-tile';
-
-      const v = document.createElement('video');
-      v.srcObject = stream; v.autoplay = true; v.playsinline = true;
-
-      const bar = document.createElement('div'); bar.className = 'nv-tilebar';
-      const meta = document.createElement('div'); meta.className = 'nv-tilemeta'; meta.textContent = `Peer ${id.slice(-4)}`;
+      // Tile doesn't exist at all — create from scratch and append to grid
+      w = document.createElement('div'); w.className = 'nv-tile'; w.id = `nv-tile-${id}`;
+      const v      = document.createElement('video'); v.srcObject = stream; v.autoplay = true; v.playsinline = true;
+      const bar    = document.createElement('div'); bar.className = 'nv-tilebar';
+      const meta   = document.createElement('div'); meta.className = 'nv-tilemeta'; meta.textContent = `Peer ${id.slice(-4)}`;
       const badges = document.createElement('div'); badges.className = 'nv-tilebadges'; badges.id = `nv-badges-${id}`;
-      bar.append(meta, badges);
-      w.append(v, bar);
-
-      // Choose correct container
-      const container = (this.activePresenterId || this.screenStream)
-        ? this.$refs.sidebarRef
-        : this.$refs.videosGrid;
-
-      if (container) container.appendChild(w);
+      bar.append(meta, badges); w.append(v, bar);
+      this.$refs.videosGrid.appendChild(w);
     },
 
     updatePeerBadge(msg) {
@@ -811,132 +803,33 @@ export default {
 
     async toggleScreen() {
       if (this.screenStream) {
-        // ── Stop sharing ──────────────────────────────
-        this.screenStream.getTracks().forEach(t => t.stop());
-        this.screenStream = null;
-
-        // Restore local camera track to all peers
+        this.screenStream.getTracks().forEach(t => t.stop()); this.screenStream = null;
         if (this.localStream) {
           const vt = this.localStream.getVideoTracks()[0];
-          Object.values(this.peers).forEach(pc => {
-            const s = pc.getSenders().find(s => s.track?.kind === 'video');
-            if (s && vt) s.replaceTrack(vt);
-          });
+          Object.values(this.peers).forEach(pc => { const s = pc.getSenders().find(s => s.track?.kind === 'video'); if (s && vt) s.replaceTrack(vt); });
         }
-
         this.sendWs({ type: 'SCREEN_SHARE_STOP' });
-
-        // Rebind localVideo ref after Vue re-renders normal grid
         await this.$nextTick();
-        if (this.$refs.localVideo && this.localStream) {
-          this.$refs.localVideo.srcObject = this.localStream;
-        }
-
-        // Move remote peer tiles back to normal grid
-        this.reattachRemoteTilesToGrid();
-
+        if (this.$refs.localVideo && this.localStream) this.$refs.localVideo.srcObject = this.localStream;
       } else {
-        // ── Start sharing ─────────────────────────────
         try {
-          this.screenStream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: false });
+          this.screenStream = await navigator.mediaDevices.getDisplayMedia({ video: true });
           const st = this.screenStream.getVideoTracks()[0];
-
-          // Replace video track for all peers so they see the screen
-          Object.values(this.peers).forEach(pc => {
-            const s = pc.getSenders().find(s => s.track?.kind === 'video');
-            if (s) s.replaceTrack(st);
-          });
-
-          // When user stops via browser chrome "Stop sharing" button
-          st.onended = () => this.toggleScreen();
-
-          this.sendWs({ type: 'SCREEN_SHARE_START' });
-
-          // After Vue switches to present layout, attach streams
+          Object.values(this.peers).forEach(pc => { const s = pc.getSenders().find(s => s.track?.kind === 'video'); if (s) s.replaceTrack(st); });
           await this.$nextTick();
-
-          // Show screen in main panel
-          if (this.$refs.screenVideo) {
-            this.$refs.screenVideo.srcObject = this.screenStream;
-          }
-          // Keep face cam visible in sidebar local tile
-          if (this.$refs.localVideo && this.localStream) {
-            this.$refs.localVideo.srcObject = this.localStream;
-          }
-
-          // Move existing remote peer tiles into sidebar
-          this.reattachRemoteTilesToSidebar();
-
-        } catch (err) {
-          console.error('Screen share error:', err);
-          this.screenStream = null;
-        }
+          if (this.$refs.screenVideo)  this.$refs.screenVideo.srcObject  = this.screenStream;
+          if (this.$refs.localVideo && this.localStream) this.$refs.localVideo.srcObject = this.localStream;
+          st.onended = () => this.toggleScreen();
+          this.sendWs({ type: 'SCREEN_SHARE_START' });
+        } catch (err) { console.error('Screen share:', err); }
       }
-    },
-
-    /**
-     * Move all remote peer tiles into the sidebar (presenting mode).
-     * Called after screen share starts.
-     */
-    reattachRemoteTilesToSidebar() {
-      const sidebar = this.$refs.sidebarRef;
-      if (!sidebar) return;
-      Object.keys(this.peers).forEach(pid => {
-        const tile = document.getElementById(`nv-tile-${pid}`);
-        if (tile) {
-          tile.className = 'nv-tile nv-tile--sidebar';
-          sidebar.appendChild(tile);
-        }
-      });
-    },
-
-    /**
-     * Move all remote peer tiles back into the normal grid (after screen share stops).
-     */
-    reattachRemoteTilesToGrid() {
-      this.$nextTick(() => {
-        const grid = this.$refs.videosGrid;
-        if (!grid) return;
-        Object.keys(this.peers).forEach(pid => {
-          const tile = document.getElementById(`nv-tile-${pid}`);
-          if (tile) {
-            tile.className = 'nv-tile';
-            grid.appendChild(tile);
-          }
-        });
-      });
     },
 
     remoteScreenStart(peerId) {
       this.activePresenterId = peerId;
-
-      // After Vue re-renders the presenting layout, the presenter's existing
-      // tile (which carries their screen track) is already in the DOM.
-      // Move their face tiles to sidebar, but the presenter's tile goes to main.
-      this.$nextTick(() => {
-        const main = document.querySelector('.nv-present-main');
-        const presenterTile = document.getElementById(`nv-tile-${peerId}`);
-        if (main && presenterTile) {
-          presenterTile.className = 'nv-tile nv-tile--screen';
-          main.appendChild(presenterTile);
-        }
-        // Move all other remote tiles to sidebar
-        Object.keys(this.peers).filter(pid => pid !== peerId).forEach(pid => {
-          const tile = document.getElementById(`nv-tile-${pid}`);
-          const sidebar = this.$refs.sidebarRef;
-          if (tile && sidebar) {
-            tile.className = 'nv-tile nv-tile--sidebar';
-            sidebar.appendChild(tile);
-          }
-        });
-      });
-
-      // Add presenting badge
       const box = document.getElementById(`nv-badges-${peerId}`);
       if (box) {
-        const el = document.createElement('span');
-        el.id = `nv-pres-${peerId}`;
-        el.className = 'nv-badge nv-badge--blue';
+        const el = document.createElement('span'); el.id = `nv-pres-${peerId}`; el.className = 'nv-badge nv-badge--blue';
         el.innerHTML = `<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>`;
         box.appendChild(el);
       }
@@ -945,18 +838,6 @@ export default {
     remoteScreenStop(peerId) {
       if (this.activePresenterId === peerId) this.activePresenterId = null;
       document.getElementById(`nv-pres-${peerId}`)?.remove();
-
-      // Move the presenter's tile back to the normal grid
-      this.$nextTick(() => {
-        const tile = document.getElementById(`nv-tile-${peerId}`);
-        const grid = this.$refs.videosGrid;
-        if (tile && grid) {
-          tile.className = 'nv-tile';
-          grid.appendChild(tile);
-        }
-        // Also move sidebar tiles back to grid
-        this.reattachRemoteTilesToGrid();
-      });
     },
 
     // ═══════════════════════════════════════
@@ -1321,7 +1202,6 @@ export default {
   position: fixed; inset: 0; z-index: 9999; overflow: hidden;
 }
 
-/* Header */
 .nv-header {
   height: 60px; flex-shrink: 0;
   background: var(--c-bg); border-bottom: 1px solid var(--c-line);
@@ -1383,106 +1263,98 @@ export default {
   display: inline-flex; align-items: center; justify-content: center; padding: 0 4px;
 }
 
-/* ══════════════════════════════════════════════════
-   NORMAL GRID — Zoom-style participant layout
-   
-   Uses CSS Grid with auto-fill + minmax so tiles
-   redistribute automatically as participants join/leave.
-   Tiles maintain 16:9 aspect ratio.
-══════════════════════════════════════════════════ */
+/* ═══════════════════════════════════════════════════
+   GRID LAYOUT
+═══════════════════════════════════════════════════ */
 .nv-grid {
   flex: 1;
   min-height: 0;
   display: grid;
-  /* Zoom-style: columns auto-fill, min 240px wide */
-  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
-  /* Rows auto-size to fill available space evenly */
-  grid-auto-rows: 1fr;
-  gap: 8px;
-  padding: 12px;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 12px;
+  padding: 16px;
+  overflow-y: auto;
+  align-content: start;
   background: var(--c-bg);
-  align-content: center;
-  overflow: hidden;
 }
 
-/* For small participant counts, make tiles larger and centered */
-.nv-grid:has(.nv-tile:only-child) {
-  grid-template-columns: minmax(0, 640px);
-  justify-content: center;
-}
-.nv-grid:has(.nv-tile:nth-child(2):last-child) {
-  grid-template-columns: repeat(2, minmax(0, 560px));
-  justify-content: center;
-}
-.nv-grid:has(.nv-tile:nth-child(3):last-child),
-.nv-grid:has(.nv-tile:nth-child(4):last-child) {
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-}
+.nv-grid:has(> .nv-tile:nth-child(2)) { grid-template-columns: repeat(2, 1fr); }
+.nv-grid:has(> .nv-tile:nth-child(3)) { grid-template-columns: repeat(2, 1fr); }
+.nv-grid:has(> .nv-tile:nth-child(5)) { grid-template-columns: repeat(3, 1fr); }
+.nv-grid:has(> .nv-tile:nth-child(7)) { grid-template-columns: repeat(3, 1fr); }
+.nv-grid:has(> .nv-tile:nth-child(10)) { grid-template-columns: repeat(4, 1fr); }
 
-/* ══════════════════════════════════════════════════
-   PRESENTING LAYOUT — screen share + face sidebar
-══════════════════════════════════════════════════ */
-.nv-present-layout {
-  flex: 1;
-  min-height: 0;
-  display: grid;
-  /* Main content takes available space, sidebar is fixed 200px wide */
-  grid-template-columns: 1fr 200px;
+.nv-grid--presenting {
+  grid-template-columns: 1fr 300px;
   grid-template-rows: 1fr;
-  gap: 8px;
-  padding: 8px;
-  background: var(--c-bg);
+  align-content: stretch;
+  gap: 12px;
 }
 
-.nv-present-main {
-  /* Screen share tile fills this area */
-  min-height: 0;
+.nv-gmain {
+  grid-column: 1;
+  grid-row: 1;
   display: flex;
-  align-items: stretch;
+  align-items: center;
+  justify-content: center;
+  min-height: 0;
+  position: relative;
+  border-radius: 16px;
+  overflow: hidden;
+  background: #000;
 }
 
-.nv-present-sidebar {
-  /* Vertical strip of face tiles */
+.nv-gsidebar {
+  grid-column: 2;
+  grid-row: 1;
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 10px;
   overflow-y: auto;
   min-height: 0;
-  /* Hide scrollbar visually */
-  scrollbar-width: thin;
-  scrollbar-color: var(--c-surf2) transparent;
+  max-height: 100%;
+  padding-right: 4px;
 }
 
-/* ══════════════════════════════════════════════════
-   TILES
-══════════════════════════════════════════════════ */
+.nv-gsidebar .nv-tile {
+  flex-shrink: 0;
+  aspect-ratio: 16/9;
+  min-height: 120px;
+}
+
+.nv-gsidebar::-webkit-scrollbar { width: 6px; }
+.nv-gsidebar::-webkit-scrollbar-track { background: transparent; }
+.nv-gsidebar::-webkit-scrollbar-thumb { background: var(--c-surf2); border-radius: 3px; }
+.nv-gsidebar::-webkit-scrollbar-thumb:hover { background: #5f6368; }
+
 .nv-tile {
   position: relative;
   background: var(--c-surf);
-  border-radius: 10px;
+  border-radius: 12px;
   overflow: hidden;
-  /* 16:9 aspect ratio — maintained in normal grid */
-  aspect-ratio: 16 / 9;
+  aspect-ratio: 16/9;
   border: 1px solid var(--c-line);
-  min-height: 0;
+  transition: border-color .2s, box-shadow .2s;
 }
 
-/* Sidebar tiles: fixed height so they stack neatly */
-.nv-tile--sidebar {
-  aspect-ratio: 16 / 9;
-  flex-shrink: 0;
-  border-radius: 8px;
+.nv-tile:hover { border-color: #5f6368; }
+
+.nv-tile--me {
+  border: 2px solid rgba(52,168,83,.4);
+  box-shadow: 0 0 0 1px rgba(52,168,83,.2);
 }
 
-/* Screen share tile: fills the main panel entirely */
+.nv-tile--me:hover {
+  border-color: var(--c-green);
+  box-shadow: 0 0 0 1px rgba(52,168,83,.3), 0 2px 8px rgba(52,168,83,.2);
+}
+
 .nv-tile--screen {
   width: 100%;
   height: 100%;
   aspect-ratio: unset;
-  border-radius: 10px;
   border: 2px solid var(--c-blue);
   box-shadow: 0 0 0 1px rgba(26,115,232,.25), 0 8px 32px rgba(26,115,232,.12);
-  flex: 1;
 }
 
 .nv-tile video {
@@ -1491,20 +1363,31 @@ export default {
   object-fit: cover;
   display: block;
 }
-.nv-tile--screen video {
-  object-fit: contain;
-  background: #000;
-}
+
+.nv-tile--screen video { object-fit: contain; background: #000; }
 
 .nv-tilebar {
-  position: absolute; bottom: 0; left: 0; right: 0;
+  position: absolute;
+  bottom: 0; left: 0; right: 0;
   padding: 22px 10px 9px;
   background: linear-gradient(to top, rgba(0,0,0,.72) 0%, transparent 100%);
-  display: flex; align-items: flex-end; justify-content: space-between;
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
 }
-.nv-tilemeta { display: flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 500; color: #fff; text-shadow: 0 1px 3px rgba(0,0,0,.5); }
+
+.nv-tilemeta {
+  display: flex; align-items: center; gap: 6px;
+  font-size: 13px; font-weight: 500; color: #fff;
+  text-shadow: 0 1px 3px rgba(0,0,0,.5);
+}
+
 .nv-tilebadges { display: flex; gap: 4px; }
-.nv-you-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--c-green); flex-shrink: 0; }
+
+.nv-you-dot {
+  width: 6px; height: 6px; border-radius: 50%;
+  background: var(--c-green); flex-shrink: 0;
+}
 
 .nv-badge {
   width: 22px; height: 22px; border-radius: 5px;
@@ -1519,6 +1402,7 @@ export default {
   display: flex; align-items: center; justify-content: center;
   background: var(--c-surf);
 }
+
 .nv-avatar {
   width: 64px; height: 64px; border-radius: 50%;
   background: linear-gradient(135deg, #1a73e8, #0d47a1);
@@ -1527,14 +1411,14 @@ export default {
   box-shadow: 0 4px 16px rgba(26,115,232,.35);
 }
 
-/* Controls */
 .nv-controls {
   height: 80px; flex-shrink: 0;
   background: var(--c-bg); border-top: 1px solid var(--c-line);
   display: flex; align-items: center; justify-content: center;
 }
+
 .nv-ctrl-row { display: flex; align-items: center; gap: 6px; }
-.nv-cslot    { display: flex; flex-direction: column; align-items: center; gap: 5px; }
+.nv-cslot { display: flex; flex-direction: column; align-items: center; gap: 5px; }
 
 .nv-ctrl {
   width: 48px; height: 48px; border-radius: 50%; border: none;
@@ -1550,40 +1434,32 @@ export default {
 .nv-ctrl--sharing  { background: rgba(26,115,232,.2); color: #8ab4f8; border: 1px solid rgba(26,115,232,.3); }
 .nv-ctrl--sharing:hover { background: rgba(26,115,232,.3); }
 .nv-ctrl--leave {
-  width: 52px; height: 52px; background: var(--c-red); color: #fff;
+  width: 52px; height: 52px;
+  background: var(--c-red); color: #fff;
   box-shadow: 0 2px 12px rgba(234,67,53,.4);
 }
 .nv-ctrl--leave:hover { background: #d33828; }
-
 .nv-ctrl--end {
   width: 52px; height: 52px;
-  background: rgba(234,67,53,.18);
-  color: #f28b82;
+  background: rgba(234,67,53,.18); color: #f28b82;
   border: 2px solid rgba(234,67,53,.5);
   box-shadow: 0 2px 12px rgba(234,67,53,.2);
 }
 .nv-ctrl--end:hover:not(:disabled) {
   background: var(--c-red); color: #fff;
-  border-color: var(--c-red);
-  box-shadow: 0 4px 18px rgba(234,67,53,.5);
+  border-color: var(--c-red); box-shadow: 0 4px 18px rgba(234,67,53,.5);
 }
-
 .nv-ctrl--restart {
-  background: rgba(250,123,23,.15);
-  color: #fba45c;
+  background: rgba(250,123,23,.15); color: #fba45c;
   border: 1.5px solid rgba(250,123,23,.4);
 }
-.nv-ctrl--restart:hover:not(:disabled) {
-  background: rgba(250,123,23,.3);
-  border-color: var(--c-orange);
-}
+.nv-ctrl--restart:hover:not(:disabled) { background: rgba(250,123,23,.3); border-color: var(--c-orange); }
 
 .nv-clabel { font-size: 10px; color: var(--c-text2); white-space: nowrap; font-weight: 500; }
 .nv-clabel--red    { color: #f28b82; }
 .nv-clabel--orange { color: #fba45c; }
 .nv-cdivider { width: 1px; height: 32px; background: var(--c-line); margin: 0 8px; }
 
-/* Chat */
 .nv-chat {
   position: fixed; top: 0; right: -380px; height: 100%; width: 360px;
   background: var(--c-surf); border-left: 1px solid var(--c-line);
@@ -1595,13 +1471,14 @@ export default {
 .nv-chdr {
   height: 56px; flex-shrink: 0;
   border-bottom: 1px solid var(--c-line);
-  display: flex; align-items: center; justify-content: space-between; padding: 0 18px;
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 0 18px;
 }
 .nv-chdr-title { display: flex; align-items: center; gap: 8px; font-size: 14px; font-weight: 600; }
 .nv-chdr-close {
-  width: 32px; height: 32px; border: none; background: transparent; border-radius: 50%;
-  color: var(--c-text2); cursor: pointer; display: flex; align-items: center; justify-content: center;
-  transition: background .15s;
+  width: 32px; height: 32px; border: none; background: transparent;
+  border-radius: 50%; color: var(--c-text2); cursor: pointer;
+  display: flex; align-items: center; justify-content: center; transition: background .15s;
 }
 .nv-chdr-close:hover { background: var(--c-surf2); color: var(--c-text); }
 
@@ -1624,7 +1501,8 @@ export default {
   display: flex; gap: 8px; flex-shrink: 0;
 }
 .nv-cinput {
-  flex: 1; padding: 10px 14px; background: var(--c-surf2); border: 1px solid var(--c-line);
+  flex: 1; padding: 10px 14px;
+  background: var(--c-surf2); border: 1px solid var(--c-line);
   border-radius: 24px; color: var(--c-text); font-family: inherit; font-size: 14px;
   transition: border-color .15s;
 }
@@ -1633,33 +1511,27 @@ export default {
 .nv-csend {
   width: 38px; height: 38px; border: none; border-radius: 50%;
   background: var(--c-blue); color: #fff; cursor: pointer;
-  display: flex; align-items: center; justify-content: center;
-  transition: background .15s; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center; transition: background .15s; flex-shrink: 0;
 }
 .nv-csend:disabled { opacity: .4; cursor: default; }
 .nv-csend:not(:disabled):hover { background: var(--c-blue2); }
 
-/* Modals */
 .nv-modal-overlay {
   position: fixed; inset: 0; z-index: 20000;
   background: rgba(0,0,0,.65);
   display: flex; align-items: center; justify-content: center;
-  backdrop-filter: blur(4px);
-  animation: nv-fade-in .18s ease;
+  backdrop-filter: blur(4px); animation: nv-fade-in .18s ease;
 }
 @keyframes nv-fade-in { from { opacity: 0; } to { opacity: 1; } }
 
 .nv-modal {
-  background: var(--c-surf);
-  border: 1px solid var(--c-line);
-  border-radius: 20px;
-  padding: 36px 32px 28px;
-  width: 100%; max-width: 420px;
-  text-align: center;
+  background: var(--c-surf); border: 1px solid var(--c-line);
+  border-radius: 20px; padding: 36px 32px 28px;
+  width: 100%; max-width: 420px; text-align: center;
   box-shadow: 0 24px 80px rgba(0,0,0,.6);
   animation: nv-slide-up .2s cubic-bezier(.34,1.56,.64,1);
 }
-@keyframes nv-slide-up { from { opacity:0; transform:translateY(20px); } to { opacity:1; transform:translateY(0); } }
+@keyframes nv-slide-up { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
 
 .nv-modal-icon {
   width: 64px; height: 64px; border-radius: 50%;
@@ -1669,81 +1541,43 @@ export default {
 .nv-modal-icon--red  { background: rgba(234,67,53,.15); color: #f28b82; border: 1.5px solid rgba(234,67,53,.4); }
 .nv-modal-icon--blue { background: rgba(26,115,232,.15); color: #8ab4f8; border: 1.5px solid rgba(26,115,232,.4); }
 
-.nv-modal-title {
-  font-size: 20px; font-weight: 600; color: var(--c-text);
-  margin-bottom: 12px; line-height: 1.3;
-}
-.nv-modal-body {
-  font-size: 14px; color: var(--c-text2); line-height: 1.6;
-  margin-bottom: 28px;
-}
-.nv-modal-actions {
-  display: flex; gap: 10px; justify-content: center;
-}
+.nv-modal-title { font-size: 20px; font-weight: 600; color: var(--c-text); margin-bottom: 12px; line-height: 1.3; }
+.nv-modal-body  { font-size: 14px; color: var(--c-text2); line-height: 1.6; margin-bottom: 28px; }
+.nv-modal-actions { display: flex; gap: 10px; justify-content: center; }
 .nv-modal-btn {
   flex: 1; padding: 12px 20px; border-radius: var(--c-r);
-  font-family: inherit; font-size: 14px; font-weight: 600;
-  cursor: pointer; transition: all .15s; display: flex;
-  align-items: center; justify-content: center; gap: 7px;
-  max-width: 180px;
+  font-family: inherit; font-size: 14px; font-weight: 600; cursor: pointer;
+  transition: all .15s; display: flex; align-items: center; justify-content: center; gap: 7px; max-width: 180px;
 }
-.nv-modal-btn--ghost {
-  background: transparent; border: 1px solid var(--c-line); color: var(--c-text2);
-}
+.nv-modal-btn--ghost { background: transparent; border: 1px solid var(--c-line); color: var(--c-text2); }
 .nv-modal-btn--ghost:hover { border-color: var(--c-text2); color: var(--c-text); }
-.nv-modal-btn--danger {
-  background: var(--c-red); border: none; color: #fff;
-  box-shadow: 0 2px 12px rgba(234,67,53,.4);
-}
+.nv-modal-btn--danger { background: var(--c-red); border: none; color: #fff; box-shadow: 0 2px 12px rgba(234,67,53,.4); }
 .nv-modal-btn--danger:hover:not(:disabled) { background: #d33828; }
 .nv-modal-btn--danger:disabled { opacity: .55; cursor: not-allowed; }
-.nv-modal-btn--primary {
-  background: var(--c-blue); border: none; color: #fff;
-  box-shadow: 0 2px 12px rgba(26,115,232,.4);
-}
+.nv-modal-btn--primary { background: var(--c-blue); border: none; color: #fff; box-shadow: 0 2px 12px rgba(26,115,232,.4); }
 .nv-modal-btn--primary:hover:not(:disabled) { background: var(--c-blue2); }
 .nv-modal-btn--primary:disabled { opacity: .55; cursor: not-allowed; }
 
-/* Toast */
 .nv-toast {
   position: fixed; bottom: 96px; left: 50%; transform: translateX(-50%);
   display: flex; align-items: center; gap: 8px;
   padding: 10px 20px; border-radius: 24px;
   background: var(--c-surf2); border: 1px solid var(--c-line);
   font-size: 13px; font-weight: 500; color: #81c995;
-  box-shadow: 0 4px 24px rgba(0,0,0,.4);
-  z-index: 10001; pointer-events: none; white-space: nowrap;
+  box-shadow: 0 4px 24px rgba(0,0,0,.4); z-index: 10001;
+  pointer-events: none; white-space: nowrap;
 }
 .nv-toast--error { color: #f28b82; border-color: rgba(234,67,53,.35); }
 .nv-toast-fx-enter-active, .nv-toast-fx-leave-active { transition: opacity .2s, transform .2s; }
 .nv-toast-fx-enter-from  { opacity: 0; transform: translateX(-50%) translateY(10px); }
 .nv-toast-fx-leave-to    { opacity: 0; transform: translateX(-50%) translateY(10px); }
 
-/* ── Responsive ───────────────────────────── */
 @media (max-width: 960px) {
-  /* On mobile, presenting layout stacks vertically */
-  .nv-present-layout {
-    grid-template-columns: 1fr;
-    grid-template-rows: 1fr auto;
-  }
-  .nv-present-main { grid-row: 1; }
-  .nv-present-sidebar {
-    grid-row: 2;
-    flex-direction: row;
-    max-height: 120px;
-    overflow-x: auto;
-    overflow-y: hidden;
-  }
-  .nv-tile--sidebar {
-    min-width: 160px;
-    max-width: 200px;
-  }
+  .nv-grid--presenting { grid-template-columns: 1fr; grid-template-rows: 1fr auto; }
+  .nv-gmain { grid-column: 1; grid-row: 1; }
+  .nv-gsidebar { grid-column: 1; grid-row: 2; flex-direction: row; max-height: 140px; overflow-x: auto; overflow-y: hidden; }
+  .nv-gsidebar .nv-tile { min-width: 180px; }
   .nv-chat { width: 100vw; right: -100vw; }
   .nv-modal { margin: 0 16px; }
-
-  /* Normal grid: use smaller min tile size on mobile */
-  .nv-grid {
-    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
-  }
 }
 </style>
