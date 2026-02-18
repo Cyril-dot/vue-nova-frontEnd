@@ -167,7 +167,7 @@
           <!-- Left: active + meeting cards -->
           <div class="md-left-col">
 
-            <!-- Active meetings banner -->
+            <!-- ══ Active meetings banner ══ -->
             <div v-if="activeMeetings.length > 0" class="md-panel md-active-panel">
               <div class="md-panel-hdr">
                 <h2 class="md-panel-title">Active meetings</h2>
@@ -198,16 +198,27 @@
                         </span>
                       </div>
                     </div>
-                    <button class="md-join-now-btn" @click="joinActiveMeeting(m.meetingCode)">
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"/></svg>
-                      Join now
-                    </button>
+                    <!-- Active row action buttons -->
+                    <div class="md-active-actions">
+                      <button class="md-join-now-btn" @click="joinActiveMeeting(m.meetingCode)">
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+                        Join
+                      </button>
+                      <button class="md-restart-btn-sm" @click="promptRestart(m)" title="Restart meeting">
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-4.5"/></svg>
+                        Restart
+                      </button>
+                      <button class="md-end-btn-sm" @click="promptEnd(m)" title="End meeting for everyone">
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="9" y1="9" x2="15" y2="15"/><line x1="15" y1="9" x2="9" y2="15"/></svg>
+                        End
+                      </button>
+                    </div>
                   </div>
                 </div>
               </div>
             </div>
 
-            <!-- Meeting cards panel -->
+            <!-- ══ Meeting cards panel ══ -->
             <div class="md-panel md-list-panel">
               <div class="md-panel-hdr">
                 <h2 class="md-panel-title">{{ getFilterTitle() }}</h2>
@@ -293,7 +304,9 @@
                           <span class="md-host-name">{{ m.hostName }}</span>
                         </div>
                       </div>
+
                       <div class="md-mcard-actions">
+                        <!-- Join / Start -->
                         <button
                           v-if="m.status === 'SCHEDULED' || m.status === 'ACTIVE'"
                           class="md-btn-join"
@@ -302,6 +315,29 @@
                           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"/></svg>
                           {{ m.status === 'ACTIVE' ? 'Join now' : 'Start' }}
                         </button>
+
+                        <!-- Restart — only for ACTIVE meetings -->
+                        <button
+                          v-if="m.status === 'ACTIVE'"
+                          class="md-btn-restart"
+                          @click="promptRestart(m)"
+                          title="Restart meeting"
+                        >
+                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-4.5"/></svg>
+                          Restart
+                        </button>
+
+                        <!-- End — for ACTIVE or SCHEDULED meetings -->
+                        <button
+                          v-if="m.status === 'ACTIVE' || m.status === 'SCHEDULED'"
+                          class="md-btn-end"
+                          @click="promptEnd(m)"
+                          title="End this meeting"
+                        >
+                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="9" y1="9" x2="15" y2="15"/><line x1="15" y1="9" x2="9" y2="15"/></svg>
+                          End
+                        </button>
+
                         <button class="md-btn-details" @click="viewMeetingDetails(m.id)">Details</button>
                       </div>
                     </div>
@@ -361,7 +397,6 @@
                   </div>
                 </div>
 
-                <!-- Activity chart -->
                 <div class="md-chart-section">
                   <h3 class="md-chart-title">Meeting activity</h3>
                   <div class="md-chart">
@@ -374,7 +409,6 @@
                   </div>
                 </div>
 
-                <!-- Quick stats -->
                 <div class="md-quick-stats">
                   <div class="md-qs-row">
                     <span class="md-qs-lbl">Avg. duration</span>
@@ -398,6 +432,61 @@
       </div><!-- /md-content -->
     </main>
 
+    <!-- ════════════════════════════════════════
+         END MEETING MODAL
+    ════════════════════════════════════════ -->
+    <transition name="md-modal-fx">
+      <div v-if="modal.show && modal.type === 'end'" class="md-modal-overlay" @click.self="closeModal">
+        <div class="md-modal">
+          <div class="md-modal-icon md-modal-icon--red">
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="3" y="3" width="18" height="18" rx="2"/>
+              <line x1="9" y1="9" x2="15" y2="15"/><line x1="15" y1="9" x2="9" y2="15"/>
+            </svg>
+          </div>
+          <h2 class="md-modal-title">End "{{ modal.meeting?.title }}"?</h2>
+          <p class="md-modal-body">
+            This will permanently end the meeting for all participants and mark it as completed.
+            You can restart it afterwards if needed.
+          </p>
+          <div class="md-modal-actions">
+            <button class="md-modal-btn md-modal-btn--ghost" @click="closeModal" :disabled="modal.loading">Cancel</button>
+            <button class="md-modal-btn md-modal-btn--danger" @click="confirmEnd" :disabled="modal.loading">
+              <span v-if="modal.loading" class="md-modal-spinner"></span>
+              <svg v-else width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="9" y1="9" x2="15" y2="15"/><line x1="15" y1="9" x2="9" y2="15"/></svg>
+              End for everyone
+            </button>
+          </div>
+        </div>
+      </div>
+    </transition>
+
+    <!-- ════════════════════════════════════════
+         RESTART MEETING MODAL
+    ════════════════════════════════════════ -->
+    <transition name="md-modal-fx">
+      <div v-if="modal.show && modal.type === 'restart'" class="md-modal-overlay" @click.self="closeModal">
+        <div class="md-modal">
+          <div class="md-modal-icon md-modal-icon--orange">
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-4.5"/></svg>
+          </div>
+          <h2 class="md-modal-title">Restart "{{ modal.meeting?.title }}"?</h2>
+          <p class="md-modal-body">
+            All current participants will be disconnected and the meeting will restart fresh.
+            The meeting code stays the same so participants can rejoin.
+          </p>
+          <div class="md-modal-actions">
+            <button class="md-modal-btn md-modal-btn--ghost" @click="closeModal" :disabled="modal.loading">Cancel</button>
+            <button class="md-modal-btn md-modal-btn--orange" @click="confirmRestart" :disabled="modal.loading">
+              <span v-if="modal.loading" class="md-modal-spinner"></span>
+              <svg v-else width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-4.5"/></svg>
+              Restart meeting
+            </button>
+          </div>
+        </div>
+      </div>
+    </transition>
+
     <!-- ── Toast ── -->
     <transition name="md-toast-fx">
       <div v-if="toast.show" class="md-toast" :class="'md-toast--' + toast.type">
@@ -412,6 +501,8 @@
 
 <script>
 import { TokenService, apiRequest } from '@/utils/apiService';
+
+const API_BASE = 'https://nova-test-ctne.onrender.com/api';
 
 export default {
   name: 'MeetingsDashboard',
@@ -452,12 +543,21 @@ export default {
         { label: 'By participants', value: 'participants' },
       ],
 
+      // ── Modal state ──────────────────────────
+      modal: {
+        show: false,
+        type: null,       // 'end' | 'restart'
+        meeting: null,
+        loading: false,
+      },
+
       toast: { show: false, message: '', type: 'success' },
     };
   },
 
   computed: {
     isAuthenticated() { return TokenService.isAuthenticated(); },
+    token()           { return TokenService.getAccessToken(); },
 
     filteredMeetings() {
       let list = [...this.allMeetings];
@@ -485,7 +585,7 @@ export default {
   },
 
   methods: {
-    // ── Normalise raw backend object ──────────────────────────
+    // ── Normalise raw backend object ─────────────────────────
     normalizeM(raw) {
       let hostName = raw.hostName || raw.host_name || '';
       if (!hostName && raw.host && typeof raw.host === 'object') {
@@ -498,9 +598,7 @@ export default {
       if (!hostName) hostName = 'Unknown';
 
       let currentParticipants = raw.currentParticipants ?? raw.current_participants ?? 0;
-      if (Array.isArray(raw.participants)) {
-        currentParticipants = raw.participants.length;
-      }
+      if (Array.isArray(raw.participants)) currentParticipants = raw.participants.length;
 
       const meetingCode        = raw.meetingCode        || raw.meeting_code        || '';
       const maxParticipants    = raw.maxParticipants    ?? raw.max_participants    ?? 0;
@@ -518,43 +616,27 @@ export default {
       if (status === 'COMPLETED') status = 'ENDED';
 
       return {
-        id: raw.id,
-        title: raw.title || 'Untitled',
-        description: raw.description || '',
-        status,
-        meetingCode,
-        maxParticipants,
-        currentParticipants,
-        scheduledStartTime,
-        actualStartTime,
-        endTime,
-        createdAt,
-        allowGuests,
-        videoEnabled,
-        audioEnabled,
-        screenShareEnabled,
-        chatEnabled,
+        id: raw.id, title: raw.title || 'Untitled', description: raw.description || '',
+        status, meetingCode, maxParticipants, currentParticipants,
+        scheduledStartTime, actualStartTime, endTime, createdAt,
+        allowGuests, videoEnabled, audioEnabled, screenShareEnabled, chatEnabled,
         hostName,
         participants:      raw.participants      || [],
         participantEmails: raw.participantEmails || raw.participant_emails || [],
       };
     },
 
-    // ── Data ──────────────────────────────────────────────────
+    // ── Data ─────────────────────────────────────────────────
     async fetchMeetingsData() {
       this.loading = true;
       this.error   = null;
       try {
-        if (!TokenService.getAccessToken()) {
-          this.$router.push('/auth');
-          return;
-        }
+        if (!TokenService.getAccessToken()) { this.$router.push('/auth'); return; }
 
-        const res = await apiRequest('/meetings/my-meetings', { method: 'GET' });
+        const res  = await apiRequest('/meetings/my-meetings', { method: 'GET' });
         if (!res.ok) throw new Error(`Server returned ${res.status}`);
 
         const body = await res.json();
-
         let raw = [];
         if (Array.isArray(body))               raw = body;
         else if (Array.isArray(body.data))     raw = body.data;
@@ -588,144 +670,73 @@ export default {
       this.stats.completed     = all.filter(m => m.status === 'ENDED').length;
       this.stats.cancelled     = all.filter(m => m.status === 'CANCELLED').length;
       this.stats.activeNow     = this.activeMeetings.length;
-      this.stats.totalParticipants = this.activeMeetings.reduce(
-        (s, m) => s + (m.currentParticipants || 0), 0
-      );
+      this.stats.totalParticipants = this.activeMeetings.reduce((s, m) => s + (m.currentParticipants || 0), 0);
 
       const unique = new Set();
       all.forEach(m => {
-        if (Array.isArray(m.participants)) {
-          m.participants.forEach(p =>
-            unique.add(p.email || p.displayName || p.id || JSON.stringify(p))
-          );
-        }
-        if (Array.isArray(m.participantEmails)) {
-          m.participantEmails.forEach(e => unique.add(e));
-        }
+        if (Array.isArray(m.participants)) m.participants.forEach(p => unique.add(p.email || p.displayName || p.id || JSON.stringify(p)));
+        if (Array.isArray(m.participantEmails)) m.participantEmails.forEach(e => unique.add(e));
       });
-      this.stats.totalUniqueParticipants = unique.size > 0
-        ? unique.size
-        : all.reduce((s, m) => s + (m.currentParticipants || 0), 0);
+      this.stats.totalUniqueParticipants = unique.size > 0 ? unique.size : all.reduce((s, m) => s + (m.currentParticipants || 0), 0);
 
       const totalP = all.reduce((s, m) => s + (m.currentParticipants || 0), 0);
       this.stats.averageParticipants = all.length > 0 ? Math.round(totalP / all.length) : 0;
 
-      const tomorrow = new Date(now);
-      tomorrow.setDate(tomorrow.getDate() + 1);
-      const nextWeek = new Date(now);
-      nextWeek.setDate(nextWeek.getDate() + 7);
-
+      const tomorrow = new Date(now); tomorrow.setDate(tomorrow.getDate() + 1);
+      const nextWeek  = new Date(now); nextWeek.setDate(nextWeek.getDate() + 7);
       const sched = all.filter(m => m.status === 'SCHEDULED');
-      this.stats.upcomingToday = sched.filter(m =>
-        m.scheduledStartTime &&
-        new Date(m.scheduledStartTime).toDateString() === now.toDateString()
-      ).length;
-      this.stats.upcomingTomorrow = sched.filter(m =>
-        m.scheduledStartTime &&
-        new Date(m.scheduledStartTime).toDateString() === tomorrow.toDateString()
-      ).length;
-      this.stats.upcomingThisWeek = sched.filter(m => {
-        if (!m.scheduledStartTime) return false;
-        const d = new Date(m.scheduledStartTime);
-        return d >= now && d <= nextWeek;
-      }).length;
+      this.stats.upcomingToday    = sched.filter(m => m.scheduledStartTime && new Date(m.scheduledStartTime).toDateString() === now.toDateString()).length;
+      this.stats.upcomingTomorrow = sched.filter(m => m.scheduledStartTime && new Date(m.scheduledStartTime).toDateString() === tomorrow.toDateString()).length;
+      this.stats.upcomingThisWeek = sched.filter(m => { if (!m.scheduledStartTime) return false; const d = new Date(m.scheduledStartTime); return d >= now && d <= nextWeek; }).length;
 
       let totalDur = 0, durCount = 0;
-      all.forEach(m => {
-        if (m.actualStartTime && m.endTime) {
-          const diff = (new Date(m.endTime) - new Date(m.actualStartTime)) / 60000;
-          if (diff > 0) { totalDur += diff; durCount++; }
-        }
-      });
+      all.forEach(m => { if (m.actualStartTime && m.endTime) { const diff = (new Date(m.endTime) - new Date(m.actualStartTime)) / 60000; if (diff > 0) { totalDur += diff; durCount++; } } });
       this.stats.totalDuration   = Math.round(totalDur);
       this.stats.averageDuration = durCount > 0 ? Math.round(totalDur / durCount) : 0;
-
-      this.stats.meetingsThisMonth = all.filter(m => {
-        const d = new Date(m.createdAt);
-        return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
-      }).length;
-
+      this.stats.meetingsThisMonth = all.filter(m => { const d = new Date(m.createdAt); return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear(); }).length;
       const everStarted = this.stats.completed + this.stats.cancelled + this.stats.activeNow;
-      this.stats.completionRate = everStarted > 0
-        ? Math.round((this.stats.completed / everStarted) * 100)
-        : 0;
+      this.stats.completionRate = everStarted > 0 ? Math.round((this.stats.completed / everStarted) * 100) : 0;
     },
 
     updateFilterCounts() {
       this.filterTabs.forEach(t => {
-        if (t.value === 'all') {
-          t.count = this.allMeetings.length;
-        } else if (t.value === 'completed') {
-          t.count = this.allMeetings.filter(m => m.status === 'ENDED').length;
-        } else {
-          t.count = this.allMeetings.filter(m => m.status.toLowerCase() === t.value).length;
-        }
+        if (t.value === 'all')            t.count = this.allMeetings.length;
+        else if (t.value === 'completed') t.count = this.allMeetings.filter(m => m.status === 'ENDED').length;
+        else                              t.count = this.allMeetings.filter(m => m.status.toLowerCase() === t.value).length;
       });
     },
 
     generateActivityData() {
       const days   = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
       const counts = new Array(7).fill(0);
-      this.allMeetings.forEach(m => {
-        const idx = (new Date(m.createdAt).getDay() + 6) % 7;
-        counts[idx]++;
-      });
+      this.allMeetings.forEach(m => { const idx = (new Date(m.createdAt).getDay() + 6) % 7; counts[idx]++; });
       const maxCount = Math.max(...counts, 1);
-      this.activityData = days.map((label, i) => ({
-        label,
-        count: counts[i],
-        percentage: Math.max((counts[i] / maxCount) * 100, counts[i] > 0 ? 8 : 3),
-      }));
+      this.activityData = days.map((label, i) => ({ label, count: counts[i], percentage: Math.max((counts[i] / maxCount) * 100, counts[i] > 0 ? 8 : 3) }));
     },
 
-    // ── UI ────────────────────────────────────────────────────
+    // ── UI ───────────────────────────────────────────────────
     setFilter(v)       { this.activeFilter = v; },
     toggleSortMenu()   { this.showSortMenu = !this.showSortMenu; },
     setSortOption(opt) { this.currentSort = opt; this.showSortMenu = false; },
 
-    getFilterTitle() {
-      return (this.filterTabs.find(t => t.value === this.activeFilter) || {}).label || 'Meetings';
-    },
+    getFilterTitle()      { return (this.filterTabs.find(t => t.value === this.activeFilter) || {}).label || 'Meetings'; },
     getEmptyStateMessage() {
-      const map = {
-        scheduled: 'No scheduled meetings.',
-        completed: 'No completed meetings yet.',
-        cancelled: 'No cancelled meetings.',
-      };
+      const map = { scheduled: 'No scheduled meetings.', completed: 'No completed meetings yet.', cancelled: 'No cancelled meetings.' };
       return map[this.activeFilter] || 'No meetings yet. Create your first!';
     },
 
-    // ── Actions ───────────────────────────────────────────────
-
-    // FIX: Use router object form (not raw string with ?query)
-    //      Clear stale sessionStorage code so Meeting.vue knows it's a new meeting
+    // ── Navigation ───────────────────────────────────────────
     createMeeting() {
       sessionStorage.removeItem('nova_meeting_code');
       this.$router.push({ path: '/meeting', query: { create: 'true' } });
     },
-
-    joinMeeting() {
-      this.$router.push({ path: '/join-meeting' });
-    },
-
-    joinActiveMeeting(code) {
-      sessionStorage.setItem('nova_meeting_code', code);
-      this.$router.push({ path: '/meeting' });
-    },
-
-    joinMeetingWithCode(code) {
-      sessionStorage.setItem('nova_meeting_code', code);
-      this.$router.push({ path: '/meeting' });
-    },
-
+    joinMeeting()              { this.$router.push({ path: '/join-meeting' }); },
+    joinActiveMeeting(code)    { sessionStorage.setItem('nova_meeting_code', code); this.$router.push({ path: '/meeting' }); },
+    joinMeetingWithCode(code)  { sessionStorage.setItem('nova_meeting_code', code); this.$router.push({ path: '/meeting' }); },
     viewMeetingDetails(id) {
       const m = this.allMeetings.find(m => m.id === id);
-      if (m) {
-        sessionStorage.setItem('nova_meeting_code', m.meetingCode);
-        this.$router.push({ path: '/meeting' });
-      }
+      if (m) { sessionStorage.setItem('nova_meeting_code', m.meetingCode); this.$router.push({ path: '/meeting' }); }
     },
-
     toggleMeetingMenu(id) { console.log('Menu:', id); },
 
     copyMeetingCode(code) {
@@ -734,33 +745,99 @@ export default {
         .catch(()  => this.showToast('Failed to copy', 'error'));
     },
 
-    // ── Helpers ───────────────────────────────────────────────
-    getStatusClass(s) {
-      return ({ ACTIVE: 'live', SCHEDULED: 'scheduled', ENDED: 'completed', CANCELLED: 'cancelled' })[s] || '';
+    // ══════════════════════════════════════════
+    //  END MEETING
+    // ══════════════════════════════════════════
+    promptEnd(meeting) {
+      this.modal = { show: true, type: 'end', meeting, loading: false };
     },
-    getStatusLabel(s) {
-      return ({ ACTIVE: 'Live', SCHEDULED: 'Scheduled', ENDED: 'Completed', CANCELLED: 'Cancelled' })[s] || s;
+
+    async confirmEnd() {
+      this.modal.loading = true;
+      const code = this.modal.meeting.meetingCode;
+      try {
+        await fetch(`${API_BASE}/meetings/end/${code}`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${this.token}`,
+            'Content-Type':  'application/json',
+            'ngrok-skip-browser-warning': 'true',
+          },
+        });
+        // Update local state immediately — don't wait for a full refetch
+        const m = this.allMeetings.find(m => m.meetingCode === code);
+        if (m) { m.status = 'ENDED'; m.endTime = new Date().toISOString(); }
+        this.processActiveMeetings();
+        this.calculateStatistics();
+        this.updateFilterCounts();
+        this.showToast(`"${this.modal.meeting.title}" ended successfully.`, 'success');
+      } catch (err) {
+        console.error('End meeting error:', err);
+        this.showToast('Failed to end meeting — please try again.', 'error');
+      } finally {
+        this.modal.loading = false;
+        this.closeModal();
+        // Full refresh to sync with server
+        setTimeout(() => this.fetchMeetingsData(), 1200);
+      }
     },
+
+    // ══════════════════════════════════════════
+    //  RESTART MEETING
+    // ══════════════════════════════════════════
+    promptRestart(meeting) {
+      this.modal = { show: true, type: 'restart', meeting, loading: false };
+    },
+
+    async confirmRestart() {
+      this.modal.loading = true;
+      const code = this.modal.meeting.meetingCode;
+      try {
+        // 1. End the current session
+        await fetch(`${API_BASE}/meetings/end/${code}`, {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${this.token}`, 'ngrok-skip-browser-warning': 'true' },
+        }).catch(() => {});
+
+        // 2. Start a fresh session
+        await fetch(`${API_BASE}/meetings/start/${code}`, {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${this.token}`, 'ngrok-skip-browser-warning': 'true' },
+        });
+
+        this.showToast(`"${this.modal.meeting.title}" restarted! Participants can rejoin.`, 'success');
+      } catch (err) {
+        console.error('Restart meeting error:', err);
+        this.showToast('Failed to restart meeting — please try again.', 'error');
+      } finally {
+        this.modal.loading = false;
+        this.closeModal();
+        setTimeout(() => this.fetchMeetingsData(), 1200);
+      }
+    },
+
+    closeModal() {
+      this.modal = { show: false, type: null, meeting: null, loading: false };
+    },
+
+    // ── Helpers ──────────────────────────────────────────────
+    getStatusClass(s) { return ({ ACTIVE: 'live', SCHEDULED: 'scheduled', ENDED: 'completed', CANCELLED: 'cancelled' })[s] || ''; },
+    getStatusLabel(s) { return ({ ACTIVE: 'Live', SCHEDULED: 'Scheduled', ENDED: 'Completed', CANCELLED: 'Cancelled' })[s] || s; },
     getHostInitials(n) {
       if (!n) return '?';
       const p = n.trim().split(/\s+/);
       return p.length >= 2 ? (p[0][0] + p[p.length - 1][0]).toUpperCase() : n[0].toUpperCase();
     },
-
     formatMeetingTime(m) {
       if (m.status === 'ACTIVE')    return `Started ${this.getRelativeTime(m.actualStartTime)}`;
       if (m.status === 'SCHEDULED') return this.formatDate(m.scheduledStartTime);
       if (m.status === 'ENDED')     return `Ended ${this.getRelativeTime(m.endTime)}`;
       return 'Not started';
     },
-
     formatDate(ds) {
       if (!ds) return '';
-      return new Date(ds).toLocaleDateString('en-US', {
-        month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit',
-      });
+      return new Date(ds).toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
     },
-
     getRelativeTime(ds) {
       if (!ds) return '';
       const d = Math.floor((Date.now() - new Date(ds)) / 1000);
@@ -770,27 +847,22 @@ export default {
       if (d < 604800) return `${Math.floor(d / 86400)}d ago`;
       return `${Math.floor(d / 604800)}w ago`;
     },
-
     formatDuration(m) {
       if (!m || m < 1) return '—';
       if (m < 60) return `${m}m`;
-      const h = Math.floor(m / 60);
-      const r = m % 60;
+      const h = Math.floor(m / 60), r = m % 60;
       return r > 0 ? `${h}h ${r}m` : `${h}h`;
     },
-
     showToast(msg, type = 'success') {
       this.toast = { show: true, message: msg, type };
-      setTimeout(() => { this.toast.show = false; }, 3000);
+      setTimeout(() => { this.toast.show = false; }, 3500);
     },
   },
 
   mounted() {
     if (!this.isAuthenticated) { this.$router.push('/auth'); return; }
     document.addEventListener('click', e => {
-      if (this.$refs.sortWrap && !this.$refs.sortWrap.contains(e.target)) {
-        this.showSortMenu = false;
-      }
+      if (this.$refs.sortWrap && !this.$refs.sortWrap.contains(e.target)) this.showSortMenu = false;
     });
     this.fetchMeetingsData();
   },
@@ -816,8 +888,6 @@ export default {
   --md-green:     #10b981;
   --md-orange:    #f59e0b;
   --md-red:       #ef4444;
-  --md-pink:      #ec4899;
-  --md-cyan:      #06b6d4;
   --md-surf:      #ffffff;
   --md-surf2:     #f0f6fd;
   --md-surf3:     #e8f2fc;
@@ -836,25 +906,10 @@ export default {
 .md-wrap * { box-sizing: border-box; margin: 0; padding: 0; }
 
 /* NAV */
-.md-nav {
-  height: 64px; flex-shrink: 0;
-  background: var(--md-white);
-  border-bottom: 1px solid var(--md-border);
-  position: sticky; top: 0; z-index: 100;
-  box-shadow: var(--md-shadow-sm);
-}
-.md-nav-inner {
-  height: 100%; max-width: 1600px; margin: 0 auto; padding: 0 28px;
-  display: flex; align-items: center; justify-content: space-between;
-}
+.md-nav { height: 64px; flex-shrink: 0; background: var(--md-white); border-bottom: 1px solid var(--md-border); position: sticky; top: 0; z-index: 100; box-shadow: var(--md-shadow-sm); }
+.md-nav-inner { height: 100%; max-width: 1600px; margin: 0 auto; padding: 0 28px; display: flex; align-items: center; justify-content: space-between; }
 .md-nav-left, .md-nav-right { display: flex; align-items: center; gap: 14px; }
-
-.md-back {
-  display: flex; align-items: center; gap: 7px;
-  color: var(--md-ink-m); text-decoration: none;
-  font-size: 13px; font-weight: 600;
-  padding: 7px 12px; border-radius: var(--md-r); transition: all .15s;
-}
+.md-back { display: flex; align-items: center; gap: 7px; color: var(--md-ink-m); text-decoration: none; font-size: 13px; font-weight: 600; padding: 7px 12px; border-radius: var(--md-r); transition: all .15s; }
 .md-back:hover { background: var(--md-blue-soft); color: var(--md-blue); }
 .md-nav-divider { width: 1px; height: 22px; background: var(--md-border); }
 .md-page-id    { display: flex; align-items: center; gap: 12px; }
@@ -864,13 +919,7 @@ export default {
 .md-page-meta  { display: flex; flex-direction: column; gap: 1px; padding-left: 12px; border-left: 1px solid var(--md-border); }
 .md-page-title { font-size: 14px; font-weight: 700; color: var(--md-ink); line-height: 1.2; }
 .md-page-sub   { font-size: 11px; color: var(--md-ink-m); font-weight: 500; }
-
-.md-btn {
-  display: inline-flex; align-items: center; gap: 7px;
-  padding: 8px 18px; border-radius: var(--md-r);
-  font-family: 'Manrope', sans-serif; font-size: 13px; font-weight: 700;
-  cursor: pointer; border: none; transition: all .18s;
-}
+.md-btn { display: inline-flex; align-items: center; gap: 7px; padding: 8px 18px; border-radius: var(--md-r); font-family: 'Manrope', sans-serif; font-size: 13px; font-weight: 700; cursor: pointer; border: none; transition: all .18s; }
 .md-btn--ghost { background: transparent; border: 1.5px solid var(--md-border); color: var(--md-ink-m); }
 .md-btn--ghost:hover { border-color: var(--md-blue); color: var(--md-blue); background: var(--md-blue-soft); }
 .md-btn--primary { background: var(--md-blue); color: var(--md-white); box-shadow: 0 2px 10px var(--md-blue-glow); }
@@ -878,194 +927,125 @@ export default {
 
 /* MAIN */
 .md-main { flex: 1; max-width: 1600px; margin: 0 auto; padding: 28px; width: 100%; }
-
-.md-state-panel {
-  display: flex; flex-direction: column; align-items: center; justify-content: center;
-  min-height: 380px; gap: 16px; background: var(--md-white);
-  border: 1px solid var(--md-border); border-radius: 16px; padding: 48px;
-  box-shadow: var(--md-shadow-sm);
-}
+.md-state-panel { display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 380px; gap: 16px; background: var(--md-white); border: 1px solid var(--md-border); border-radius: 16px; padding: 48px; box-shadow: var(--md-shadow-sm); }
 .md-state-text { font-size: 15px; color: var(--md-ink-m); font-weight: 600; }
-.md-spinner {
-  width: 40px; height: 40px;
-  border: 3px solid var(--md-blue-mid); border-top-color: var(--md-blue);
-  border-radius: 50%; animation: md-spin .75s linear infinite;
-}
+.md-spinner { width: 40px; height: 40px; border: 3px solid var(--md-blue-mid); border-top-color: var(--md-blue); border-radius: 50%; animation: md-spin .75s linear infinite; }
 @keyframes md-spin { to { transform: rotate(360deg); } }
 .md-state-icon { width: 52px; height: 52px; border-radius: 50%; display: flex; align-items: center; justify-content: center; }
 .md-state-icon--red { background: rgba(239,68,68,0.1); color: var(--md-red); border: 1px solid rgba(239,68,68,0.2); }
-
 .md-content { display: flex; flex-direction: column; gap: 20px; }
 
 /* STATS ROW */
 .md-stats-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; }
-.md-stat {
-  background: var(--md-white); border: 1px solid var(--md-border); border-radius: 14px;
-  padding: 18px 20px; display: flex; align-items: flex-start; gap: 14px;
-  cursor: default; transition: border-color .15s, box-shadow .15s, transform .15s;
-  box-shadow: var(--md-shadow-sm);
-}
+.md-stat { background: var(--md-white); border: 1px solid var(--md-border); border-radius: 14px; padding: 18px 20px; display: flex; align-items: flex-start; gap: 14px; cursor: default; transition: border-color .15s, box-shadow .15s, transform .15s; box-shadow: var(--md-shadow-sm); }
 .md-stat:hover { border-color: var(--md-blue-mid); box-shadow: var(--md-shadow-md); transform: translateY(-1px); }
 .md-stat--live { border-color: rgba(239,68,68,0.3); }
-.md-stat-icon {
-  width: 44px; height: 44px; border-radius: 12px; flex-shrink: 0;
-  display: flex; align-items: center; justify-content: center; position: relative;
-}
-.md-stat-icon--blue  { background: var(--md-blue-soft);         color: var(--md-blue); }
-.md-stat-icon--red   { background: rgba(239,68,68,0.10);        color: var(--md-red); }
-.md-stat-icon--green { background: rgba(16,185,129,0.12);       color: var(--md-green); }
-.md-stat-icon--amber { background: rgba(245,158,11,0.12);       color: var(--md-orange); }
-.md-live-ring {
-  position: absolute; inset: -5px; border-radius: 50%;
-  border: 2px solid rgba(239,68,68,0.35);
-  animation: md-ring-pulse 2s ease-out infinite;
-}
+.md-stat-icon { width: 44px; height: 44px; border-radius: 12px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; position: relative; }
+.md-stat-icon--blue  { background: var(--md-blue-soft); color: var(--md-blue); }
+.md-stat-icon--red   { background: rgba(239,68,68,0.10); color: var(--md-red); }
+.md-stat-icon--green { background: rgba(16,185,129,0.12); color: var(--md-green); }
+.md-stat-icon--amber { background: rgba(245,158,11,0.12); color: var(--md-orange); }
+.md-live-ring { position: absolute; inset: -5px; border-radius: 50%; border: 2px solid rgba(239,68,68,0.35); animation: md-ring-pulse 2s ease-out infinite; }
 @keyframes md-ring-pulse { 0% { opacity:.8; transform:scale(1); } 100% { opacity:0; transform:scale(1.6); } }
 .md-stat-body      { flex: 1; display: flex; flex-direction: column; gap: 3px; }
 .md-stat-label-row { display: flex; align-items: center; gap: 8px; }
 .md-stat-label { font-size: 12px; font-weight: 700; color: var(--md-ink-m); letter-spacing: .2px; text-transform: uppercase; }
 .md-stat-val   { font-family: 'Space Grotesk', sans-serif; font-size: 30px; font-weight: 700; color: var(--md-ink); line-height: 1.1; }
 .md-stat-sub   { font-size: 11px; color: var(--md-ink-m); font-weight: 500; }
-.md-live-chip {
-  font-size: 9px; font-weight: 800; letter-spacing: .6px; padding: 2px 6px; border-radius: 4px;
-  background: rgba(239,68,68,0.10); color: var(--md-red); border: 1px solid rgba(239,68,68,0.25);
-  animation: md-blink 2s ease-in-out infinite;
-}
+.md-live-chip { font-size: 9px; font-weight: 800; letter-spacing: .6px; padding: 2px 6px; border-radius: 4px; background: rgba(239,68,68,0.10); color: var(--md-red); border: 1px solid rgba(239,68,68,0.25); animation: md-blink 2s ease-in-out infinite; }
 @keyframes md-blink { 0%, 100% { opacity: 1; } 50% { opacity: .5; } }
 
 /* FILTER BAR */
 .md-filters { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
-.md-filter-tabs {
-  display: flex; gap: 4px; background: var(--md-white);
-  border: 1px solid var(--md-border); border-radius: 12px; padding: 4px;
-  box-shadow: var(--md-shadow-sm);
-}
-.md-tab {
-  display: flex; align-items: center; gap: 7px; padding: 8px 16px;
-  border: none; background: transparent; color: var(--md-ink-m);
-  font-family: 'Manrope', sans-serif; font-size: 13px; font-weight: 600;
-  border-radius: 8px; cursor: pointer; transition: all .15s;
-}
+.md-filter-tabs { display: flex; gap: 4px; background: var(--md-white); border: 1px solid var(--md-border); border-radius: 12px; padding: 4px; box-shadow: var(--md-shadow-sm); }
+.md-tab { display: flex; align-items: center; gap: 7px; padding: 8px 16px; border: none; background: transparent; color: var(--md-ink-m); font-family: 'Manrope', sans-serif; font-size: 13px; font-weight: 600; border-radius: 8px; cursor: pointer; transition: all .15s; }
 .md-tab:hover { color: var(--md-blue); background: var(--md-blue-soft); }
 .md-tab--active { background: var(--md-blue); color: var(--md-white); box-shadow: 0 2px 8px var(--md-blue-glow); }
 .md-tab--active:hover { background: var(--md-blue); }
-.md-tab-count {
-  min-width: 18px; height: 18px; padding: 0 5px; border-radius: 9px;
-  font-size: 10px; font-weight: 700; display: inline-flex; align-items: center; justify-content: center;
-  background: rgba(255,255,255,0.25);
-}
+.md-tab-count { min-width: 18px; height: 18px; padding: 0 5px; border-radius: 9px; font-size: 10px; font-weight: 700; display: inline-flex; align-items: center; justify-content: center; background: rgba(255,255,255,0.25); }
 .md-tab:not(.md-tab--active) .md-tab-count { background: var(--md-blue-soft); color: var(--md-blue); }
-
 .md-sort-wrap { position: relative; }
-.md-sort-btn {
-  display: flex; align-items: center; gap: 7px; padding: 8px 14px;
-  background: var(--md-white); border: 1px solid var(--md-border); border-radius: var(--md-r);
-  color: var(--md-ink-m); font-family: 'Manrope', sans-serif; font-size: 13px; font-weight: 600;
-  cursor: pointer; transition: all .15s; box-shadow: var(--md-shadow-sm);
-}
+.md-sort-btn { display: flex; align-items: center; gap: 7px; padding: 8px 14px; background: var(--md-white); border: 1px solid var(--md-border); border-radius: var(--md-r); color: var(--md-ink-m); font-family: 'Manrope', sans-serif; font-size: 13px; font-weight: 600; cursor: pointer; transition: all .15s; box-shadow: var(--md-shadow-sm); }
 .md-sort-btn:hover { border-color: var(--md-blue); color: var(--md-blue); background: var(--md-blue-soft); }
-.md-sort-menu {
-  position: absolute; top: calc(100% + 6px); right: 0; min-width: 190px;
-  background: var(--md-white); border: 1px solid var(--md-border);
-  border-radius: 12px; box-shadow: var(--md-shadow-lg); padding: 6px; z-index: 50;
-}
-.md-sort-opt {
-  display: flex; align-items: center; gap: 8px; width: 100%; padding: 9px 12px;
-  border: none; background: transparent; border-radius: 8px; color: var(--md-ink-m);
-  font-family: 'Manrope', sans-serif; font-size: 13px; font-weight: 600;
-  cursor: pointer; transition: all .12s;
-}
-.md-sort-opt:hover     { background: var(--md-blue-soft); color: var(--md-blue); }
-.md-sort-opt--active   { color: var(--md-blue); background: var(--md-blue-soft); }
+.md-sort-menu { position: absolute; top: calc(100% + 6px); right: 0; min-width: 190px; background: var(--md-white); border: 1px solid var(--md-border); border-radius: 12px; box-shadow: var(--md-shadow-lg); padding: 6px; z-index: 50; }
+.md-sort-opt { display: flex; align-items: center; gap: 8px; width: 100%; padding: 9px 12px; border: none; background: transparent; border-radius: 8px; color: var(--md-ink-m); font-family: 'Manrope', sans-serif; font-size: 13px; font-weight: 600; cursor: pointer; transition: all .12s; }
+.md-sort-opt:hover   { background: var(--md-blue-soft); color: var(--md-blue); }
+.md-sort-opt--active { color: var(--md-blue); background: var(--md-blue-soft); }
 .md-drop-enter-active, .md-drop-leave-active { transition: opacity .15s, transform .15s; }
-.md-drop-enter-from,   .md-drop-leave-to     { opacity: 0; transform: translateY(-6px); }
+.md-drop-enter-from, .md-drop-leave-to { opacity: 0; transform: translateY(-6px); }
 
 /* BODY GRID */
 .md-body-grid { display: grid; grid-template-columns: 1fr 300px; gap: 18px; }
 .md-left-col  { display: flex; flex-direction: column; gap: 18px; min-width: 0; }
-
 .md-panel { background: var(--md-white); border: 1px solid var(--md-border); border-radius: 16px; overflow: hidden; box-shadow: var(--md-shadow-sm); }
-.md-panel-hdr {
-  padding: 18px 22px; border-bottom: 1px solid var(--md-border);
-  display: flex; align-items: center; justify-content: space-between;
-  background: linear-gradient(to right, var(--md-white), var(--md-surf2));
-}
+.md-panel-hdr { padding: 18px 22px; border-bottom: 1px solid var(--md-border); display: flex; align-items: center; justify-content: space-between; background: linear-gradient(to right, var(--md-white), var(--md-surf2)); }
 .md-panel-title { font-family: 'Space Grotesk', sans-serif; font-size: 16px; font-weight: 700; color: var(--md-ink); }
 .md-panel-body  { padding: 20px 22px; }
-
 .md-active-panel { border-color: rgba(239,68,68,0.25); }
-.md-live-badge {
-  display: flex; align-items: center; gap: 6px;
-  font-size: 10px; font-weight: 800; letter-spacing: .5px;
-  padding: 4px 10px; border-radius: 20px;
-  background: rgba(239,68,68,0.10); border: 1px solid rgba(239,68,68,0.25); color: var(--md-red);
-}
+.md-live-badge { display: flex; align-items: center; gap: 6px; font-size: 10px; font-weight: 800; letter-spacing: .5px; padding: 4px 10px; border-radius: 20px; background: rgba(239,68,68,0.10); border: 1px solid rgba(239,68,68,0.25); color: var(--md-red); }
 .md-live-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--md-red); animation: md-blink 2s ease-in-out infinite; }
 .md-active-list { display: flex; flex-direction: column; gap: 10px; }
-.md-active-row {
-  display: flex; align-items: center; gap: 14px; padding: 14px 16px;
-  border-radius: 12px; background: var(--md-surf2); border: 1px solid var(--md-border);
-  border-left: 3px solid var(--md-red); transition: background .15s, box-shadow .15s;
-}
+
+/* Active row */
+.md-active-row { display: flex; align-items: center; gap: 14px; padding: 14px 16px; border-radius: 12px; background: var(--md-surf2); border: 1px solid var(--md-border); border-left: 3px solid var(--md-red); transition: background .15s, box-shadow .15s; flex-wrap: wrap; }
 .md-active-row:hover { background: var(--md-blue-soft); box-shadow: var(--md-shadow-sm); }
 .md-active-pulse-wrap { position: relative; width: 10px; height: 10px; flex-shrink: 0; }
 .md-active-pulse { position: absolute; inset: 0; border-radius: 50%; background: var(--md-red); }
-.md-active-pulse::after {
-  content: ''; position: absolute; inset: -3px; border-radius: 50%;
-  border: 2px solid var(--md-red); animation: md-ring-pulse 1.8s ease-out infinite;
-}
+.md-active-pulse::after { content: ''; position: absolute; inset: -3px; border-radius: 50%; border: 2px solid var(--md-red); animation: md-ring-pulse 1.8s ease-out infinite; }
 .md-active-info  { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 5px; }
 .md-active-top   { display: flex; align-items: center; gap: 10px; }
 .md-active-title { font-size: 14px; font-weight: 700; color: var(--md-ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.md-active-code  {
-  font-family: 'Space Grotesk', monospace; font-size: 11px; color: var(--md-blue);
-  background: var(--md-blue-soft); padding: 3px 8px; border-radius: 5px;
-  border: 1px solid var(--md-blue-mid); white-space: nowrap; flex-shrink: 0;
-}
-.md-active-meta { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+.md-active-code  { font-family: 'Space Grotesk', monospace; font-size: 11px; color: var(--md-blue); background: var(--md-blue-soft); padding: 3px 8px; border-radius: 5px; border: 1px solid var(--md-blue-mid); white-space: nowrap; flex-shrink: 0; }
+.md-active-meta  { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
 .md-active-meta span { display: flex; align-items: center; gap: 5px; font-size: 12px; color: var(--md-ink-m); font-weight: 600; }
+
+/* Active row action group */
+.md-active-actions { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
+
 .md-join-now-btn {
-  display: flex; align-items: center; gap: 6px; padding: 8px 16px;
-  background: var(--md-red); color: var(--md-white); border: none; border-radius: 8px;
-  font-family: 'Manrope', sans-serif; font-size: 13px; font-weight: 700;
-  cursor: pointer; white-space: nowrap; flex-shrink: 0;
-  box-shadow: 0 2px 10px rgba(239,68,68,0.25); transition: all .15s;
+  display: flex; align-items: center; gap: 5px; padding: 7px 13px;
+  background: var(--md-blue); color: var(--md-white); border: none; border-radius: 8px;
+  font-family: 'Manrope', sans-serif; font-size: 12px; font-weight: 700;
+  cursor: pointer; white-space: nowrap;
+  box-shadow: 0 2px 8px var(--md-blue-glow); transition: all .15s;
 }
-.md-join-now-btn:hover { background: #dc2626; transform: translateY(-1px); box-shadow: 0 4px 16px rgba(239,68,68,0.3); }
+.md-join-now-btn:hover { background: var(--md-blue-dk); transform: translateY(-1px); }
+
+.md-restart-btn-sm {
+  display: flex; align-items: center; gap: 5px; padding: 7px 11px;
+  background: rgba(245,158,11,0.12); color: #d97706;
+  border: 1.5px solid rgba(245,158,11,0.35);
+  border-radius: 8px; font-family: 'Manrope', sans-serif; font-size: 12px; font-weight: 700;
+  cursor: pointer; white-space: nowrap; transition: all .15s;
+}
+.md-restart-btn-sm:hover { background: rgba(245,158,11,0.22); border-color: var(--md-orange); }
+
+.md-end-btn-sm {
+  display: flex; align-items: center; gap: 5px; padding: 7px 11px;
+  background: rgba(239,68,68,0.10); color: var(--md-red);
+  border: 1.5px solid rgba(239,68,68,0.3);
+  border-radius: 8px; font-family: 'Manrope', sans-serif; font-size: 12px; font-weight: 700;
+  cursor: pointer; white-space: nowrap; transition: all .15s;
+}
+.md-end-btn-sm:hover { background: var(--md-red); color: var(--md-white); border-color: var(--md-red); }
 
 /* MEETING CARDS */
 .md-card-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 14px; }
-.md-mcard {
-  background: var(--md-white); border: 1px solid var(--md-border); border-radius: 14px;
-  overflow: hidden; display: flex; flex-direction: column;
-  transition: border-color .15s, box-shadow .15s, transform .15s; box-shadow: var(--md-shadow-sm);
-}
+.md-mcard { background: var(--md-white); border: 1px solid var(--md-border); border-radius: 14px; overflow: hidden; display: flex; flex-direction: column; transition: border-color .15s, box-shadow .15s, transform .15s; box-shadow: var(--md-shadow-sm); }
 .md-mcard:hover { border-color: var(--md-blue-mid); box-shadow: var(--md-shadow-lg); transform: translateY(-2px); }
 .md-mcard-top { display: flex; align-items: center; justify-content: space-between; padding: 14px 16px 10px; }
-.md-status-chip {
-  display: inline-flex; align-items: center; gap: 5px;
-  font-size: 10px; font-weight: 800; letter-spacing: .5px;
-  padding: 4px 10px; border-radius: 20px; text-transform: uppercase;
-}
+.md-status-chip { display: inline-flex; align-items: center; gap: 5px; font-size: 10px; font-weight: 800; letter-spacing: .5px; padding: 4px 10px; border-radius: 20px; text-transform: uppercase; }
 .md-status--live      { background: rgba(239,68,68,0.10); color: var(--md-red);   border: 1px solid rgba(239,68,68,0.25); }
 .md-status--scheduled { background: var(--md-blue-soft);  color: var(--md-blue);  border: 1px solid var(--md-blue-mid); }
-.md-status--completed { background: rgba(16,185,129,0.10);color: var(--md-green); border: 1px solid rgba(16,185,129,0.25); }
+.md-status--completed { background: rgba(16,185,129,0.10); color: var(--md-green); border: 1px solid rgba(16,185,129,0.25); }
 .md-status--cancelled { background: var(--md-surf2);       color: var(--md-ink-m); border: 1px solid var(--md-border); }
 .md-status-dot { width: 5px; height: 5px; border-radius: 50%; background: var(--md-red); animation: md-blink 2s ease-in-out infinite; }
-.md-menu-btn {
-  width: 30px; height: 30px; border-radius: 8px; border: none;
-  background: transparent; color: var(--md-ink-m); cursor: pointer;
-  display: flex; align-items: center; justify-content: center; transition: all .12s;
-}
+.md-menu-btn { width: 30px; height: 30px; border-radius: 8px; border: none; background: transparent; color: var(--md-ink-m); cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all .12s; }
 .md-menu-btn:hover { background: var(--md-blue-soft); color: var(--md-blue); }
 .md-mcard-body { padding: 0 16px 14px; flex: 1; display: flex; flex-direction: column; gap: 10px; }
 .md-mcard-title { font-family: 'Space Grotesk', sans-serif; font-size: 16px; font-weight: 700; color: var(--md-ink); line-height: 1.3; }
 .md-mcard-desc  { font-size: 13px; color: var(--md-ink-m); line-height: 1.5; font-weight: 500; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
-.md-mcard-code {
-  display: inline-flex; align-items: center; gap: 7px; align-self: flex-start;
-  padding: 7px 11px; background: var(--md-blue-soft); border: 1px solid var(--md-blue-mid);
-  border-radius: 8px; cursor: pointer; transition: border-color .15s, background .15s;
-}
+.md-mcard-code { display: inline-flex; align-items: center; gap: 7px; align-self: flex-start; padding: 7px 11px; background: var(--md-blue-soft); border: 1px solid var(--md-blue-mid); border-radius: 8px; cursor: pointer; transition: border-color .15s, background .15s; }
 .md-mcard-code:hover { border-color: var(--md-blue); background: var(--md-blue-mid); }
 .md-mcard-code code { font-family: 'Space Grotesk', monospace; font-size: 12px; color: var(--md-blue-dk); font-weight: 600; letter-spacing: .5px; }
 .md-copy-icon { color: var(--md-ink-m); opacity: 0; transition: opacity .15s; }
@@ -1074,123 +1054,166 @@ export default {
 .md-meta-item  { display: flex; align-items: center; gap: 5px; font-size: 12px; color: var(--md-ink-m); font-weight: 600; }
 .md-meta-item svg { flex-shrink: 0; color: var(--md-blue); }
 .md-mcard-features { display: flex; flex-wrap: wrap; gap: 6px; }
-.md-feat {
-  display: flex; align-items: center; gap: 4px; padding: 3px 9px;
-  background: var(--md-surf2); border: 1px solid var(--md-border);
-  border-radius: 6px; font-size: 11px; font-weight: 600; color: var(--md-ink-m);
-}
+.md-feat { display: flex; align-items: center; gap: 4px; padding: 3px 9px; background: var(--md-surf2); border: 1px solid var(--md-border); border-radius: 6px; font-size: 11px; font-weight: 600; color: var(--md-ink-m); }
 .md-feat svg { color: var(--md-blue); }
-.md-mcard-foot {
-  display: flex; align-items: center; justify-content: space-between; gap: 10px;
-  padding: 12px 16px; border-top: 1px solid var(--md-border); background: var(--md-surf2);
-}
+.md-mcard-foot { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 12px 16px; border-top: 1px solid var(--md-border); background: var(--md-surf2); flex-wrap: wrap; }
 .md-host { display: flex; align-items: center; gap: 9px; min-width: 0; flex: 1; }
-.md-host-av {
-  width: 34px; height: 34px; border-radius: 50%; flex-shrink: 0;
-  background: linear-gradient(135deg, var(--md-blue), var(--md-blue-dk));
-  display: flex; align-items: center; justify-content: center;
-  font-size: 13px; font-weight: 800; color: var(--md-white);
-  box-shadow: 0 2px 8px var(--md-blue-glow);
-}
+.md-host-av { width: 34px; height: 34px; border-radius: 50%; flex-shrink: 0; background: linear-gradient(135deg, var(--md-blue), var(--md-blue-dk)); display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 800; color: var(--md-white); box-shadow: 0 2px 8px var(--md-blue-glow); }
 .md-host-info  { display: flex; flex-direction: column; min-width: 0; }
 .md-host-lbl   { font-size: 10px; font-weight: 700; color: var(--md-ink-m); text-transform: uppercase; letter-spacing: .4px; }
 .md-host-name  { font-size: 13px; font-weight: 600; color: var(--md-ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.md-mcard-actions { display: flex; gap: 7px; flex-shrink: 0; }
+.md-mcard-actions { display: flex; gap: 6px; flex-shrink: 0; flex-wrap: wrap; }
+
+/* Card action buttons */
 .md-btn-join {
-  display: flex; align-items: center; gap: 5px; padding: 7px 14px;
+  display: flex; align-items: center; gap: 5px; padding: 7px 13px;
   background: var(--md-blue); color: var(--md-white); border: none; border-radius: 8px;
   font-family: 'Manrope', sans-serif; font-size: 12px; font-weight: 700;
   cursor: pointer; white-space: nowrap; transition: all .15s; box-shadow: 0 2px 8px var(--md-blue-glow);
 }
 .md-btn-join:hover { background: var(--md-blue-dk); transform: translateY(-1px); }
-.md-btn-details {
-  padding: 7px 14px; background: transparent; border: 1.5px solid var(--md-border);
-  border-radius: 8px; color: var(--md-ink-m); font-family: 'Manrope', sans-serif;
-  font-size: 12px; font-weight: 600; cursor: pointer; transition: all .15s;
+
+.md-btn-restart {
+  display: flex; align-items: center; gap: 4px; padding: 7px 11px;
+  background: rgba(245,158,11,0.10); color: #d97706;
+  border: 1.5px solid rgba(245,158,11,0.35);
+  border-radius: 8px; font-family: 'Manrope', sans-serif; font-size: 12px; font-weight: 700;
+  cursor: pointer; white-space: nowrap; transition: all .15s;
 }
+.md-btn-restart:hover { background: rgba(245,158,11,0.2); border-color: var(--md-orange); }
+
+.md-btn-end {
+  display: flex; align-items: center; gap: 4px; padding: 7px 11px;
+  background: rgba(239,68,68,0.08); color: var(--md-red);
+  border: 1.5px solid rgba(239,68,68,0.28);
+  border-radius: 8px; font-family: 'Manrope', sans-serif; font-size: 12px; font-weight: 700;
+  cursor: pointer; white-space: nowrap; transition: all .15s;
+}
+.md-btn-end:hover { background: var(--md-red); color: var(--md-white); border-color: var(--md-red); }
+
+.md-btn-details { padding: 7px 14px; background: transparent; border: 1.5px solid var(--md-border); border-radius: 8px; color: var(--md-ink-m); font-family: 'Manrope', sans-serif; font-size: 12px; font-weight: 600; cursor: pointer; transition: all .15s; }
 .md-btn-details:hover { border-color: var(--md-blue); color: var(--md-blue); background: var(--md-blue-soft); }
 
 /* EMPTY STATE */
 .md-empty { display: flex; flex-direction: column; align-items: center; padding: 64px 24px; text-align: center; gap: 12px; }
-.md-empty-icon {
-  width: 72px; height: 72px; border-radius: 50%;
-  background: var(--md-blue-soft); border: 1.5px solid var(--md-blue-mid);
-  display: flex; align-items: center; justify-content: center; color: var(--md-blue);
-}
+.md-empty-icon { width: 72px; height: 72px; border-radius: 50%; background: var(--md-blue-soft); border: 1.5px solid var(--md-blue-mid); display: flex; align-items: center; justify-content: center; color: var(--md-blue); }
 .md-empty-msg { font-size: 15px; font-weight: 600; color: var(--md-ink-m); }
 .md-empty-actions { display: flex; gap: 10px; margin-top: 8px; flex-wrap: wrap; justify-content: center; }
 
 /* SIDEBAR */
 .md-sidebar { position: sticky; top: 82px; align-self: flex-start; }
 .md-sidebar-stats { display: flex; flex-direction: column; gap: 10px; margin-bottom: 22px; }
-.md-ss-item {
-  display: flex; align-items: center; gap: 12px; padding: 12px 14px;
-  background: var(--md-surf2); border-radius: 10px; border: 1px solid var(--md-border);
-  transition: background .15s, border-color .15s;
-}
+.md-ss-item { display: flex; align-items: center; gap: 12px; padding: 12px 14px; background: var(--md-surf2); border-radius: 10px; border: 1px solid var(--md-border); transition: background .15s, border-color .15s; }
 .md-ss-item:hover { background: var(--md-blue-soft); border-color: var(--md-blue-mid); }
 .md-ss-icon { width: 36px; height: 36px; border-radius: 9px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; }
-.md-ss-icon--blue   { background: var(--md-blue-soft);         color: var(--md-blue); }
-.md-ss-icon--green  { background: rgba(16,185,129,0.12);       color: var(--md-green); }
-.md-ss-icon--amber  { background: rgba(245,158,11,0.12);       color: var(--md-orange); }
-.md-ss-icon--purple { background: rgba(139,92,246,0.12);       color: var(--md-purple); }
+.md-ss-icon--blue   { background: var(--md-blue-soft);        color: var(--md-blue); }
+.md-ss-icon--green  { background: rgba(16,185,129,0.12);      color: var(--md-green); }
+.md-ss-icon--amber  { background: rgba(245,158,11,0.12);      color: var(--md-orange); }
+.md-ss-icon--purple { background: rgba(139,92,246,0.12);      color: #8b5cf6; }
 .md-ss-body { display: flex; flex-direction: column; }
 .md-ss-val  { font-family: 'Space Grotesk', sans-serif; font-size: 20px; font-weight: 700; color: var(--md-ink); line-height: 1.1; }
 .md-ss-lbl  { font-size: 11px; color: var(--md-ink-m); font-weight: 600; margin-top: 2px; }
-
 .md-chart-section { border-top: 1px solid var(--md-border); padding-top: 20px; margin-top: 4px; }
 .md-chart-title   { font-family: 'Space Grotesk', sans-serif; font-size: 13px; font-weight: 700; color: var(--md-ink); margin-bottom: 14px; }
-.md-chart {
-  display: flex; align-items: flex-end; justify-content: space-between; gap: 5px;
-  height: 90px; padding: 10px; background: var(--md-surf2); border-radius: 10px; border: 1px solid var(--md-border);
-}
+.md-chart { display: flex; align-items: flex-end; justify-content: space-between; gap: 5px; height: 90px; padding: 10px; background: var(--md-surf2); border-radius: 10px; border: 1px solid var(--md-border); }
 .md-chart-col    { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 6px; height: 100%; }
 .md-chart-track  { flex: 1; width: 100%; display: flex; align-items: flex-end; }
 .md-chart-bar    { width: 100%; border-radius: 4px 4px 0 0; min-height: 3px; background: linear-gradient(180deg, var(--md-blue) 0%, var(--md-blue-dk) 100%); opacity: 0.65; transition: opacity .2s; }
 .md-chart-col:hover .md-chart-bar { opacity: 1; }
 .md-chart-lbl    { font-size: 9px; font-weight: 700; color: var(--md-ink-m); text-transform: uppercase; letter-spacing: .3px; }
-
 .md-quick-stats { border-top: 1px solid var(--md-border); padding-top: 18px; margin-top: 18px; display: flex; flex-direction: column; gap: 8px; }
-.md-qs-row {
-  display: flex; align-items: center; justify-content: space-between; padding: 9px 12px;
-  background: var(--md-surf2); border-radius: 8px; border: 1px solid var(--md-border); transition: background .15s;
-}
+.md-qs-row { display: flex; align-items: center; justify-content: space-between; padding: 9px 12px; background: var(--md-surf2); border-radius: 8px; border: 1px solid var(--md-border); transition: background .15s; }
 .md-qs-row:hover { background: var(--md-blue-soft); }
 .md-qs-lbl { font-size: 12px; font-weight: 600; color: var(--md-ink-m); }
 .md-qs-val { font-family: 'Space Grotesk', sans-serif; font-size: 14px; font-weight: 700; color: var(--md-ink); }
 
-/* TOAST */
-.md-toast {
-  position: fixed; bottom: 28px; right: 28px; z-index: 1000;
-  display: flex; align-items: center; gap: 10px; padding: 12px 20px;
-  border-radius: 12px; font-size: 13px; font-weight: 700;
-  box-shadow: var(--md-shadow-lg); pointer-events: none;
+/* ════════════════════════════════════════
+   MODALS
+════════════════════════════════════════ */
+.md-modal-overlay {
+  position: fixed; inset: 0; z-index: 5000;
+  background: rgba(13,27,54,.55);
+  backdrop-filter: blur(4px);
+  display: flex; align-items: center; justify-content: center;
+  padding: 20px;
 }
+.md-modal {
+  background: var(--md-white);
+  border: 1px solid var(--md-border);
+  border-radius: 20px;
+  padding: 40px 36px 32px;
+  width: 100%; max-width: 430px;
+  text-align: center;
+  box-shadow: 0 24px 80px rgba(13,27,54,.18);
+  animation: md-modal-in .22s cubic-bezier(.34,1.56,.64,1);
+}
+@keyframes md-modal-in { from { opacity:0; transform:translateY(18px) scale(.97); } to { opacity:1; transform:translateY(0) scale(1); } }
+.md-modal-fx-enter-active, .md-modal-fx-leave-active { transition: opacity .18s; }
+.md-modal-fx-enter-from, .md-modal-fx-leave-to { opacity: 0; }
+
+.md-modal-icon {
+  width: 68px; height: 68px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  margin: 0 auto 22px;
+}
+.md-modal-icon--red    { background: rgba(239,68,68,.12);  color: var(--md-red);    border: 1.5px solid rgba(239,68,68,.3); }
+.md-modal-icon--orange { background: rgba(245,158,11,.12); color: #d97706;          border: 1.5px solid rgba(245,158,11,.35); }
+
+.md-modal-title { font-family: 'Space Grotesk', sans-serif; font-size: 21px; font-weight: 700; color: var(--md-ink); margin-bottom: 12px; line-height: 1.3; }
+.md-modal-body  { font-size: 14px; color: var(--md-ink-m); line-height: 1.65; margin-bottom: 28px; font-weight: 500; }
+
+.md-modal-actions { display: flex; gap: 10px; justify-content: center; }
+.md-modal-btn {
+  flex: 1; max-width: 190px; padding: 12px 20px; border-radius: 10px;
+  font-family: 'Manrope', sans-serif; font-size: 14px; font-weight: 700;
+  cursor: pointer; transition: all .15s;
+  display: flex; align-items: center; justify-content: center; gap: 7px;
+}
+.md-modal-btn--ghost  { background: transparent; border: 1.5px solid var(--md-border); color: var(--md-ink-m); }
+.md-modal-btn--ghost:hover:not(:disabled) { border-color: var(--md-ink-m); color: var(--md-ink); }
+.md-modal-btn--danger {
+  background: var(--md-red); border: none; color: var(--md-white);
+  box-shadow: 0 2px 12px rgba(239,68,68,.3);
+}
+.md-modal-btn--danger:hover:not(:disabled) { background: #dc2626; box-shadow: 0 4px 18px rgba(239,68,68,.4); }
+.md-modal-btn--orange {
+  background: var(--md-orange); border: none; color: var(--md-white);
+  box-shadow: 0 2px 12px rgba(245,158,11,.3);
+}
+.md-modal-btn--orange:hover:not(:disabled) { background: #d97706; box-shadow: 0 4px 18px rgba(245,158,11,.4); }
+.md-modal-btn:disabled { opacity: .55; cursor: not-allowed; }
+
+.md-modal-spinner {
+  display: inline-block; width: 14px; height: 14px;
+  border: 2px solid rgba(255,255,255,.3); border-top-color: #fff;
+  border-radius: 50%; animation: md-spin .65s linear infinite;
+}
+
+/* TOAST */
+.md-toast { position: fixed; bottom: 28px; right: 28px; z-index: 6000; display: flex; align-items: center; gap: 10px; padding: 12px 20px; border-radius: 12px; font-size: 13px; font-weight: 700; box-shadow: var(--md-shadow-lg); pointer-events: none; }
 .md-toast--success { background: rgba(16,185,129,0.12); border: 1px solid rgba(16,185,129,0.3); color: var(--md-green); }
-.md-toast--error   { background: rgba(239,68,68,0.10);  border: 1px solid rgba(239,68,68,0.25);  color: var(--md-red); }
+.md-toast--error   { background: rgba(239,68,68,0.10);  border: 1px solid rgba(239,68,68,0.25); color: var(--md-red); }
 .md-toast-fx-enter-active, .md-toast-fx-leave-active { transition: opacity .2s, transform .2s; }
 .md-toast-fx-enter-from  { opacity: 0; transform: translateY(14px); }
 .md-toast-fx-leave-to    { opacity: 0; transform: translateY(14px); }
 
 /* RESPONSIVE */
 @media (max-width: 1280px) { .md-body-grid { grid-template-columns: 1fr 280px; } }
-@media (max-width: 1024px) {
-  .md-body-grid { grid-template-columns: 1fr; }
-  .md-sidebar   { position: static; }
-  .md-stats-row { grid-template-columns: repeat(2, 1fr); }
-  .md-card-grid { grid-template-columns: 1fr; }
-}
+@media (max-width: 1024px) { .md-body-grid { grid-template-columns: 1fr; } .md-sidebar { position: static; } .md-stats-row { grid-template-columns: repeat(2, 1fr); } .md-card-grid { grid-template-columns: 1fr; } }
 @media (max-width: 640px) {
-  .md-nav-inner   { padding: 0 16px; }
-  .md-page-meta   { display: none; }
-  .md-main        { padding: 16px; }
-  .md-stats-row   { grid-template-columns: 1fr 1fr; gap: 10px; }
-  .md-stat-val    { font-size: 24px; }
+  .md-nav-inner { padding: 0 16px; }
+  .md-page-meta { display: none; }
+  .md-main { padding: 16px; }
+  .md-stats-row { grid-template-columns: 1fr 1fr; gap: 10px; }
+  .md-stat-val { font-size: 24px; }
   .md-filter-tabs { overflow-x: auto; }
-  .md-card-grid   { grid-template-columns: 1fr; }
-  .md-active-row  { flex-wrap: wrap; }
-  .md-join-now-btn { width: 100%; justify-content: center; }
+  .md-card-grid { grid-template-columns: 1fr; }
+  .md-active-actions { width: 100%; justify-content: flex-end; }
+  .md-mcard-actions { width: 100%; }
   .md-empty-actions { flex-direction: column; width: 100%; }
+  .md-modal { padding: 30px 20px 24px; }
+  .md-modal-actions { flex-direction: column; }
+  .md-modal-btn { max-width: 100%; }
 }
 @media (max-width: 480px) { .md-stats-row { grid-template-columns: 1fr; } }
 </style>
