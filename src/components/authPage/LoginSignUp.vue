@@ -343,6 +343,8 @@
 </template>
 
 <script>
+import { TokenService, AuthAPI } from '@/utils/apiService';
+
 export default {
   name: 'AuthPage',
   data() {
@@ -368,8 +370,7 @@ export default {
         confirmPassword: '',
         mfaEnabled: false
       },
-      errors: {},
-      API_BASE_URL: 'https://nova-test-ctne.onrender.com/api'
+      errors: {}
     }
   },
   methods: {
@@ -468,29 +469,9 @@ export default {
     async handleLogin() {
       try {
         console.log('=== LOGIN PROCESS STARTED ===');
-        const response = await fetch(`${this.API_BASE_URL}/auth/login`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'ngrok-skip-browser-warning': 'true'
-          },
-          body: JSON.stringify({
-            email: this.formData.email,
-            password: this.formData.password
-          })
-        });
+        const data = await AuthAPI.login(this.formData.email, this.formData.password);
 
-        const data = await response.json();
-        console.log('=== FULL LOGIN RESPONSE ===');
-        console.log('Response data:', JSON.stringify(data, null, 2));
-        console.log('Response keys:', Object.keys(data));
-        console.log('Has accessToken?', 'accessToken' in data);
-        console.log('Has access_token?', 'access_token' in data);
-        console.log('Has token?', 'token' in data);
-
-        if (!response.ok) {
-          throw new Error(data.message || data.error || 'Login failed');
-        }
+        console.log('=== LOGIN RESPONSE ===', data);
 
         if (data.message && data.message.toLowerCase().includes('mfa')) {
           console.log('MFA required');
@@ -500,51 +481,21 @@ export default {
           return;
         }
 
-        const accessToken = data.accessToken || data.access_token || data.token || null;
-        const refreshToken = data.refreshToken || data.refresh_token || null;
-
-        console.log('=== TOKEN EXTRACTION ===');
-        console.log('Access token found:', !!accessToken);
-        console.log('Refresh token found:', !!refreshToken);
-        if (accessToken) {
-          console.log('Access token preview:', accessToken.substring(0, 50) + '...');
-          console.log('Access token length:', accessToken.length);
-        }
-
-        if (accessToken) {
-          console.log('=== SAVING TOKENS ===');
-          this.saveTokens(accessToken, refreshToken);
-          
-          await new Promise(resolve => setTimeout(resolve, 200));
-          
-          const savedToken = localStorage.getItem('accessToken');
-          console.log('=== VERIFICATION ===');
-          console.log('Token saved:', !!savedToken);
-          if (savedToken) {
-            console.log('Saved token preview:', savedToken.substring(0, 50) + '...');
-            console.log('Tokens match:', savedToken === accessToken);
-          } else {
-            console.error('❌ NO TOKEN IN LOCALSTORAGE!');
-          }
-          
-          if (!savedToken) {
-            throw new Error('Failed to save authentication token');
-          }
+        if (data.accessToken) {
+          console.log('✅ Access token received');
+          TokenService.setTokens(data.accessToken, data.refreshToken);
           
           this.successMessage = 'Login successful! Redirecting...';
-          
           const redirectPath = this.$route.query.redirect || '/dashboard';
-          console.log('Redirecting to:', redirectPath);
           
           setTimeout(() => {
             window.location.href = redirectPath;
           }, 500);
         } else {
-          console.error('❌ NO ACCESS TOKEN IN RESPONSE!');
           throw new Error('No authentication token received from server');
         }
       } catch (error) {
-        console.error('=== LOGIN ERROR ===', error);
+        console.error('Login error:', error);
         this.errorMessage = error.message || 'Login failed. Please try again.';
       }
     },
@@ -560,19 +511,7 @@ export default {
         formDataToSend.append('confirmPassword', this.formData.confirmPassword);
         formDataToSend.append('mfaEnabled', this.formData.mfaEnabled);
 
-        const response = await fetch(`${this.API_BASE_URL}/auth/register`, {
-          method: 'POST',
-          headers: {
-            'ngrok-skip-browser-warning': 'true'
-          },
-          body: formDataToSend
-        });
-
-        const data = await response.json();
-
-        if (!response.ok) {
-          throw new Error(data.message || 'Registration failed');
-        }
+        const data = await AuthAPI.register(formDataToSend);
 
         this.successMessage = 'Account created successfully! Redirecting to login...';
         
@@ -590,12 +529,14 @@ export default {
       }
     },
 
-    async handleGoogleLogin() {
-      window.location.href = `${this.API_BASE_URL}/oauth2/login/google`;
+    handleGoogleLogin() {
+      console.log('🔐 Initiating Google OAuth login...');
+      window.location.href = 'https://nova-test-ctne.onrender.com/api/oauth2/login/google';
     },
 
-    async handleGithubLogin() {
-      window.location.href = `${this.API_BASE_URL}/oauth2/login/github`;
+    handleGithubLogin() {
+      console.log('🔐 Initiating GitHub OAuth login...');
+      window.location.href = 'https://nova-test-ctne.onrender.com/api/oauth2/login/github';
     },
 
     handleMfaInput(index, event) {
@@ -638,39 +579,18 @@ export default {
       this.mfaError = '';
 
       try {
-        const response = await fetch(
-          `${this.API_BASE_URL}/auth/verify-mfa?email=${encodeURIComponent(this.pendingMfaEmail)}&mfaCode=${code}`,
-          {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'ngrok-skip-browser-warning': 'true'
-            }
-          }
-        );
-
-        const data = await response.json();
-
-        if (!response.ok) {
-          throw new Error(data.message || 'MFA verification failed');
-        }
+        const data = await AuthAPI.verifyMfa(this.pendingMfaEmail, code);
 
         if (data.accessToken) {
-          this.saveTokens(data.accessToken, data.refreshToken);
-          
-          await new Promise(resolve => setTimeout(resolve, 100));
-          const savedToken = localStorage.getItem('accessToken');
-          console.log('MFA: Token saved:', savedToken ? 'YES' : 'NO');
-          
-          if (!savedToken) {
-            throw new Error('Failed to save authentication token');
-          }
+          TokenService.setTokens(data.accessToken, data.refreshToken);
           
           this.showMfaModal = false;
           this.successMessage = 'Login successful! Redirecting...';
           
           const redirectPath = this.$route.query.redirect || '/dashboard';
-          window.location.href = redirectPath;
+          setTimeout(() => {
+            window.location.href = redirectPath;
+          }, 500);
         }
       } catch (error) {
         this.mfaError = error.message || 'Invalid code. Please try again.';
@@ -684,78 +604,24 @@ export default {
       this.mfaCode = ['', '', '', '', '', ''];
       this.mfaError = '';
       this.pendingMfaEmail = '';
-    },
-
-    saveTokens(accessToken, refreshToken) {
-      console.log('=== SAVING TOKENS ===');
-      console.log('Access token length:', accessToken ? accessToken.length : 0);
-      console.log('Refresh token length:', refreshToken ? refreshToken.length : 0);
-      
-      try {
-        localStorage.setItem('accessToken', accessToken);
-        sessionStorage.setItem('accessToken', accessToken);
-        
-        if (refreshToken) {
-          localStorage.setItem('refreshToken', refreshToken);
-          sessionStorage.setItem('refreshToken', refreshToken);
-        }
-        
-        const localToken = localStorage.getItem('accessToken');
-        const sessionToken = sessionStorage.getItem('accessToken');
-        
-        console.log('Verification:');
-        console.log('- localStorage has token:', !!localToken);
-        console.log('- sessionStorage has token:', !!sessionToken);
-        console.log('- Tokens match:', localToken === accessToken && sessionToken === accessToken);
-        
-        if (!localToken || !sessionToken) {
-          throw new Error('Failed to save tokens to storage');
-        }
-        
-        window.dispatchEvent(new Event('auth-token-updated'));
-        
-        console.log('✅ Tokens saved successfully to both storages');
-        
-      } catch (error) {
-        console.error('❌ Error saving tokens:', error);
-        throw error;
-      }
-    },
-
-    getAccessToken() {
-      return localStorage.getItem('accessToken');
-    },
-
-    getRefreshToken() {
-      return localStorage.getItem('refreshToken');
-    },
-
-    isAuthenticated() {
-      return !!this.getAccessToken();
-    },
-
-    logout() {
-      localStorage.removeItem('accessToken');
-      localStorage.removeItem('refreshToken');
-      sessionStorage.removeItem('accessToken');
-      window.dispatchEvent(new Event('auth-logout'));
     }
   },
 
   mounted() {
-    console.log('=== AUTHPAGE MOUNTED ===');
+    console.log('🔥🔥🔥 === AUTHPAGE MOUNTED - CHECKING FOR OAUTH TOKENS === 🔥🔥🔥');
     
-    // Check for OAuth callback with tokens in URL
+    // ⭐ CRITICAL: Check for OAuth tokens FIRST - this must run BEFORE router guard check
     const params = new URLSearchParams(window.location.search);
     const accessToken = params.get('accessToken');
     const refreshToken = params.get('refreshToken');
     
-    console.log('URL Parameters:');
+    console.log('🔍 URL Parameters:');
     console.log('- accessToken present:', !!accessToken);
     console.log('- refreshToken present:', !!refreshToken);
     
+    // If we have OAuth tokens, process them IMMEDIATELY
     if (accessToken) {
-      console.log('🔑 OAuth tokens received from backend');
+      console.log('🔑🔑🔑 OAUTH TOKENS RECEIVED FROM BACKEND 🔑🔑🔑');
       console.log('- Access Token length:', accessToken.length);
       console.log('- Refresh Token length:', refreshToken ? refreshToken.length : 'N/A');
       
@@ -768,31 +634,48 @@ export default {
         console.log('- Decoded Access Token length:', decodedAccessToken.length);
         console.log('- Decoded Refresh Token length:', decodedRefreshToken ? decodedRefreshToken.length : 'N/A');
         
-        this.saveTokens(decodedAccessToken, decodedRefreshToken);
-        console.log('✅ Tokens saved to localStorage and sessionStorage');
+        // ⭐ SAVE TOKENS IMMEDIATELY using TokenService
+        TokenService.setTokens(decodedAccessToken, decodedRefreshToken);
+        console.log('✅✅✅ TOKENS SAVED TO STORAGE ✅✅✅');
         
         // Verify tokens were saved
-        const savedToken = localStorage.getItem('accessToken');
-        console.log('✅ Token verification - Saved:', !!savedToken);
+        const savedAccessToken = TokenService.getAccessToken();
+        const savedRefreshToken = TokenService.getRefreshToken();
+        console.log('✅ Storage verification:');
+        console.log('- AccessToken saved:', !!savedAccessToken);
+        console.log('- RefreshToken saved:', !!savedRefreshToken);
+        console.log('- Access token match:', savedAccessToken === decodedAccessToken);
         
-        // Clean URL and redirect to dashboard
-        console.log('🚀 Cleaning URL and redirecting to dashboard...');
+        if (!savedAccessToken) {
+          throw new Error('Failed to save tokens to storage');
+        }
+        
+        // Clean URL
+        console.log('🧹 Cleaning URL...');
         window.history.replaceState({}, document.title, '/auth');
         
+        // Redirect to dashboard
+        console.log('🚀🚀🚀 REDIRECTING TO DASHBOARD 🚀🚀🚀');
+        this.successMessage = 'Login successful! Redirecting to dashboard...';
+        
         setTimeout(() => {
-          console.log('🚀 Window redirect to /dashboard');
-          window.location.href = '/dashboard';
-        }, 500);
-        return;
+          console.log('→→→ Navigating to /dashboard');
+          this.$router.push('/dashboard');
+        }, 1000);
+        
+        return; // ⭐ STOP HERE - don't continue to auth check below
+        
       } catch (error) {
-        console.error('❌ Error saving OAuth tokens:', error);
+        console.error('❌ ERROR SAVING OAUTH TOKENS:', error);
         this.errorMessage = 'Failed to process authentication. Please try again.';
         return;
       }
     }
     
-    // Check if already authenticated
-    if (this.isAuthenticated()) {
+    // If no OAuth tokens, check if already authenticated
+    console.log('ℹ️ No OAuth tokens in URL, checking existing auth...');
+    
+    if (TokenService.isAuthenticated()) {
       console.log('✅ User already authenticated - redirecting to dashboard');
       this.$router.push('/dashboard');
     } else {
