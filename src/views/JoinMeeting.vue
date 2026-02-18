@@ -1,9 +1,16 @@
-<!-- JoinMeeting.vue — structure mirrors Meeting.vue create phase -->
+<!-- JoinMeeting.vue — FIXED VERSION -->
+<!--
+  FIXES APPLIED:
+    ✅ joinAsAuthenticated() now logs full server response (status + body)
+       so you can see the exact error from /meetings/join
+    ✅ joinAsGuest() likewise logs the response for debugging
+    ✅ Error message now shows server response detail when available
+-->
 <template>
   <div class="nv-root">
     <div class="nv-create-wrap">
 
-      <!-- ── Nav — identical to Meeting.vue ── -->
+      <!-- ── Nav ── -->
       <nav class="nv-cnav">
         <div class="nv-cbrand" @click="goHome">
           <svg width="28" height="28" viewBox="0 0 32 32" fill="none">
@@ -23,7 +30,7 @@
         </button>
       </nav>
 
-      <!-- ── Main — same max-width / padding as Meeting.vue ── -->
+      <!-- ── Main ── -->
       <main class="nv-cmain">
 
         <div class="nv-chead">
@@ -33,7 +40,7 @@
 
         <div class="nv-card">
 
-          <!-- ── Signed-in banner (mirrors success-banner style) ── -->
+          <!-- ── Signed-in banner ── -->
           <div v-if="isLoggedIn && userData" class="nv-success-banner">
             <div class="nv-success-check nv-success-check--green">
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
@@ -46,7 +53,7 @@
             </div>
           </div>
 
-          <!-- ── Section: Meeting code ── -->
+          <!-- ── Meeting code ── -->
           <div class="nv-section-label">Meeting details</div>
 
           <div class="nv-field">
@@ -62,11 +69,10 @@
             />
           </div>
 
-          <!-- ── Section: Who are you? (only when not logged in) ── -->
+          <!-- ── Who are you? (only when not logged in) ── -->
           <template v-if="!isLoggedIn">
             <div class="nv-section-label" style="margin-top: 28px;">Join as</div>
 
-            <!-- Toggle list — mirrors nv-toggle-list from Meeting.vue -->
             <div class="nv-toggle-list nv-toggle-list--tabs">
               <label class="nv-trow" :class="{ 'nv-trow--active': mode === 'guest' }" @click="setMode('guest')">
                 <div>
@@ -128,14 +134,14 @@
             </template>
           </template>
 
-          <!-- ── Join button — mirrors nv-btn-primary ── -->
+          <!-- ── Join button ── -->
           <button class="nv-btn-primary" @click="joinMeeting" :disabled="loading">
             <span v-if="loading" class="nv-spinner"></span>
             <svg v-else width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><polyline points="10 17 15 12 10 7"/><line x1="15" y1="12" x2="3" y2="12"/></svg>
             {{ loading ? 'Joining…' : 'Join meeting' }}
           </button>
 
-          <!-- ── Secondary action — mirrors nv-btn-ghost ── -->
+          <!-- ── Secondary action ── -->
           <div class="nv-postcreate">
             <button v-if="isLoggedIn" class="nv-btn-ghost" @click="$router.push('/meeting-dashboard')">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
@@ -143,7 +149,7 @@
             </button>
           </div>
 
-          <!-- ── Alerts — mirrors nv-alert-error ── -->
+          <!-- ── Alerts ── -->
           <transition name="nv-alert-fx">
             <div v-if="error" class="nv-alert-error">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
@@ -157,6 +163,12 @@
               {{ success }}
             </div>
           </transition>
+
+          <!-- ── Debug info (only shows when there's a server error detail) ── -->
+          <div v-if="debugInfo" class="nv-alert-debug">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+            Server: {{ debugInfo }}
+          </div>
 
         </div><!-- /nv-card -->
 
@@ -189,6 +201,7 @@ export default {
       loading: false,
       error:   null,
       success: null,
+      debugInfo: null, // ✅ FIX: surfaces raw server error detail in UI
       userData: null,
     };
   },
@@ -201,8 +214,9 @@ export default {
 
   methods: {
     setMode(m) {
-      this.mode  = m;
-      this.error = null;
+      this.mode      = m;
+      this.error     = null;
+      this.debugInfo = null;
     },
 
     goHome() {
@@ -210,14 +224,16 @@ export default {
     },
 
     async joinMeeting() {
-      this.error   = null;
-      this.success = null;
+      this.error     = null;
+      this.success   = null;
+      this.debugInfo = null;
+
       if (!this.meetingCode.trim()) { this.error = 'Please enter a meeting code.'; return; }
       this.loading = true;
       try {
-        if (this.isLoggedIn)         await this.joinAsAuthenticated();
-        else if (this.mode === 'guest') await this.joinAsGuest();
-        else                          await this.joinWithAuthentication();
+        if (this.isLoggedIn)              await this.joinAsAuthenticated();
+        else if (this.mode === 'guest')   await this.joinAsGuest();
+        else                              await this.joinWithAuthentication();
       } catch (err) {
         this.error = err.message || 'Failed to join meeting.';
       } finally {
@@ -225,38 +241,95 @@ export default {
       }
     },
 
+    // ✅ FIX: Full response logging so we can see the exact server error
     async joinAsAuthenticated() {
-      const res  = await apiRequest('/meetings/join', { method: 'POST', body: JSON.stringify({ meetingCode: this.meetingCode }) });
-      const data = await res.json();
-      if (!res.ok || data.success === false) throw new Error(data.message || data.error || 'Failed to join meeting.');
-      sessionStorage.setItem('nova_meeting_code', this.meetingCode);
+      const res = await apiRequest('/meetings/join', {
+        method: 'POST',
+        body: JSON.stringify({ meetingCode: this.meetingCode.trim() }),
+      });
+
+      let data;
+      try {
+        data = await res.json();
+      } catch {
+        throw new Error(`Server returned HTTP ${res.status} with non-JSON body.`);
+      }
+
+      // ✅ Always log the full response to console for debugging
+      console.log('🔍 JOIN response:', res.status, JSON.stringify(data));
+
+      if (!res.ok || data.success === false) {
+        // Surface detail in the UI debug area and throw user-friendly message
+        this.debugInfo = data.message || data.error || data.detail || `HTTP ${res.status}`;
+        throw new Error(
+          data.message || data.error ||
+          `Failed to join meeting (HTTP ${res.status}). Check the server detail below.`
+        );
+      }
+
+      sessionStorage.setItem('nova_meeting_code', this.meetingCode.trim());
       this.success = 'Joining…';
       setTimeout(() => this.$router.push('/meeting'), 600);
     },
 
+    // ✅ FIX: Same logging treatment for guest join
     async joinAsGuest() {
       if (!this.guestName.trim()) throw new Error('Please enter your display name.');
-      const res  = await apiRequest('/meetings/join/guest', {
+
+      const res = await apiRequest('/meetings/join/guest', {
         method: 'POST',
-        body: JSON.stringify({ meetingCode: this.meetingCode, guestName: this.guestName.trim(), guestEmail: this.guestEmail.trim() || null }),
+        body: JSON.stringify({
+          meetingCode: this.meetingCode.trim(),
+          guestName:   this.guestName.trim(),
+          guestEmail:  this.guestEmail.trim() || null,
+        }),
       });
-      const data = await res.json();
-      if (!res.ok || data.success === false) throw new Error(data.message || data.error || 'Failed to join meeting.');
-      sessionStorage.setItem('nova_user', JSON.stringify({ name: this.guestName.trim(), email: this.guestEmail.trim() || null, isGuest: true }));
-      sessionStorage.setItem('nova_meeting_code', this.meetingCode);
+
+      let data;
+      try {
+        data = await res.json();
+      } catch {
+        throw new Error(`Server returned HTTP ${res.status} with non-JSON body.`);
+      }
+
+      console.log('🔍 GUEST JOIN response:', res.status, JSON.stringify(data));
+
+      if (!res.ok || data.success === false) {
+        this.debugInfo = data.message || data.error || data.detail || `HTTP ${res.status}`;
+        throw new Error(
+          data.message || data.error ||
+          `Failed to join meeting (HTTP ${res.status}). Check the server detail below.`
+        );
+      }
+
+      sessionStorage.setItem('nova_user', JSON.stringify({
+        name:    this.guestName.trim(),
+        email:   this.guestEmail.trim() || null,
+        isGuest: true,
+      }));
+      sessionStorage.setItem('nova_meeting_code', this.meetingCode.trim());
       this.success = 'Joining…';
       setTimeout(() => this.$router.push('/meeting'), 600);
     },
 
     async joinWithAuthentication() {
-      if (!this.authEmail.trim() || !this.authPassword.trim()) throw new Error('Please enter your email and password.');
+      if (!this.authEmail.trim() || !this.authPassword.trim())
+        throw new Error('Please enter your email and password.');
+
       const loginData = await AuthAPI.login(this.authEmail, this.authPassword);
       if (!loginData.accessToken) throw new Error('Login succeeded but no token returned.');
+
       TokenService.setTokens(loginData.accessToken, loginData.refreshToken);
       const p = this.decodeJwt(loginData.accessToken);
-      const user = { id: p.userId || null, email: p.sub || this.authEmail, role: p.role || 'USER', name: this.authEmail.split('@')[0] };
+      const user = {
+        id:    p.userId || null,
+        email: p.sub || this.authEmail,
+        role:  p.role || 'USER',
+        name:  this.authEmail.split('@')[0],
+      };
       sessionStorage.setItem('nova_user', JSON.stringify(user));
       this.userData = user;
+
       await this.joinAsAuthenticated();
     },
 
@@ -283,7 +356,6 @@ export default {
 <style scoped>
 @import url('https://fonts.googleapis.com/css2?family=Google+Sans:wght@400;500;600&family=Google+Sans+Mono&display=swap');
 
-/* ─── Token palette — exact match to Meeting.vue ─── */
 .nv-root {
   --c-bg:    #202124;
   --c-surf:  #292b2f;
@@ -299,7 +371,6 @@ export default {
   font-family: 'Google Sans', system-ui, sans-serif;
 }
 
-/* ─── Wrapper ─── */
 .nv-create-wrap {
   min-height: 100vh;
   background: var(--c-bg);
@@ -308,7 +379,6 @@ export default {
   flex-direction: column;
 }
 
-/* ─── Nav — copy of Meeting.vue .nv-cnav ─── */
 .nv-cnav {
   display: flex; align-items: center; justify-content: space-between;
   padding: 14px 32px;
@@ -329,7 +399,6 @@ export default {
 }
 .nv-cnav-back:hover { border-color: var(--c-blue); color: var(--c-text); background: rgba(26,115,232,.08); }
 
-/* ─── Main — copy of Meeting.vue .nv-cmain ─── */
 .nv-cmain {
   max-width: 560px;
   margin: 0 auto;
@@ -341,7 +410,6 @@ export default {
 .nv-ctitle { font-size: 26px; font-weight: 600; color: var(--c-text); letter-spacing: -.3px; margin-bottom: 6px; }
 .nv-csub   { font-size: 14px; color: var(--c-text2); }
 
-/* ─── Card — copy of Meeting.vue .nv-card ─── */
 .nv-card {
   background: var(--c-surf);
   border: 1px solid var(--c-line);
@@ -350,7 +418,6 @@ export default {
   box-shadow: 0 8px 40px rgba(0,0,0,.4);
 }
 
-/* ─── Success/signed-in banner ─── */
 .nv-success-banner {
   display: flex; align-items: center; gap: 14px;
   padding: 16px 18px; border-radius: 12px;
@@ -368,13 +435,11 @@ export default {
 .nv-success-sub   { font-size: 12px; color: var(--c-text2); margin-top: 2px; }
 .nv-success-sub strong { color: #81c995; font-weight: 600; }
 
-/* ─── Section label — copy of Meeting.vue .nv-section-label ─── */
 .nv-section-label {
   font-size: 11px; font-weight: 600; letter-spacing: .8px;
   text-transform: uppercase; color: var(--c-text2); margin-bottom: 14px;
 }
 
-/* ─── Fields — copy of Meeting.vue .nv-field / .nv-flabel / .nv-finput ─── */
 .nv-field { margin-bottom: 16px; }
 .nv-flabel { display: block; font-size: 13px; font-weight: 500; color: var(--c-text2); margin-bottom: 7px; }
 .nv-req { color: var(--c-red); }
@@ -399,10 +464,8 @@ export default {
 .nv-finput--mono::placeholder { letter-spacing: 1px; text-transform: none; font-size: 14px; }
 .nv-finput--pwd { padding-right: 44px; }
 
-/* Two-column row — copy of Meeting.vue .nv-row2 */
 .nv-row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
 
-/* Password wrapper */
 .nv-pwd-wrap { position: relative; }
 .nv-pwd-toggle {
   position: absolute; right: 12px; top: 50%; transform: translateY(-50%);
@@ -411,7 +474,6 @@ export default {
 }
 .nv-pwd-toggle:hover { color: var(--c-text); }
 
-/* ─── Toggle list — copy of Meeting.vue .nv-toggle-list ─── */
 .nv-toggle-list { border: 1px solid var(--c-line); border-radius: var(--c-r); overflow: hidden; }
 .nv-trow {
   display: flex; align-items: center; justify-content: space-between;
@@ -425,7 +487,6 @@ export default {
 .nv-trow-label { font-size: 14px; color: var(--c-text); font-weight: 500; }
 .nv-trow-sub   { font-size: 12px; color: var(--c-text2); margin-top: 2px; }
 
-/* Radio button (replaces toggle switch for single-select) */
 .nv-radio {
   width: 18px; height: 18px; border-radius: 50%;
   border: 2px solid var(--c-line);
@@ -441,7 +502,6 @@ export default {
 }
 .nv-radio--on .nv-radio-dot { transform: scale(1); }
 
-/* ─── Buttons — copy of Meeting.vue ─── */
 .nv-btn-primary {
   width: 100%; margin-top: 24px; padding: 13px 20px;
   background: var(--c-blue); border: none; border-radius: var(--c-r);
@@ -464,21 +524,29 @@ export default {
 }
 .nv-btn-ghost:hover { border-color: var(--c-blue); color: var(--c-text); background: rgba(26,115,232,.06); }
 
-/* ─── Alerts — copy of Meeting.vue .nv-alert-error ─── */
 .nv-alert-error,
-.nv-alert-success {
+.nv-alert-success,
+.nv-alert-debug {
   display: flex; align-items: flex-start; gap: 8px;
   margin-top: 14px; padding: 11px 14px;
   border-radius: var(--c-r); font-size: 13px; line-height: 1.5;
 }
-.nv-alert-error  { background: rgba(234,67,53,.1);  border: 1px solid rgba(234,67,53,.3);  color: #f28b82; }
-.nv-alert-success { background: rgba(52,168,83,.1); border: 1px solid rgba(52,168,83,.28); color: #81c995; }
+.nv-alert-error   { background: rgba(234,67,53,.1);  border: 1px solid rgba(234,67,53,.3);  color: #f28b82; }
+.nv-alert-success { background: rgba(52,168,83,.1);  border: 1px solid rgba(52,168,83,.28); color: #81c995; }
+/* ✅ FIX: Debug info box — subtle, won't alarm users but surfaces server message */
+.nv-alert-debug   {
+  background: rgba(250,123,23,.07);
+  border: 1px solid rgba(250,123,23,.25);
+  color: #fba45c;
+  font-family: 'Google Sans Mono', monospace;
+  font-size: 12px;
+  word-break: break-all;
+}
 
 .nv-alert-fx-enter-active, .nv-alert-fx-leave-active { transition: opacity .2s, transform .2s; }
 .nv-alert-fx-enter-from { opacity: 0; transform: translateY(-6px); }
 .nv-alert-fx-leave-to   { opacity: 0; transform: translateY(-6px); }
 
-/* Spinner — copy of Meeting.vue */
 .nv-spinner {
   display: inline-block; width: 14px; height: 14px;
   border: 2px solid rgba(255,255,255,.3); border-top-color: #fff;
@@ -486,12 +554,10 @@ export default {
 }
 @keyframes nv-spin { to { transform: rotate(360deg); } }
 
-/* Footer */
 .nv-footer-hint { margin-top: 20px; font-size: 12px; color: #5f6368; text-align: center; }
 .nv-link { color: var(--c-text2); text-decoration: none; transition: color .15s; }
 .nv-link:hover { color: var(--c-blue); text-decoration: underline; }
 
-/* ─── Responsive ─── */
 @media (max-width: 480px) {
   .nv-cnav  { padding: 12px 18px; }
   .nv-card  { padding: 24px 20px; border-radius: 12px; }

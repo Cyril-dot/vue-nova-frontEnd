@@ -1,4 +1,4 @@
-<!-- Meeting.vue - IMPROVED VERSION -->
+<!-- Meeting.vue - FIXED VERSION -->
 <!--
   Two-phase component with FIXED:
     ✅ Zoom-like responsive grid layout for participants (2x2, 3x3, 4x4)
@@ -7,6 +7,8 @@
     ✅ Participants always see your face even during screen share
     ✅ Maintained Google Meet color scheme
     ✅ FIXED: Remote participant video now correctly injected into Vue-rendered tile divs
+    ✅ FIXED: WS double-close race condition in beforeUnmount (ws nulled after close)
+    ✅ FIXED: beforeUnmount guards against already-closed ws
 -->
 <template>
   <div class="nv-root">
@@ -169,12 +171,11 @@
         </div>
       </header>
 
-      <!-- Video Grid - IMPROVED LAYOUT -->
+      <!-- Video Grid -->
       <div class="nv-grid" :class="{ 'nv-grid--presenting': screenStream || activePresenterId }" ref="videosGrid">
 
-        <!-- SCREEN SHARE MODE: Main presenter area + sidebar with participants -->
+        <!-- SCREEN SHARE MODE -->
         <template v-if="screenStream || activePresenterId">
-          <!-- Main presenter content -->
           <div class="nv-gmain">
             <div v-if="screenStream" class="nv-tile nv-tile--screen" id="local-screen">
               <video ref="screenVideo" autoplay playsinline></video>
@@ -188,9 +189,7 @@
             <div v-else-if="activePresenterId" class="nv-tile nv-tile--screen" :id="`nv-tile-${activePresenterId}`"></div>
           </div>
 
-          <!-- Sidebar: Your video + other participants -->
           <div class="nv-gsidebar">
-            <!-- Your video (always visible during screen share) -->
             <div class="nv-tile nv-tile--me" id="nv-local">
               <video ref="localVideo" autoplay muted playsinline></video>
               <div class="nv-tilebar">
@@ -209,14 +208,12 @@
               </div>
             </div>
 
-            <!-- Other participants -->
             <div v-for="pid in Object.keys(peers).filter(i => i !== activePresenterId)" :key="pid" class="nv-tile" :id="`nv-tile-${pid}`"></div>
           </div>
         </template>
 
-        <!-- NORMAL MODE: Grid layout (2x2, 3x3, 4x4) -->
+        <!-- NORMAL GRID MODE -->
         <template v-else>
-          <!-- Your video -->
           <div class="nv-tile nv-tile--me" id="nv-local">
             <video ref="localVideo" autoplay muted playsinline></video>
             <div class="nv-tilebar">
@@ -235,7 +232,6 @@
             </div>
           </div>
 
-          <!-- Remote participants in grid -->
           <div v-for="pid in Object.keys(peers)" :key="pid" class="nv-tile" :id="`nv-tile-${pid}`"></div>
         </template>
       </div>
@@ -721,29 +717,12 @@ export default {
       this.activePresenterId = null;
     },
 
-    // ─────────────────────────────────────────────────────────────
-    //  FIX: addRemoteVideo
-    //
-    //  Root cause of the bug:
-    //    Vue renders peer tiles as empty <div id="nv-tile-{pid}">
-    //    from the v-for loop. The old code found that div, looked
-    //    for a <video> inside it, found none, and silently returned
-    //    — so the participant's stream was never attached.
-    //
-    //  Fix:
-    //    When the wrapper div already exists but has no <video>,
-    //    create the <video> + tilebar and inject them, then set
-    //    srcObject. The fallback (create-everything path) handles
-    //    tiles that were dynamically added outside the v-for.
-    // ─────────────────────────────────────────────────────────────
     addRemoteVideo(id, stream) {
       let w = document.getElementById(`nv-tile-${id}`);
 
       if (w) {
-        // Tile div exists (Vue-rendered or previously created)
         let v = w.querySelector('video');
         if (!v) {
-          // No <video> yet — build and inject it now
           v = document.createElement('video');
           v.autoplay = true;
           v.playsinline = true;
@@ -754,12 +733,10 @@ export default {
           bar.append(meta, badges);
           w.append(v, bar);
         }
-        // Attach (or re-attach) the stream
         v.srcObject = stream;
         return;
       }
 
-      // Tile doesn't exist at all — create from scratch and append to grid
       w = document.createElement('div'); w.className = 'nv-tile'; w.id = `nv-tile-${id}`;
       const v      = document.createElement('video'); v.srcObject = stream; v.autoplay = true; v.playsinline = true;
       const bar    = document.createElement('div'); bar.className = 'nv-tilebar';
@@ -896,6 +873,7 @@ export default {
         this.sendWs({ type: 'MEETING_RESTARTED', data: { restartedBy: this.userName } });
         this.cleanupPeers();
 
+        // ✅ FIX: null ws after closing so beforeUnmount doesn't double-close
         if (this.ws) {
           this.ws.onclose = null;
           this.ws.close();
@@ -959,11 +937,17 @@ export default {
       }
     },
 
+    // ✅ FIX: null out this.ws after closing to prevent beforeUnmount double-close
     cleanupAndNavigate() {
       this.localStream?.getTracks().forEach(t => t.stop());
       this.screenStream?.getTracks().forEach(t => t.stop());
-      Object.values(this.peers).forEach(pc => pc.close()); this.peers = {};
-      if (this.ws) { this.sendWs({ type: 'LEAVE' }); this.ws.close(); }
+      Object.values(this.peers).forEach(pc => pc.close());
+      this.peers = {};
+      if (this.ws) {
+        this.sendWs({ type: 'LEAVE' });
+        this.ws.close();
+        this.ws = null; // ← KEY FIX: prevent beforeUnmount from closing it again
+      }
       sessionStorage.removeItem('nova_meeting_code');
       sessionStorage.removeItem('nova_is_host');
       clearInterval(this.clockInterval);
@@ -1006,12 +990,17 @@ export default {
     });
   },
 
+  // ✅ FIX: Guard against double-close — ws is already null if cleanupAndNavigate() ran
   beforeUnmount() {
     clearInterval(this.clockInterval);
     this.localStream?.getTracks().forEach(t => t.stop());
     this.screenStream?.getTracks().forEach(t => t.stop());
     Object.values(this.peers).forEach(pc => pc.close());
-    this.ws?.close();
+    if (this.ws) {
+      // Only close if cleanupAndNavigate() hasn't already done so
+      this.ws.close();
+      this.ws = null;
+    }
   },
 };
 </script>
