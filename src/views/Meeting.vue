@@ -145,6 +145,12 @@
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg>
             {{ participantCount }}
           </div>
+
+          <!-- Host badge -->
+          <span v-if="isHost" class="nv-host-badge">
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+            Host
+          </span>
         </div>
 
         <div class="nv-hright">
@@ -252,6 +258,30 @@
 
           <div class="nv-cdivider"></div>
 
+          <!-- HOST-ONLY CONTROLS -->
+          <template v-if="isHost">
+            <div class="nv-cslot">
+              <button class="nv-ctrl nv-ctrl--restart" @click="restartMeeting" :disabled="restarting" title="Restart meeting">
+                <span v-if="restarting" class="nv-spinner nv-spinner--sm"></span>
+                <svg v-else width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-4.5"/></svg>
+              </button>
+              <span class="nv-clabel">Restart</span>
+            </div>
+
+            <div class="nv-cslot">
+              <button class="nv-ctrl nv-ctrl--end" @click="endMeeting" :disabled="ending" title="End meeting for everyone">
+                <span v-if="ending" class="nv-spinner nv-spinner--sm"></span>
+                <svg v-else width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <rect x="3" y="3" width="18" height="18" rx="2"/>
+                  <line x1="9" y1="9" x2="15" y2="15"/><line x1="15" y1="9" x2="9" y2="15"/>
+                </svg>
+              </button>
+              <span class="nv-clabel nv-clabel--orange">End</span>
+            </div>
+
+            <div class="nv-cdivider"></div>
+          </template>
+
           <div class="nv-cslot">
             <button class="nv-ctrl nv-ctrl--leave" @click="leave" title="Leave call">
               <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -296,10 +326,50 @@
         </div>
       </div>
 
+      <!-- ── End Meeting Confirmation Modal ── -->
+      <div v-if="showEndModal" class="nv-modal-overlay" @click.self="showEndModal = false">
+        <div class="nv-modal">
+          <div class="nv-modal-icon nv-modal-icon--red">
+            <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="3" y="3" width="18" height="18" rx="2"/>
+              <line x1="9" y1="9" x2="15" y2="15"/><line x1="15" y1="9" x2="9" y2="15"/>
+            </svg>
+          </div>
+          <h2 class="nv-modal-title">End meeting for everyone?</h2>
+          <p class="nv-modal-body">This will end the call for all participants and mark the meeting as completed. You can restart it later if needed.</p>
+          <div class="nv-modal-actions">
+            <button class="nv-modal-btn nv-modal-btn--ghost" @click="showEndModal = false">Cancel</button>
+            <button class="nv-modal-btn nv-modal-btn--danger" @click="confirmEndMeeting" :disabled="ending">
+              <span v-if="ending" class="nv-spinner nv-spinner--sm"></span>
+              End for everyone
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── Restart Meeting Confirmation Modal ── -->
+      <div v-if="showRestartModal" class="nv-modal-overlay" @click.self="showRestartModal = false">
+        <div class="nv-modal">
+          <div class="nv-modal-icon nv-modal-icon--blue">
+            <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-4.5"/></svg>
+          </div>
+          <h2 class="nv-modal-title">Restart this meeting?</h2>
+          <p class="nv-modal-body">All current participants will be disconnected and the meeting will restart fresh. The meeting code stays the same.</p>
+          <div class="nv-modal-actions">
+            <button class="nv-modal-btn nv-modal-btn--ghost" @click="showRestartModal = false">Cancel</button>
+            <button class="nv-modal-btn nv-modal-btn--primary" @click="confirmRestartMeeting" :disabled="restarting">
+              <span v-if="restarting" class="nv-spinner nv-spinner--sm"></span>
+              Restart meeting
+            </button>
+          </div>
+        </div>
+      </div>
+
       <!-- Toast -->
       <transition name="nv-toast-fx">
-        <div v-if="toastVisible" class="nv-toast">
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="20 6 9 17 4 12"/></svg>
+        <div v-if="toastVisible" class="nv-toast" :class="toastType === 'error' ? 'nv-toast--error' : ''">
+          <svg v-if="toastType !== 'error'" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="20 6 9 17 4 12"/></svg>
+          <svg v-else width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
           {{ toastMessage }}
         </div>
       </transition>
@@ -312,8 +382,8 @@
 <script>
 import { TokenService } from '@/utils/apiService';
 
-const API = 'https://nova-test-ctne.onrender.com/api';  // ✅ your Render backend
-const WS_URL = 'wss://nova-test-ctne.onrender.com/ws/webrtc';  // ✅ WebSocket on Render
+const API = 'https://nova-test-ctne.onrender.com/api';
+const WS_URL = 'wss://nova-test-ctne.onrender.com/ws/webrtc';
 
 export default {
   name: 'Meeting',
@@ -356,6 +426,13 @@ export default {
       meetingCode: '',
       myPeerId: `peer_${Math.random().toString(36).substr(2, 9)}`,
       participantCount: 1,
+      isHost: false,          // ← tracks if this user is the meeting host
+
+      // ── Host actions state ─────────────────
+      showEndModal:     false,
+      showRestartModal: false,
+      ending:           false,
+      restarting:       false,
 
       // ── User ──────────────────────────────
       userName: 'Guest',
@@ -377,6 +454,7 @@ export default {
       // ── Toast ─────────────────────────────
       toastVisible: false,
       toastMessage: '',
+      toastType: 'success',   // 'success' | 'error'
 
       // ── Clock ─────────────────────────────
       currentTime: '',
@@ -402,7 +480,12 @@ export default {
     //  CREATE MEETING
     // ═══════════════════════════════════════
     goToDashboard() {
-      this.$router.push(this.isAuthenticated ? '/meeting-dashboard' : '/join-meeting');
+      // Use browser back if there's history, otherwise push to dashboard
+      if (window.history.length > 1) {
+        this.$router.go(-1);
+      } else {
+        this.$router.push(this.isAuthenticated ? '/meeting-dashboard' : '/join-meeting');
+      }
     },
 
     async createMeeting() {
@@ -485,6 +568,7 @@ export default {
       if (!this.created.code) return;
       sessionStorage.setItem('nova_meeting_code', this.created.code);
       this.meetingCode = this.created.code;
+      this.isHost = true; // creator is always host
       this.view = 'meeting';
       this.$nextTick(() => this.initMeeting());
     },
@@ -497,7 +581,6 @@ export default {
     },
 
     async initMeeting() {
-      // If arriving without creating first (direct route / URL param)
       if (!this.meetingCode) {
         this.meetingCode = this.$route?.params?.code || sessionStorage.getItem('nova_meeting_code');
       }
@@ -506,6 +589,16 @@ export default {
       const user = JSON.parse(sessionStorage.getItem('nova_user') || '{}');
       this.userName     = user.name || 'Guest';
       this.userInitials = this.userName.charAt(0).toUpperCase();
+
+      // Determine host status: authenticated creator gets host rights
+      // If they created this session (enterMeeting set isHost=true) keep it,
+      // otherwise check sessionStorage flag
+      if (!this.isHost) {
+        this.isHost = sessionStorage.getItem('nova_is_host') === 'true';
+      }
+      if (this.isHost) {
+        sessionStorage.setItem('nova_is_host', 'true');
+      }
 
       this.updateClock();
       this.clockInterval = setInterval(this.updateClock, 10000);
@@ -562,6 +655,17 @@ export default {
         case 'TOGGLE_AUDIO':     this.updatePeerBadge(msg);                   break;
         case 'SCREEN_SHARE_START': this.remoteScreenStart(msg.fromPeerId);    break;
         case 'SCREEN_SHARE_STOP':  this.remoteScreenStop(msg.fromPeerId);     break;
+        // ── New events ──
+        case 'MEETING_ENDED':
+          this.showToast('Meeting ended by host.', 'error');
+          setTimeout(() => this.cleanupAndNavigate(), 1800);
+          break;
+        case 'MEETING_RESTARTED':
+          this.showToast('Meeting restarted by host.');
+          // Re-init WebRTC connections
+          this.cleanupPeers();
+          this.connectWebSocket();
+          break;
       }
     },
 
@@ -600,7 +704,16 @@ export default {
       this.peers[id]?.close(); delete this.peers[id];
       document.getElementById(`nv-tile-${id}`)?.remove();
       if (this.activePresenterId === id) this.remoteScreenStop(id);
-      this.participantCount--;
+      this.participantCount = Math.max(1, this.participantCount - 1);
+    },
+
+    cleanupPeers() {
+      Object.values(this.peers).forEach(pc => pc.close());
+      this.peers = {};
+      // Remove remote video tiles from DOM
+      document.querySelectorAll('[id^="nv-tile-"]').forEach(el => el.remove());
+      this.participantCount = 1;
+      this.activePresenterId = null;
     },
 
     addRemoteVideo(id, stream) {
@@ -688,6 +801,107 @@ export default {
     },
 
     // ═══════════════════════════════════════
+    //  HOST: END MEETING
+    // ═══════════════════════════════════════
+    endMeeting() {
+      this.showEndModal = true;
+    },
+
+    async confirmEndMeeting() {
+      this.ending = true;
+      try {
+        // 1. Call backend to mark meeting as ended
+        const res = await fetch(`${API}/meetings/end/${this.meetingCode}`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${this.token}`,
+            'Content-Type': 'application/json',
+            'ngrok-skip-browser-warning': 'true',
+          },
+        });
+
+        // Non-fatal if endpoint doesn't exist yet — we still broadcast and cleanup
+        if (!res.ok) {
+          console.warn('End API returned non-OK, continuing with broadcast');
+        }
+
+        // 2. Broadcast MEETING_ENDED to all peers via WS so their UI updates
+        this.sendWs({ type: 'MEETING_ENDED', data: { endedBy: this.userName } });
+
+      } catch (err) {
+        console.error('End meeting error:', err);
+        // Still proceed with local cleanup even if API fails
+      }
+
+      // 3. Small delay so WS message propagates
+      setTimeout(() => {
+        this.ending = false;
+        this.showEndModal = false;
+        sessionStorage.removeItem('nova_is_host');
+        sessionStorage.removeItem('nova_meeting_code');
+        this.cleanupAndNavigate();
+      }, 600);
+    },
+
+    // ═══════════════════════════════════════
+    //  HOST: RESTART MEETING
+    // ═══════════════════════════════════════
+    restartMeeting() {
+      this.showRestartModal = true;
+    },
+
+    async confirmRestartMeeting() {
+      this.restarting = true;
+      try {
+        // 1. End the current session on backend
+        await fetch(`${API}/meetings/end/${this.meetingCode}`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${this.token}`,
+            'Content-Type': 'application/json',
+            'ngrok-skip-browser-warning': 'true',
+          },
+        }).catch(() => {});
+
+        // 2. Start a fresh session on backend
+        await fetch(`${API}/meetings/start/${this.meetingCode}`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${this.token}`,
+            'ngrok-skip-browser-warning': 'true',
+          },
+        }).catch(() => {});
+
+        // 3. Notify all peers
+        this.sendWs({ type: 'MEETING_RESTARTED', data: { restartedBy: this.userName } });
+
+        // 4. Cleanup and re-init local state
+        this.cleanupPeers();
+
+        // Close old WebSocket
+        if (this.ws) {
+          this.ws.onclose = null; // prevent stray handler
+          this.ws.close();
+          this.ws = null;
+        }
+
+        this.showRestartModal = false;
+        this.restarting = false;
+        this.messages = [];
+        this.showToast('Meeting restarted!');
+
+        // Re-connect
+        await this.$nextTick();
+        this.connectWebSocket();
+
+      } catch (err) {
+        console.error('Restart meeting error:', err);
+        this.restarting = false;
+        this.showToast('Failed to restart meeting.', 'error');
+      }
+    },
+
+    // ═══════════════════════════════════════
     //  CHAT
     // ═══════════════════════════════════════
     toggleChat() {
@@ -714,44 +928,62 @@ export default {
       navigator.clipboard.writeText(this.meetingCode).then(() => this.showToast('Code copied!'));
     },
 
-    showToast(msg) {
-      this.toastMessage = msg; this.toastVisible = true;
-      setTimeout(() => { this.toastVisible = false; }, 2400);
+    showToast(msg, type = 'success') {
+      this.toastMessage = msg;
+      this.toastType = type;
+      this.toastVisible = true;
+      setTimeout(() => { this.toastVisible = false; }, 2800);
     },
 
     goBack() {
-      this.$router.push(this.isAuthenticated ? '/meeting-dashboard' : '/join-meeting');
+      // Use browser back if there's history, otherwise push to dashboard
+      if (window.history.length > 1) {
+        this.$router.go(-1);
+      } else {
+        this.$router.push(this.isAuthenticated ? '/meeting-dashboard' : '/join-meeting');
+      }
     },
 
-    leave() {
-      if (!confirm('Leave this meeting?')) return;
+    // ── Shared cleanup helper ──
+    cleanupAndNavigate() {
       this.localStream?.getTracks().forEach(t => t.stop());
       this.screenStream?.getTracks().forEach(t => t.stop());
       Object.values(this.peers).forEach(pc => pc.close()); this.peers = {};
       if (this.ws) { this.sendWs({ type: 'LEAVE' }); this.ws.close(); }
       sessionStorage.removeItem('nova_meeting_code');
-      this.$router.push(this.isAuthenticated ? '/meeting-dashboard' : '/join-meeting');
+      sessionStorage.removeItem('nova_is_host');
+      clearInterval(this.clockInterval);
+      // Go back in history so the browser back button works naturally
+      if (window.history.length > 1) {
+        this.$router.go(-1);
+      } else {
+        this.$router.push(this.isAuthenticated ? '/meeting-dashboard' : '/join-meeting');
+      }
+    },
+
+    leave() {
+      const msg = this.isHost
+        ? 'Leave this meeting? (Other participants will stay. Use "End" to close for everyone.)'
+        : 'Leave this meeting?';
+      if (!confirm(msg)) return;
+      this.cleanupAndNavigate();
     },
   },
 
-  // ── Fixed: single merged mounted() with ?create=true support ──
   mounted() {
-    // If ?create=true is in the URL, always show the create form
-    // (set by MeetingsDashboard when clicking "New meeting")
     const forceCreate = this.$route?.query?.create === 'true';
     if (forceCreate) {
-      sessionStorage.removeItem('nova_meeting_code'); // clear any stale code
-      this.view = 'create'; // already the default, but be explicit
-      // still register keyboard shortcuts below
+      sessionStorage.removeItem('nova_meeting_code');
+      sessionStorage.removeItem('nova_is_host');
+      this.view = 'create';
     } else {
-      // Otherwise, check for an existing meeting code to join
       const routeCode = this.$route?.params?.code || sessionStorage.getItem('nova_meeting_code');
       if (routeCode) {
         this.meetingCode = routeCode;
+        this.isHost = sessionStorage.getItem('nova_is_host') === 'true';
         this.view = 'meeting';
         this.$nextTick(() => this.initMeeting());
       }
-      // if neither → view stays 'create' ✅
     }
 
     window.addEventListener('keydown', (e) => {
@@ -772,15 +1004,8 @@ export default {
 </script>
 
 <style scoped>
-/*
-  ╔════════════════════════════════════════════════════╗
-  ║  Nova Meeting — scoped to .nv-* prefix only        ║
-  ║  Zero style leakage to/from other pages            ║
-  ╚════════════════════════════════════════════════════╝
-*/
 @import url('https://fonts.googleapis.com/css2?family=Google+Sans:wght@400;500;600&family=Google+Sans+Mono&display=swap');
 
-/* ── Shared tokens (scoped to this component) ─── */
 .nv-root {
   --c-bg:      #202124;
   --c-surf:    #292b2f;
@@ -791,6 +1016,7 @@ export default {
   --c-green:   #34a853;
   --c-red:     #ea4335;
   --c-red-bg:  rgba(234,67,53,.15);
+  --c-orange:  #fa7b17;
   --c-text:    #e8eaed;
   --c-text2:   #9aa0a6;
   --c-r:       8px;
@@ -808,7 +1034,6 @@ export default {
   flex-direction: column;
 }
 
-/* Nav */
 .nv-cnav {
   display: flex; align-items: center; justify-content: space-between;
   padding: 14px 32px;
@@ -829,7 +1054,6 @@ export default {
 }
 .nv-cnav-back:hover { border-color: var(--c-blue); color: var(--c-text); background: rgba(26,115,232,.08); }
 
-/* Main content */
 .nv-cmain { max-width: 560px; margin: 0 auto; padding: 44px 24px 60px; width: 100%; }
 .nv-chead { margin-bottom: 28px; }
 .nv-ctitle { font-size: 26px; font-weight: 600; color: var(--c-text); letter-spacing: -.3px; margin-bottom: 6px; }
@@ -843,7 +1067,6 @@ export default {
   box-shadow: 0 8px 40px rgba(0,0,0,.4);
 }
 
-/* Success banner */
 .nv-success-banner {
   display: flex; align-items: center; gap: 14px;
   padding: 16px 18px; border-radius: 12px;
@@ -869,7 +1092,6 @@ export default {
 }
 .nv-code-pill:hover { background: rgba(52,168,83,.22); }
 
-/* Form */
 .nv-section-label {
   font-size: 11px; font-weight: 600; letter-spacing: .8px;
   text-transform: uppercase; color: var(--c-text2); margin-bottom: 14px;
@@ -890,7 +1112,6 @@ export default {
 .nv-ftextarea { resize: vertical; min-height: 70px; line-height: 1.5; }
 .nv-row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
 
-/* Toggles */
 .nv-toggle-list { border: 1px solid var(--c-line); border-radius: var(--c-r); overflow: hidden; }
 .nv-trow {
   display: flex; align-items: center; justify-content: space-between;
@@ -915,7 +1136,6 @@ export default {
 }
 .nv-switch--on .nv-switch-thumb { transform: translateX(18px); background: #fff; }
 
-/* Buttons */
 .nv-btn-primary {
   width: 100%; margin-top: 24px; padding: 13px 20px;
   background: var(--c-blue); border: none; border-radius: var(--c-r);
@@ -948,11 +1168,14 @@ export default {
   font-size: 13px; color: #f28b82;
 }
 
-/* Spinner */
 .nv-spinner {
   display: inline-block; width: 14px; height: 14px;
   border: 2px solid rgba(255,255,255,.3); border-top-color: #fff;
   border-radius: 50%; animation: nv-spin .65s linear infinite;
+}
+.nv-spinner--sm {
+  width: 13px; height: 13px;
+  border: 2px solid rgba(255,255,255,.25); border-top-color: currentColor;
 }
 @keyframes nv-spin { to { transform: rotate(360deg); } }
 
@@ -989,6 +1212,15 @@ export default {
   animation: nv-pulse 2s ease-in-out infinite;
 }
 @keyframes nv-pulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:.3;transform:scale(.65)} }
+
+/* Host badge */
+.nv-host-badge {
+  display: flex; align-items: center; gap: 5px;
+  font-size: 10px; font-weight: 600; letter-spacing: .4px;
+  padding: 3px 9px; border-radius: 20px;
+  background: rgba(250,123,23,.14); border: 1px solid rgba(250,123,23,.35);
+  color: #fba45c;
+}
 
 .nv-code-chip {
   display: flex; align-items: center; gap: 6px;
@@ -1035,7 +1267,6 @@ export default {
 }
 .nv-gsidebar .nv-tile { flex-shrink:0; aspect-ratio:16/9; }
 
-/* Tile */
 .nv-tile {
   position: relative; background: var(--c-surf);
   border-radius: 12px; overflow: hidden; aspect-ratio: 16/9;
@@ -1094,7 +1325,8 @@ export default {
   cursor:pointer; display:flex; align-items:center; justify-content:center;
   transition:background .15s, transform .1s; color:var(--c-text);
 }
-.nv-ctrl:hover { transform:scale(1.06); }
+.nv-ctrl:hover:not(:disabled) { transform:scale(1.06); }
+.nv-ctrl:disabled { opacity: .5; cursor: not-allowed; }
 .nv-ctrl--on      { background:var(--c-surf2); border:1px solid var(--c-line); }
 .nv-ctrl--on:hover { background:#4e5256; }
 .nv-ctrl--off      { background:var(--c-red-bg); color:#f28b82; border:1px solid rgba(234,67,53,.3); }
@@ -1107,8 +1339,34 @@ export default {
 }
 .nv-ctrl--leave:hover { background:#d33828; }
 
+/* End button — bold red */
+.nv-ctrl--end {
+  width:52px; height:52px;
+  background: rgba(234,67,53,.18);
+  color: #f28b82;
+  border: 2px solid rgba(234,67,53,.5);
+  box-shadow: 0 2px 12px rgba(234,67,53,.2);
+}
+.nv-ctrl--end:hover:not(:disabled) {
+  background: var(--c-red); color: #fff;
+  border-color: var(--c-red);
+  box-shadow: 0 4px 18px rgba(234,67,53,.5);
+}
+
+/* Restart button — orange */
+.nv-ctrl--restart {
+  background: rgba(250,123,23,.15);
+  color: #fba45c;
+  border: 1.5px solid rgba(250,123,23,.4);
+}
+.nv-ctrl--restart:hover:not(:disabled) {
+  background: rgba(250,123,23,.3);
+  border-color: var(--c-orange);
+}
+
 .nv-clabel { font-size:10px; color:var(--c-text2); white-space:nowrap; font-weight:500; }
-.nv-clabel--red { color:#f28b82; }
+.nv-clabel--red    { color:#f28b82; }
+.nv-clabel--orange { color:#fba45c; }
 .nv-cdivider { width:1px; height:32px; background:var(--c-line); margin:0 8px; }
 
 /* Chat */
@@ -1167,6 +1425,73 @@ export default {
 .nv-csend:disabled { opacity:.4; cursor:default; }
 .nv-csend:not(:disabled):hover { background:var(--c-blue2); }
 
+/* ═══════════════════════════════════════
+   MODALS — End & Restart confirmation
+═══════════════════════════════════════ */
+.nv-modal-overlay {
+  position: fixed; inset: 0; z-index: 20000;
+  background: rgba(0,0,0,.65);
+  display: flex; align-items: center; justify-content: center;
+  backdrop-filter: blur(4px);
+  animation: nv-fade-in .18s ease;
+}
+@keyframes nv-fade-in { from { opacity: 0; } to { opacity: 1; } }
+
+.nv-modal {
+  background: var(--c-surf);
+  border: 1px solid var(--c-line);
+  border-radius: 20px;
+  padding: 36px 32px 28px;
+  width: 100%; max-width: 420px;
+  text-align: center;
+  box-shadow: 0 24px 80px rgba(0,0,0,.6);
+  animation: nv-slide-up .2s cubic-bezier(.34,1.56,.64,1);
+}
+@keyframes nv-slide-up { from { opacity:0; transform:translateY(20px); } to { opacity:1; transform:translateY(0); } }
+
+.nv-modal-icon {
+  width: 64px; height: 64px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  margin: 0 auto 20px; font-size: 28px;
+}
+.nv-modal-icon--red  { background: rgba(234,67,53,.15); color: #f28b82; border: 1.5px solid rgba(234,67,53,.4); }
+.nv-modal-icon--blue { background: rgba(26,115,232,.15); color: #8ab4f8; border: 1.5px solid rgba(26,115,232,.4); }
+
+.nv-modal-title {
+  font-size: 20px; font-weight: 600; color: var(--c-text);
+  margin-bottom: 12px; line-height: 1.3;
+}
+.nv-modal-body {
+  font-size: 14px; color: var(--c-text2); line-height: 1.6;
+  margin-bottom: 28px;
+}
+.nv-modal-actions {
+  display: flex; gap: 10px; justify-content: center;
+}
+.nv-modal-btn {
+  flex: 1; padding: 12px 20px; border-radius: var(--c-r);
+  font-family: inherit; font-size: 14px; font-weight: 600;
+  cursor: pointer; transition: all .15s; display: flex;
+  align-items: center; justify-content: center; gap: 7px;
+  max-width: 180px;
+}
+.nv-modal-btn--ghost {
+  background: transparent; border: 1px solid var(--c-line); color: var(--c-text2);
+}
+.nv-modal-btn--ghost:hover { border-color: var(--c-text2); color: var(--c-text); }
+.nv-modal-btn--danger {
+  background: var(--c-red); border: none; color: #fff;
+  box-shadow: 0 2px 12px rgba(234,67,53,.4);
+}
+.nv-modal-btn--danger:hover:not(:disabled) { background: #d33828; }
+.nv-modal-btn--danger:disabled { opacity: .55; cursor: not-allowed; }
+.nv-modal-btn--primary {
+  background: var(--c-blue); border: none; color: #fff;
+  box-shadow: 0 2px 12px rgba(26,115,232,.4);
+}
+.nv-modal-btn--primary:hover:not(:disabled) { background: var(--c-blue2); }
+.nv-modal-btn--primary:disabled { opacity: .55; cursor: not-allowed; }
+
 /* Toast */
 .nv-toast {
   position:fixed; bottom:96px; left:50%; transform:translateX(-50%);
@@ -1177,6 +1502,7 @@ export default {
   box-shadow:0 4px 24px rgba(0,0,0,.4);
   z-index:10001; pointer-events:none; white-space:nowrap;
 }
+.nv-toast--error { color: #f28b82; border-color: rgba(234,67,53,.35); }
 .nv-toast-fx-enter-active, .nv-toast-fx-leave-active { transition:opacity .2s, transform .2s; }
 .nv-toast-fx-enter-from  { opacity:0; transform:translateX(-50%) translateY(10px); }
 .nv-toast-fx-leave-to    { opacity:0; transform:translateX(-50%) translateY(10px); }
@@ -1188,5 +1514,6 @@ export default {
   .nv-gsidebar { grid-column:1; grid-row:2; flex-direction:row; max-height:130px; overflow-x:auto; overflow-y:hidden; }
   .nv-gsidebar .nv-tile { min-width:160px; }
   .nv-chat { width:100vw; right:-100vw; }
+  .nv-modal { margin: 0 16px; }
 }
 </style>
