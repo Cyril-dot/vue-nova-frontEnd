@@ -1,8 +1,8 @@
-<!-- Meeting.vue — Powered by Daily.co SDK (Backend Token Edition) -->
+<!-- Meeting.vue — Powered by Daily.co SDK | Aligned to MeetingController -->
 <template>
   <div class="nv-root">
 
-    <!-- ════════════════════ CREATE ════════════════════ -->
+    <!-- ════════════════════════════════════════ CREATE ════════════════════════════════════════ -->
     <div v-if="view === 'create'" class="nv-create-wrap">
       <nav class="nv-cnav">
         <div class="nv-cbrand" @click="goToDashboard">
@@ -24,8 +24,10 @@
           <h1 class="nv-ctitle">New meeting</h1>
           <p class="nv-csub">Configure and launch your meeting instantly.</p>
         </div>
+
         <div class="nv-card">
 
+          <!-- Success banner after create -->
           <div v-if="created.code" class="nv-success-banner">
             <div class="nv-success-check">
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="20 6 9 17 4 12"/></svg>
@@ -40,43 +42,32 @@
             </div>
           </div>
 
+          <!-- Form -->
           <div v-if="!created.code" class="nv-form-body">
             <div class="nv-section-label">Meeting details</div>
             <div class="nv-field">
-              <label class="nv-flabel">Title <span class="nv-req">*</span></label>
-              <input class="nv-finput" v-model="form.title" type="text" placeholder="e.g. Weekly team standup" />
+              <label class="nv-flabel">Room name <span class="nv-req">*</span></label>
+              <input class="nv-finput" v-model="form.roomName" type="text" placeholder="e.g. weekly-standup" autocomplete="off" spellcheck="false" />
+              <span class="nv-fhint">Lowercase letters, numbers and hyphens only</span>
             </div>
-            <div class="nv-field">
-              <label class="nv-flabel">Description <span class="nv-opt">(optional)</span></label>
-              <textarea class="nv-finput nv-ftextarea" v-model="form.description" placeholder="What's this meeting about?"></textarea>
-            </div>
-            <div class="nv-row2">
-              <div class="nv-field">
-                <label class="nv-flabel">Max participants</label>
-                <input class="nv-finput" v-model.number="form.maxParticipants" type="number" min="2" max="500" />
-              </div>
-              <div class="nv-field">
-                <label class="nv-flabel">Password <span class="nv-opt">(optional)</span></label>
-                <input class="nv-finput" v-model="form.password" type="text" placeholder="Leave blank = open" />
-              </div>
-            </div>
-            <div class="nv-section-label" style="margin-top:28px">Options</div>
-            <div class="nv-toggle-list">
-              <label class="nv-trow" v-for="opt in toggleOpts" :key="opt.key">
+            <div class="nv-toggle-list" style="margin-top:20px">
+              <label class="nv-trow">
                 <div>
-                  <div class="nv-trow-label">{{ opt.label }}</div>
-                  <div v-if="opt.sub" class="nv-trow-sub">{{ opt.sub }}</div>
+                  <div class="nv-trow-label">Private room</div>
+                  <div class="nv-trow-sub">Participants need a token — guests can't join anonymously</div>
                 </div>
-                <div class="nv-switch" :class="{ 'nv-switch--on': form[opt.key] }" @click="form[opt.key] = !form[opt.key]">
+                <div class="nv-switch" :class="{ 'nv-switch--on': form.isPrivate }" @click="form.isPrivate = !form.isPrivate">
                   <div class="nv-switch-thumb"></div>
                 </div>
               </label>
             </div>
+
             <button class="nv-btn-primary" @click="createMeeting" :disabled="creating">
               <span v-if="creating" class="nv-spinner"></span>
               <svg v-else width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
               {{ creating ? 'Creating…' : 'Create meeting' }}
             </button>
+
             <div v-if="createError" class="nv-alert-error">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
               {{ createError }}
@@ -94,7 +85,7 @@
       </main>
     </div>
 
-    <!-- ════════════════════ MEETING ════════════════════ -->
+    <!-- ════════════════════════════════════════ MEETING ════════════════════════════════════════ -->
     <div v-if="view === 'meeting'" class="nv-meet">
 
       <header class="nv-header">
@@ -120,9 +111,16 @@
             <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
             Host
           </span>
+          <span v-if="recording" class="nv-rec-badge">
+            <span class="nv-rec-dot"></span>REC
+          </span>
         </div>
         <div class="nv-hright">
           <span class="nv-clock">{{ currentTime }}</span>
+          <button v-if="isHost" class="nv-hbtn" :class="{ 'nv-hbtn--on': recording }" @click="toggleRecording" :disabled="recordingLoading">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="3" fill="currentColor" stroke="none"/></svg>
+            {{ recording ? 'Stop rec' : 'Record' }}
+          </button>
           <button class="nv-hbtn" :class="{ 'nv-hbtn--on': chatOpen }" @click="toggleChat">
             <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
             Chat
@@ -145,6 +143,7 @@
         <div ref="dailyContainer" class="nv-daily-frame"></div>
       </div>
 
+      <!-- Controls -->
       <div class="nv-controls">
         <div class="nv-ctrl-row">
           <div class="nv-cslot">
@@ -200,6 +199,7 @@
         </div>
       </div>
 
+      <!-- Chat panel -->
       <div class="nv-chat" :class="{ 'nv-chat--open': chatOpen }">
         <div class="nv-chdr">
           <div class="nv-chdr-title">
@@ -221,20 +221,21 @@
           </div>
         </div>
         <div class="nv-cfoot">
-          <input class="nv-cinput" type="text" v-model="chatMessage" @keypress.enter="sendMessage" placeholder="Message everyone…" />
-          <button class="nv-csend" @click="sendMessage" :disabled="!chatMessage.trim()">
+          <input class="nv-cinput" type="text" v-model="chatMessage" @keypress.enter="sendChatMessage" placeholder="Message everyone…" />
+          <button class="nv-csend" @click="sendChatMessage" :disabled="!chatMessage.trim()">
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
           </button>
         </div>
       </div>
 
+      <!-- End modal -->
       <div v-if="showEndModal" class="nv-modal-overlay" @click.self="showEndModal = false">
         <div class="nv-modal">
           <div class="nv-modal-icon nv-modal-icon--red">
             <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="9" y1="9" x2="15" y2="15"/><line x1="15" y1="9" x2="9" y2="15"/></svg>
           </div>
           <h2 class="nv-modal-title">End meeting for everyone?</h2>
-          <p class="nv-modal-body">This will disconnect all participants and mark the meeting as completed.</p>
+          <p class="nv-modal-body">This will permanently delete the Daily room and disconnect all participants.</p>
           <div class="nv-modal-actions">
             <button class="nv-modal-btn nv-modal-btn--ghost" @click="showEndModal = false">Cancel</button>
             <button class="nv-modal-btn nv-modal-btn--danger" @click="confirmEndMeeting" :disabled="ending">
@@ -245,13 +246,14 @@
         </div>
       </div>
 
+      <!-- Restart modal -->
       <div v-if="showRestartModal" class="nv-modal-overlay" @click.self="showRestartModal = false">
         <div class="nv-modal">
           <div class="nv-modal-icon nv-modal-icon--blue">
             <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-4.5"/></svg>
           </div>
           <h2 class="nv-modal-title">Restart this meeting?</h2>
-          <p class="nv-modal-body">All participants will be disconnected. They can rejoin with the same code.</p>
+          <p class="nv-modal-body">All participants will be disconnected. They can rejoin with the same code once the room is ready.</p>
           <div class="nv-modal-actions">
             <button class="nv-modal-btn nv-modal-btn--ghost" @click="showRestartModal = false">Cancel</button>
             <button class="nv-modal-btn nv-modal-btn--primary" @click="confirmRestartMeeting" :disabled="restarting">
@@ -262,6 +264,7 @@
         </div>
       </div>
 
+      <!-- Toast -->
       <transition name="nv-toast-fx">
         <div v-if="toastVisible" class="nv-toast" :class="toastType === 'error' ? 'nv-toast--error' : ''">
           <svg v-if="toastType !== 'error'" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="20 6 9 17 4 12"/></svg>
@@ -269,43 +272,27 @@
           {{ toastMessage }}
         </div>
       </transition>
-
     </div>
   </div>
 </template>
 
 <script>
-import { TokenService, apiRequest } from '@/utils/apiService';
+import { TokenService } from '@/utils/apiService';
 import { MeetingSession } from '@/utils/meetingSession';
-
-const BACKEND_API = 'https://nova-test-ctne.onrender.com/api';
 
 export default {
   name: 'Meeting',
-
-  props: {
-    code: { type: String, default: null },
-  },
+  props: { code: { type: String, default: null } },
 
   data() {
     return {
       view: 'create',
 
-      form: {
-        title: '', description: '', maxParticipants: 50, password: '',
-        allowGuests: true, videoEnabled: true, audioEnabled: true,
-        chatEnabled: true, screenShareEnabled: true,
-      },
-      toggleOpts: [
-        { key: 'allowGuests',        label: 'Allow guests',       sub: 'Anyone with the code can join' },
-        { key: 'videoEnabled',       label: 'Video on by default' },
-        { key: 'audioEnabled',       label: 'Audio on by default' },
-        { key: 'chatEnabled',        label: 'Enable chat' },
-        { key: 'screenShareEnabled', label: 'Screen sharing' },
-      ],
-      creating: false,
+      // Create form — only roomName + private (matches POST /meetings/create)
+      form:        { roomName: '', isPrivate: false },
+      creating:    false,
       createError: '',
-      created: { code: null, title: null },
+      created:     { code: null },
 
       meetingCode:      '',
       dailyRoomUrl:     '',
@@ -318,12 +305,11 @@ export default {
       screenSharing:    false,
       participantCount: 1,
       isHost:           false,
-
       userName:         'Guest',
-      userInitials:     'G',
 
-      guestName:        null,
-      guestEmail:       null,
+      // Recording — toggled via POST /meetings/{code}/recording/start|stop
+      recording:        false,
+      recordingLoading: false,
 
       showEndModal:     false,
       showRestartModal: false,
@@ -339,128 +325,55 @@ export default {
       toastMessage:     '',
       toastType:        'success',
 
-      currentTime:      '',
-      clockInterval:    null,
+      currentTime:   '',
+      clockInterval: null,
     };
   },
 
   computed: {
     isAuthenticated() { return TokenService.isAuthenticated(); },
-    token()           { return TokenService.getAccessToken(); },
   },
 
   methods: {
 
-    // ═══════════════════════════════════════════════════════════
-    //  BACKEND TOKEN FETCH
-    // ═══════════════════════════════════════════════════════════
+    // ═══════════════════════════════════════════════════════
+    //  FETCH DAILY TOKEN
+    //  Auth:  POST /api/meetings/{code}/token   body: { isOwner }
+    //  Guest: POST /api/meetings/join/guest     body: { roomCode, displayName }
+    // ═══════════════════════════════════════════════════════
 
     async fetchDailyToken(meetingCode) {
-      console.log('🔑 [fetchDailyToken] Starting — code:', meetingCode, '| auth:', this.isAuthenticated);
-      try {
-        if (this.isAuthenticated) {
-          console.log('🔑 [fetchDailyToken] Calling authenticated endpoint...');
-          const res  = await apiRequest('/meetings/daily-token', {
-            method: 'POST',
-            body:   JSON.stringify({ meetingCode }),
-          });
-          const body = await res.json();
-          console.log('🔑 [fetchDailyToken] Auth response status:', res.status, '| body:', JSON.stringify(body));
-
-          if (!res.ok || body.success === false) {
-            console.warn('⚠️ [fetchDailyToken] Auth token fetch failed:', body.message);
-            return null;
-          }
-          console.log('✅ [fetchDailyToken] Auth token data keys:', Object.keys(body.data || {}));
-          return body.data;
-
-        } else {
-          const guestName = this.guestName || MeetingSession.getUserDisplayName();
-          console.log('🔑 [fetchDailyToken] Calling guest endpoint — guestName:', guestName);
-          const res = await fetch(`${BACKEND_API}/meetings/daily-token/guest`, {
-            method:  'POST',
-            headers: {
-              'Content-Type':               'application/json',
-              'ngrok-skip-browser-warning': 'true',
-            },
-            body: JSON.stringify({
-              meetingCode,
-              guestName,
-              guestEmail: this.guestEmail || null,
-            }),
-          });
-          const body = await res.json();
-          console.log('🔑 [fetchDailyToken] Guest response status:', res.status, '| body:', JSON.stringify(body));
-
-          if (!res.ok || body.success === false) {
-            console.warn('⚠️ [fetchDailyToken] Guest token fetch failed:', body.message);
-            return null;
-          }
-          console.log('✅ [fetchDailyToken] Guest token data keys:', Object.keys(body.data || {}));
-          return body.data;
-        }
-      } catch (err) {
-        console.error('❌ [fetchDailyToken] Exception:', err.name, err.message, err.stack);
-        return null;
-      }
+      console.log('🔑 [Meeting] fetchDailyToken — code:', meetingCode, '| auth:', this.isAuthenticated);
+      return MeetingSession.fetchDailyToken(meetingCode, this.isHost);
     },
 
-    // ═══════════════════════════════════════════════════════════
+    // ═══════════════════════════════════════════════════════
     //  CREATE MEETING
-    // ═══════════════════════════════════════════════════════════
+    //  POST /api/meetings/create  body: { roomName, private }
+    // ═══════════════════════════════════════════════════════
 
     async createMeeting() {
-      if (!this.form.title.trim()) { this.createError = 'Please enter a meeting title.'; return; }
-      this.creating = true; this.createError = '';
+      this.createError = '';
+      const name = this.form.roomName.trim().toLowerCase().replace(/[^a-z0-9-]/g, '-');
+      if (!name) { this.createError = 'Please enter a valid room name.'; return; }
+      if (!this.isAuthenticated) { this.createError = 'You must be signed in to create a meeting.'; return; }
 
+      this.creating = true;
       try {
-        if (!this.token) throw new Error('You must be logged in to create a meeting.');
+        const roomData = await MeetingSession.createMeeting(name, this.form.isPrivate);
+        const code     = roomData?.name || roomData?.meetingCode || name;
 
-        const pw  = this.form.password.trim();
-        const res = await apiRequest('/meetings/create', {
-          method: 'POST',
-          body: JSON.stringify({
-            title:              this.form.title.trim(),
-            description:        this.form.description.trim() || null,
-            maxParticipants:    this.form.maxParticipants || 50,
-            allowGuests:        this.form.allowGuests,
-            requiresPassword:   pw.length > 0,
-            password:           pw || null,
-            videoEnabled:       this.form.videoEnabled,
-            audioEnabled:       this.form.audioEnabled,
-            chatEnabled:        this.form.chatEnabled,
-            screenShareEnabled: this.form.screenShareEnabled,
-            isPublic:           false,
-          }),
-        });
+        MeetingSession.setMeetingCode(code);
+        if (roomData?.url) sessionStorage.setItem('nova_daily_room', roomData.url);
+        sessionStorage.setItem('nova_meeting_title', name);
 
-        const data = await res.json();
-        if (!res.ok || data.success === false) {
-          throw new Error(data.message || `Server error ${res.status}`);
-        }
+        this.created = { code };
+        MeetingSession.saveRecentMeeting(code, name);
 
-        const meetingData = data.data;
-        const meetingCode = meetingData?.meetingCode || meetingData?.meeting_code;
-        if (!meetingCode) throw new Error('Backend did not return a meeting code.');
-
-        const roomUrl  = meetingData?.dailyRoomUrl  || null;
-        const roomName = meetingData?.dailyRoomName || null;
-
-        MeetingSession.setMeetingCode(meetingCode);
-        if (roomUrl)  sessionStorage.setItem('nova_daily_room', roomUrl);
-        if (roomName) sessionStorage.setItem('nova_daily_name', roomName);
-        sessionStorage.setItem('nova_meeting_title', this.form.title.trim());
-
-        this.created = { code: meetingCode, title: this.form.title.trim() };
-        MeetingSession.saveRecentMeeting(meetingCode, this.form.title.trim());
-
-        apiRequest(`/meetings/start/${meetingCode}`, { method: 'POST' }).catch(() => {});
-
-        console.log('✅ Meeting created:', meetingCode, '→ Daily room:', roomUrl);
-
+        console.log('✅ Meeting created:', code, '→ room URL:', roomData?.url);
       } catch (err) {
         this.createError = err.message || 'Failed to create meeting.';
-        console.error('Create meeting error:', err);
+        console.error('createMeeting error:', err);
       } finally {
         this.creating = false;
       }
@@ -475,72 +388,50 @@ export default {
       if (!this.created.code) return;
       this.meetingCode = this.created.code;
       this.isHost      = true;
-      sessionStorage.setItem('nova_is_host', 'true');
+      MeetingSession.setIsHost(true);
       this.view = 'meeting';
       this.$nextTick(() => this.initMeeting());
     },
 
-    // ═══════════════════════════════════════════════════════════
+    // ═══════════════════════════════════════════════════════
     //  INIT MEETING
-    // ═══════════════════════════════════════════════════════════
+    // ═══════════════════════════════════════════════════════
 
     async initMeeting() {
-      console.log('🚀 [initMeeting] Starting...');
-
       if (!this.meetingCode) {
         this.meetingCode = this.code
           || this.$route?.params?.code
           || MeetingSession.getMeetingCode();
       }
-
-      console.log('🚀 [initMeeting] meetingCode resolved:', this.meetingCode);
-
       if (!this.meetingCode) {
-        console.warn('⚠️ [initMeeting] No meeting code — redirecting to join');
         this.$router.push('/meetings/join');
         return;
       }
 
-      this.userName     = MeetingSession.getUserDisplayName();
-      this.userInitials = this.userName.charAt(0).toUpperCase();
-      this.isHost       = this.isHost || sessionStorage.getItem('nova_is_host') === 'true';
-
-      console.log('🚀 [initMeeting] userName:', this.userName, '| isHost:', this.isHost);
+      this.userName = MeetingSession.getUserDisplayName();
+      this.isHost   = this.isHost || MeetingSession.isHost();
 
       const guestUser = MeetingSession.getUser();
       if (guestUser?.isGuest) {
-        this.guestName  = guestUser.name;
-        this.guestEmail = guestUser.email;
-        console.log('🚀 [initMeeting] Guest user detected:', this.guestName);
+        console.log('🚀 [Meeting] Guest user:', guestUser.name);
       }
 
-      console.log('🚀 [initMeeting] Fetching Daily token...');
+      console.log('🚀 [Meeting] Fetching Daily token for:', this.meetingCode);
       const tokenData = await this.fetchDailyToken(this.meetingCode);
-      console.log('🚀 [initMeeting] tokenData received:', tokenData ? JSON.stringify(tokenData) : 'null');
 
       if (tokenData) {
         this.dailyRoomUrl  = tokenData.roomUrl;
         this.dailyRoomName = tokenData.roomName;
         this.isHost        = this.isHost || tokenData.isOwner;
-
-        console.log('🚀 [initMeeting] dailyRoomUrl:', this.dailyRoomUrl);
-        console.log('🚀 [initMeeting] dailyRoomName:', this.dailyRoomName);
-        console.log('🚀 [initMeeting] token present:', !!tokenData.token, '| token type:', typeof tokenData.token);
-
-        sessionStorage.setItem('nova_daily_room',  tokenData.roomUrl);
-        sessionStorage.setItem('nova_daily_name',  tokenData.roomName);
-        sessionStorage.setItem('nova_daily_token', tokenData.token || '');
+        console.log('🚀 [Meeting] roomUrl:', this.dailyRoomUrl);
       } else {
-        const cachedUrl  = sessionStorage.getItem('nova_daily_room');
-        const cachedName = sessionStorage.getItem('nova_daily_name');
-        console.warn('⚠️ [initMeeting] No tokenData — trying cache. cachedUrl:', cachedUrl);
-
-        if (cachedUrl && cachedName) {
-          this.dailyRoomUrl  = cachedUrl;
-          this.dailyRoomName = cachedName;
+        // Fallback to cache
+        const cached = MeetingSession.getDailyRoom();
+        if (cached.roomUrl) {
+          this.dailyRoomUrl  = cached.roomUrl;
+          this.dailyRoomName = cached.roomName;
         } else {
-          console.error('❌ [initMeeting] No room data available at all — aborting');
-          this.showToast('Could not connect to meeting room — no room data available.', 'error');
+          this.showToast('Could not connect — no room data available.', 'error');
           this.dailyLoading = false;
           return;
         }
@@ -548,62 +439,35 @@ export default {
 
       this.updateClock();
       this.clockInterval = setInterval(this.updateClock, 10_000);
-
-      console.log('🚀 [initMeeting] Loading Daily SDK...');
       await this.loadDailySDK();
-      console.log('🚀 [initMeeting] Daily SDK loaded. Joining room...');
-      await this.joinDailyRoom(tokenData?.token || null);
+      await this.joinDailyRoom(tokenData?.token || MeetingSession.getDailyToken());
     },
 
     loadDailySDK() {
       return new Promise((resolve, reject) => {
-        if (window.DailyIframe) {
-          console.log('✅ [loadDailySDK] Already loaded');
-          resolve();
-          return;
-        }
-        console.log('📦 [loadDailySDK] Injecting Daily script...');
+        if (window.DailyIframe) { resolve(); return; }
         const s   = document.createElement('script');
         s.src     = 'https://unpkg.com/@daily-co/daily-js';
-        s.onload  = () => { console.log('✅ [loadDailySDK] Script loaded'); resolve(); };
-        s.onerror = () => { console.error('❌ [loadDailySDK] Script failed to load'); reject(new Error('Failed to load Daily.co SDK')); };
+        s.onload  = resolve;
+        s.onerror = () => reject(new Error('Failed to load Daily.co SDK'));
         document.head.appendChild(s);
       });
     },
 
-    // ═══════════════════════════════════════════════════════════
-    //  JOIN DAILY ROOM  — createFrame with NO options to avoid
-    //  DataCloneError when Daily serialises config via postMessage
-    // ═══════════════════════════════════════════════════════════
-
     async joinDailyRoom(token = null) {
       try {
         this.dailyLoading = true;
-        console.log('🎥 [joinDailyRoom] roomUrl:', this.dailyRoomUrl);
-        console.log('🎥 [joinDailyRoom] token present:', !!token, '| type:', typeof token);
-        console.log('🎥 [joinDailyRoom] dailyContainer ref present:', !!this.$refs.dailyContainer);
-
         if (!token) {
-          console.log('🎥 [joinDailyRoom] No token — fetching fresh one...');
-          const freshData = await this.fetchDailyToken(this.meetingCode);
-          token = freshData?.token || null;
-          console.log('🎥 [joinDailyRoom] Fresh token present:', !!token);
+          const fresh = await this.fetchDailyToken(this.meetingCode);
+          token = fresh?.token || null;
         }
 
-        // ✅ createFrame with NO options object — fixes DataCloneError
-        console.log('🎥 [joinDailyRoom] Calling DailyIframe.createFrame (no options)...');
         this.callFrame = window.DailyIframe.createFrame(this.$refs.dailyContainer);
-        console.log('🎥 [joinDailyRoom] callFrame created:', !!this.callFrame);
 
-        // Style the iframe via DOM after creation
         this.$nextTick(() => {
           const iframe = this.$refs.dailyContainer?.querySelector('iframe');
-          console.log('🎥 [joinDailyRoom] iframe element found:', !!iframe);
           if (iframe) {
-            iframe.style.width      = '100%';
-            iframe.style.height     = '100%';
-            iframe.style.border     = 'none';
-            iframe.style.background = '#202124';
+            iframe.style.cssText = 'width:100%;height:100%;border:none;background:#202124';
           }
         });
 
@@ -617,45 +481,26 @@ export default {
           .on('error',               this.onDailyError)
           .on('camera-error',        this.onCameraError);
 
-        console.log('🎥 [joinDailyRoom] Event listeners attached');
-
-        // Build join options — only plain serialisable primitives
-        const joinOpts = {
-          url:           this.dailyRoomUrl,
-          userName:      this.userName,
-          startVideoOff: false,
-          startAudioOff: false,
-        };
+        const joinOpts = { url: this.dailyRoomUrl, userName: this.userName, startVideoOff: false, startAudioOff: false };
         if (token) joinOpts.token = token;
 
-        console.log('🎥 [joinDailyRoom] joinOpts:', JSON.stringify(joinOpts));
-        console.log('🎥 [joinDailyRoom] Calling callFrame.join()...');
-
         await this.callFrame.join(joinOpts);
-
-        console.log('✅ [joinDailyRoom] join() resolved successfully');
-
+        console.log('✅ [Meeting] Joined Daily room');
       } catch (err) {
-        console.error('❌ [joinDailyRoom] Error name:', err.name);
-        console.error('❌ [joinDailyRoom] Error message:', err.message);
-        console.error('❌ [joinDailyRoom] Stack:', err.stack);
+        console.error('❌ [Meeting] joinDailyRoom error:', err.message);
         this.dailyLoading = false;
         this.showToast('Failed to join: ' + err.message, 'error');
       }
     },
 
-    // ═══════════════════════════════════════════════════════════
-    //  DAILY EVENT HANDLERS
-    // ═══════════════════════════════════════════════════════════
+    // ═══════════════════════════════════════════════════════
+    //  DAILY EVENTS
+    // ═══════════════════════════════════════════════════════
 
     onJoinedMeeting(event) {
-      console.log('✅ [Daily] joined-meeting event:', JSON.stringify(event?.participants?.local || {}));
       this.dailyLoading = false;
       const local = event?.participants?.local;
-      if (local) {
-        this.audioOn = !local.audio_disabled;
-        this.videoOn = !local.video_disabled;
-      }
+      if (local) { this.audioOn = !local.audio_disabled; this.videoOn = !local.video_disabled; }
       this.syncParticipantCount();
     },
 
@@ -663,7 +508,6 @@ export default {
 
     onParticipantJoined(event) {
       const name = event?.participant?.user_name;
-      console.log('👥 [Daily] participant-joined:', name);
       this.syncParticipantCount();
       if (name && name !== this.userName) this.showToast(`${name} joined`);
     },
@@ -671,18 +515,11 @@ export default {
     onParticipantUpdated(event) {
       const p = event?.participant;
       if (!p) return;
-      if (p.local) {
-        this.audioOn       = !p.audio_disabled;
-        this.videoOn       = !p.video_disabled;
-        this.screenSharing = !!p.screen;
-      }
+      if (p.local) { this.audioOn = !p.audio_disabled; this.videoOn = !p.video_disabled; this.screenSharing = !!p.screen; }
       this.syncParticipantCount();
     },
 
-    onParticipantLeft(event) {
-      console.log('👋 [Daily] participant-left:', event?.participant?.user_name);
-      this.syncParticipantCount();
-    },
+    onParticipantLeft() { this.syncParticipantCount(); },
 
     syncParticipantCount() {
       if (!this.callFrame) return;
@@ -706,38 +543,28 @@ export default {
       if (data.type === 'meeting-restarted') {
         this.showToast('Meeting restarted — reconnecting…');
         setTimeout(async () => {
-          if (this.callFrame) {
-            try { this.callFrame.destroy(); } catch (_) {}
-            this.callFrame = null;
-          }
+          if (this.callFrame) { try { this.callFrame.destroy(); } catch (_) {} this.callFrame = null; }
           this.dailyLoading = true;
-          await this.joinDailyRoom();
-        }, 1000);
+          await this.initMeeting();
+        }, 1200);
       }
     },
 
     onDailyError(event) {
-      console.error('❌ [Daily] error event:', JSON.stringify(event));
-      this.showToast('Connection error: ' + (event?.errorMsg || 'Unknown error'), 'error');
+      console.error('❌ [Daily] error:', event);
+      this.showToast('Connection error: ' + (event?.errorMsg || 'Unknown'), 'error');
     },
 
-    onCameraError(event) {
-      console.warn('⚠️ [Daily] camera-error event:', JSON.stringify(event));
-      this.showToast('Camera/mic error — please check permissions.', 'error');
+    onCameraError() {
+      this.showToast('Camera/mic error — check your permissions.', 'error');
     },
 
-    // ═══════════════════════════════════════════════════════════
+    // ═══════════════════════════════════════════════════════
     //  MEDIA CONTROLS
-    // ═══════════════════════════════════════════════════════════
+    // ═══════════════════════════════════════════════════════
 
-    toggleAudio() {
-      console.log('🎙️ [toggleAudio] audioOn was:', this.audioOn);
-      if (this.callFrame) this.callFrame.setLocalAudio(!this.audioOn);
-    },
-    toggleVideo() {
-      console.log('📷 [toggleVideo] videoOn was:', this.videoOn);
-      if (this.callFrame) this.callFrame.setLocalVideo(!this.videoOn);
-    },
+    toggleAudio() { if (this.callFrame) this.callFrame.setLocalAudio(!this.audioOn); },
+    toggleVideo() { if (this.callFrame) this.callFrame.setLocalVideo(!this.videoOn); },
 
     async toggleScreen() {
       if (!this.callFrame) return;
@@ -745,15 +572,42 @@ export default {
         if (this.screenSharing) await this.callFrame.stopScreenShare();
         else                     await this.callFrame.startScreenShare();
       } catch (err) {
-        if (err.name !== 'NotAllowedError' && err.name !== 'AbortError') {
+        if (err.name !== 'NotAllowedError' && err.name !== 'AbortError')
           this.showToast('Screen share error: ' + err.message, 'error');
-        }
       }
     },
 
-    // ═══════════════════════════════════════════════════════════
+    // ═══════════════════════════════════════════════════════
+    //  RECORDING
+    //  POST /api/meetings/{code}/recording/start
+    //  POST /api/meetings/{code}/recording/stop
+    // ═══════════════════════════════════════════════════════
+
+    async toggleRecording() {
+      if (this.recordingLoading) return;
+      this.recordingLoading = true;
+      try {
+        if (this.recording) {
+          await MeetingSession.stopRecording(this.meetingCode);
+          this.recording = false;
+          this.showToast('Recording stopped.');
+        } else {
+          await MeetingSession.startRecording(this.meetingCode);
+          this.recording = true;
+          this.showToast('Recording started.');
+        }
+      } catch (err) {
+        this.showToast('Recording error: ' + err.message, 'error');
+      } finally {
+        this.recordingLoading = false;
+      }
+    },
+
+    // ═══════════════════════════════════════════════════════
     //  MEETING LIFECYCLE
-    // ═══════════════════════════════════════════════════════════
+    //  End: DELETE /api/meetings/{code}
+    //  Restart: DELETE /api/meetings/{code} → POST /api/meetings/create
+    // ═══════════════════════════════════════════════════════
 
     endMeeting()     { this.showEndModal     = true; },
     restartMeeting() { this.showRestartModal = true; },
@@ -761,13 +615,13 @@ export default {
     async confirmEndMeeting() {
       this.ending = true;
       try {
-        if (this.token && this.meetingCode) {
-          apiRequest(`/meetings/end/${this.meetingCode}`, { method: 'POST' })
-            .catch(e => console.warn('Backend end failed:', e));
-        }
+        // Notify in-call participants before deleting the room
         if (this.callFrame) {
           try { this.callFrame.sendAppMessage({ type: 'meeting-ended', endedBy: this.userName }, '*'); } catch (_) {}
+          await new Promise(r => setTimeout(r, 600));
         }
+        // DELETE /api/meetings/{code}
+        await MeetingSession.endMeeting(this.meetingCode);
         this.showEndModal = false;
         this.cleanupAndNavigate();
       } catch (err) {
@@ -781,25 +635,23 @@ export default {
     async confirmRestartMeeting() {
       this.restarting = true;
       try {
-        if (this.token && this.meetingCode) {
-          await apiRequest(`/meetings/end/${this.meetingCode}`,   { method: 'POST' }).catch(() => {});
-          await apiRequest(`/meetings/start/${this.meetingCode}`, { method: 'POST' }).catch(() => {});
-        }
+        // Notify participants
         if (this.callFrame) {
-          try { this.callFrame.sendAppMessage({ type: 'meeting-restarted', restartedBy: this.userName }, '*'); } catch (_) {}
+          try { this.callFrame.sendAppMessage({ type: 'meeting-restarted', by: this.userName }, '*'); } catch (_) {}
+          await new Promise(r => setTimeout(r, 600));
         }
+        // DELETE + POST /api/meetings/create (same name)
+        await MeetingSession.restartMeeting(this.meetingCode);
         this.showRestartModal = false;
         this.showToast('Meeting restarted!');
         this.messages    = [];
         this.unreadCount = 0;
-        setTimeout(async () => {
-          if (this.callFrame) {
-            try { this.callFrame.destroy(); } catch (_) {}
-            this.callFrame = null;
-          }
-          this.dailyLoading = true;
-          await this.joinDailyRoom();
-        }, 1200);
+
+        // Destroy and rejoin with fresh token
+        if (this.callFrame) { try { this.callFrame.destroy(); } catch (_) {} this.callFrame = null; }
+        this.dailyLoading = true;
+        await new Promise(r => setTimeout(r, 1000));
+        await this.initMeeting();
       } catch (err) {
         console.error('Restart error:', err);
         this.showToast('Failed to restart meeting.', 'error');
@@ -810,47 +662,50 @@ export default {
 
     leave() {
       const msg = this.isHost
-        ? 'Leave this meeting? Use "End" to close it for everyone.'
+        ? 'Leave? Use "End" to close for everyone.'
         : 'Leave this meeting?';
       if (!confirm(msg)) return;
       this.cleanupAndNavigate();
     },
 
     cleanupAndNavigate() {
-      console.log('🧹 [cleanupAndNavigate] Cleaning up...');
       clearInterval(this.clockInterval);
-      if (this.callFrame) {
-        try { this.callFrame.destroy(); } catch (_) {}
-        this.callFrame = null;
-      }
-      MeetingSession.clearMeetingCode();
-      sessionStorage.removeItem('nova_daily_room');
-      sessionStorage.removeItem('nova_daily_name');
-      sessionStorage.removeItem('nova_daily_token');
-      sessionStorage.removeItem('nova_is_host');
-
+      if (this.recording) MeetingSession.stopRecording(this.meetingCode).catch(() => {});
+      if (this.callFrame) { try { this.callFrame.destroy(); } catch (_) {} this.callFrame = null; }
+      MeetingSession.clearMeetingData();
       if (window.history.length > 1) this.$router.go(-1);
       else this.$router.push(this.isAuthenticated ? '/meeting-dashboard' : '/meetings/join');
     },
 
-    // ═══════════════════════════════════════════════════════════
+    // ═══════════════════════════════════════════════════════
     //  CHAT
-    // ═══════════════════════════════════════════════════════════
+    //  Sends via Daily app-message (real-time) AND optionally
+    //  via POST /api/meetings/{code}/message for server log.
+    // ═══════════════════════════════════════════════════════
 
     toggleChat() {
       this.chatOpen = !this.chatOpen;
       if (this.chatOpen) this.unreadCount = 0;
     },
 
-    sendMessage() {
+    sendChatMessage() {
       const text = this.chatMessage.trim();
       if (!text) return;
       this.addMsg(this.userName, text, true);
+
+      // Broadcast via Daily real-time app-message
       if (this.callFrame) {
         try { this.callFrame.sendAppMessage({ type: 'chat', sender: this.userName, text }, '*'); } catch (e) {
           console.warn('sendAppMessage failed:', e);
         }
       }
+
+      // Also log via backend: POST /api/meetings/{code}/message
+      if (this.isAuthenticated && this.meetingCode) {
+        MeetingSession.sendMessage(this.meetingCode, { type: 'chat', sender: this.userName, text })
+          .catch(() => {}); // fire-and-forget, don't block UI
+      }
+
       this.chatMessage = '';
     },
 
@@ -862,13 +717,12 @@ export default {
       });
     },
 
-    // ═══════════════════════════════════════════════════════════
+    // ═══════════════════════════════════════════════════════
     //  UTILITIES
-    // ═══════════════════════════════════════════════════════════
+    // ═══════════════════════════════════════════════════════
 
     copyMeetingCode() {
-      navigator.clipboard.writeText(this.meetingCode)
-        .then(() => this.showToast('Code copied!'));
+      navigator.clipboard.writeText(this.meetingCode).then(() => this.showToast('Code copied!'));
     },
 
     showToast(msg, type = 'success') {
@@ -884,46 +738,22 @@ export default {
       if (window.history.length > 1) this.$router.go(-1);
       else this.$router.push(this.isAuthenticated ? '/meeting-dashboard' : '/meetings/join');
     },
-
     goBack() { this.goToDashboard(); },
   },
 
   mounted() {
-    console.log('🔧 [mounted] route query:', JSON.stringify(this.$route?.query));
-    console.log('🔧 [mounted] route params:', JSON.stringify(this.$route?.params));
-    console.log('🔧 [mounted] prop code:', this.code);
-
     const forceCreate = this.$route?.query?.create === 'true';
 
     if (forceCreate) {
-      console.log('🔧 [mounted] Force create mode');
-      MeetingSession.clearMeetingCode();
-      sessionStorage.removeItem('nova_is_host');
-      sessionStorage.removeItem('nova_daily_room');
-      sessionStorage.removeItem('nova_daily_name');
-      sessionStorage.removeItem('nova_daily_token');
+      MeetingSession.clearMeetingData();
       this.view = 'create';
     } else {
-      const resolvedCode = this.code
-        || this.$route?.params?.code
-        || MeetingSession.getMeetingCode();
-
-      console.log('🔧 [mounted] resolvedCode:', resolvedCode);
-
+      const resolvedCode = this.code || this.$route?.params?.code || MeetingSession.getMeetingCode();
       if (resolvedCode) {
         this.meetingCode = resolvedCode;
-        this.isHost      = sessionStorage.getItem('nova_is_host') === 'true';
-
-        const guestUser = MeetingSession.getUser();
-        if (guestUser?.isGuest) {
-          this.guestName  = guestUser.name;
-          this.guestEmail = guestUser.email;
-        }
-
-        this.view = 'meeting';
+        this.isHost      = MeetingSession.isHost();
+        this.view        = 'meeting';
         this.$nextTick(() => this.initMeeting());
-      } else {
-        console.log('🔧 [mounted] No code found — showing create view');
       }
     }
 
@@ -937,13 +767,9 @@ export default {
   },
 
   beforeUnmount() {
-    console.log('🔧 [beforeUnmount] Cleaning up');
     window.removeEventListener('keydown', this._keyHandler);
     clearInterval(this.clockInterval);
-    if (this.callFrame) {
-      try { this.callFrame.destroy(); } catch (_) {}
-      this.callFrame = null;
-    }
+    if (this.callFrame) { try { this.callFrame.destroy(); } catch (_) {} this.callFrame = null; }
   },
 };
 </script>
@@ -958,12 +784,14 @@ export default {
   --c-orange:#fa7b17; --c-text:  #e8eaed; --c-text2: #9aa0a6; --c-r:8px;
   font-family:'Google Sans',system-ui,sans-serif;
 }
+
+/* ── Create view ─────────────────────────────────────────── */
 .nv-create-wrap{min-height:100vh;background:var(--c-bg);color:var(--c-text);display:flex;flex-direction:column}
 .nv-cnav{display:flex;align-items:center;justify-content:space-between;padding:14px 32px;background:var(--c-surf);border-bottom:1px solid var(--c-line)}
 .nv-cbrand{display:flex;align-items:center;gap:10px;font-size:17px;font-weight:600;color:var(--c-text);cursor:pointer}
 .nv-cnav-back{display:flex;align-items:center;gap:7px;padding:7px 16px;border:1px solid var(--c-line);border-radius:var(--c-r);background:transparent;color:var(--c-text2);font-family:inherit;font-size:13px;font-weight:500;cursor:pointer;transition:all .15s}
 .nv-cnav-back:hover{border-color:var(--c-blue);color:var(--c-text);background:rgba(26,115,232,.08)}
-.nv-cmain{max-width:560px;margin:0 auto;padding:44px 24px 60px;width:100%}
+.nv-cmain{max-width:520px;margin:0 auto;padding:44px 24px 60px;width:100%}
 .nv-chead{margin-bottom:28px}
 .nv-ctitle{font-size:26px;font-weight:600;color:var(--c-text);letter-spacing:-.3px;margin-bottom:6px}
 .nv-csub{font-size:14px;color:var(--c-text2)}
@@ -977,12 +805,11 @@ export default {
 .nv-section-label{font-size:11px;font-weight:600;letter-spacing:.8px;text-transform:uppercase;color:var(--c-text2);margin-bottom:14px}
 .nv-field{margin-bottom:16px}
 .nv-flabel{display:block;font-size:13px;font-weight:500;color:var(--c-text2);margin-bottom:7px}
-.nv-req{color:var(--c-red)}.nv-opt{color:#5f6368;font-weight:400}
+.nv-req{color:var(--c-red)}
+.nv-fhint{font-size:11px;color:#5f6368;margin-top:5px;display:block}
 .nv-finput{width:100%;padding:11px 14px;background:var(--c-surf2);border:1px solid var(--c-line);border-radius:var(--c-r);color:var(--c-text);font-family:inherit;font-size:14px;transition:border-color .15s,box-shadow .15s;box-sizing:border-box}
 .nv-finput::placeholder{color:#5f6368}
 .nv-finput:focus{outline:none;border-color:var(--c-blue);box-shadow:0 0 0 3px rgba(26,115,232,.18)}
-.nv-ftextarea{resize:vertical;min-height:70px;line-height:1.5}
-.nv-row2{display:grid;grid-template-columns:1fr 1fr;gap:14px}
 .nv-toggle-list{border:1px solid var(--c-line);border-radius:var(--c-r);overflow:hidden}
 .nv-trow{display:flex;align-items:center;justify-content:space-between;padding:13px 16px;cursor:pointer;border-bottom:1px solid var(--c-line);transition:background .12s}
 .nv-trow:last-child{border-bottom:none}
@@ -1001,19 +828,19 @@ export default {
 .nv-btn-ghost:hover{border-color:var(--c-blue);color:var(--c-text);background:rgba(26,115,232,.06)}
 .nv-postcreate{margin-top:8px}
 .nv-alert-error{display:flex;align-items:center;gap:8px;margin-top:14px;padding:11px 14px;border-radius:var(--c-r);background:rgba(234,67,53,.1);border:1px solid rgba(234,67,53,.3);font-size:13px;color:#f28b82}
-.nv-spinner{display:inline-block;width:14px;height:14px;border:2px solid rgba(255,255,255,.3);border-top-color:#fff;border-radius:50%;animation:nv-spin .65s linear infinite}
-.nv-spinner--sm{width:13px;height:13px;border:2px solid rgba(255,255,255,.25);border-top-color:currentColor}
-.nv-spinner--lg{width:36px;height:36px;border-width:3px;border-color:rgba(255,255,255,.2);border-top-color:var(--c-blue)}
-@keyframes nv-spin{to{transform:rotate(360deg)}}
+
+/* ── Meeting view ─────────────────────────────────────────── */
 .nv-meet{background:var(--c-bg);color:var(--c-text);display:flex;flex-direction:column;position:fixed;inset:0;z-index:9999;overflow:hidden}
 .nv-header{height:60px;flex-shrink:0;background:var(--c-bg);border-bottom:1px solid var(--c-line);display:flex;align-items:center;justify-content:space-between;padding:0 20px;z-index:200}
-.nv-hleft,.nv-hright{display:flex;align-items:center;gap:12px}
+.nv-hleft,.nv-hright{display:flex;align-items:center;gap:10px}
 .nv-brand{display:flex;align-items:center;gap:8px}
 .nv-brand-name{font-size:16px;font-weight:600;letter-spacing:-.2px}
 .nv-live-pill{display:flex;align-items:center;gap:5px;font-size:10px;font-weight:600;letter-spacing:.5px;padding:3px 8px;border-radius:20px;background:rgba(234,67,53,.14);border:1px solid rgba(234,67,53,.3);color:#f28b82}
 .nv-live-dot{width:6px;height:6px;border-radius:50%;background:var(--c-red);animation:nv-pulse 2s ease-in-out infinite}
 @keyframes nv-pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.3;transform:scale(.65)}}
 .nv-host-badge{display:flex;align-items:center;gap:5px;font-size:10px;font-weight:600;padding:3px 9px;border-radius:20px;background:rgba(250,123,23,.14);border:1px solid rgba(250,123,23,.35);color:#fba45c}
+.nv-rec-badge{display:flex;align-items:center;gap:5px;font-size:10px;font-weight:700;padding:3px 9px;border-radius:20px;background:rgba(234,67,53,.18);border:1px solid rgba(234,67,53,.5);color:var(--c-red)}
+.nv-rec-dot{width:6px;height:6px;border-radius:50%;background:var(--c-red);animation:nv-pulse 1.2s ease-in-out infinite}
 .nv-code-chip{display:flex;align-items:center;gap:6px;padding:5px 12px;background:var(--c-surf);border:1px solid var(--c-line);border-radius:var(--c-r);color:#8ab4f8;font-family:'Google Sans Mono',monospace;font-size:12px;cursor:pointer;transition:background .15s}
 .nv-code-chip:hover{background:var(--c-surf2);border-color:#8ab4f8}
 .nv-pcount{display:flex;align-items:center;gap:6px;font-size:13px;color:var(--c-text2)}
@@ -1022,11 +849,11 @@ export default {
 .nv-hbtn:hover,.nv-hbtn--on{background:var(--c-surf2);color:var(--c-text);border-color:var(--c-surf2)}
 .nv-hbtn--danger{border-color:rgba(234,67,53,.35);color:#f28b82}
 .nv-hbtn--danger:hover{background:rgba(234,67,53,.14);border-color:var(--c-red)}
+.nv-hbtn:disabled{opacity:.5;cursor:not-allowed}
 .nv-unread{min-width:17px;height:17px;border-radius:9px;background:var(--c-blue);color:#fff;font-size:10px;font-weight:700;display:inline-flex;align-items:center;justify-content:center;padding:0 4px}
 .nv-daily-wrap{position:absolute;top:60px;bottom:80px;left:0;right:0;transition:right .25s cubic-bezier(.4,0,.2,1);background:#000}
 .nv-daily-wrap.nv-daily--chat-open{right:360px}
 .nv-daily-frame{width:100%;height:100%}
-/* Style the Daily iframe via CSS since we pass no options to createFrame */
 .nv-daily-frame iframe{width:100% !important;height:100% !important;border:none !important;background:#202124}
 .nv-daily-loading{position:absolute;inset:0;z-index:5;background:var(--c-bg);display:flex;align-items:center;justify-content:center}
 .nv-loading-inner{display:flex;flex-direction:column;align-items:center;gap:16px;color:var(--c-text2);font-size:15px}
@@ -1034,8 +861,7 @@ export default {
 .nv-ctrl-row{display:flex;align-items:center;gap:6px}
 .nv-cslot{display:flex;flex-direction:column;align-items:center;gap:5px}
 .nv-ctrl{width:48px;height:48px;border-radius:50%;border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:background .15s,transform .1s;color:var(--c-text)}
-.nv-ctrl:hover:not(:disabled){transform:scale(1.06)}
-.nv-ctrl:disabled{opacity:.5;cursor:not-allowed}
+.nv-ctrl:hover:not(:disabled){transform:scale(1.06)}.nv-ctrl:disabled{opacity:.5;cursor:not-allowed}
 .nv-ctrl--on{background:var(--c-surf2);border:1px solid var(--c-line)}
 .nv-ctrl--on:hover{background:#4e5256}
 .nv-ctrl--off{background:var(--c-red-bg);color:#f28b82;border:1px solid rgba(234,67,53,.3)}
@@ -1050,6 +876,8 @@ export default {
 .nv-clabel{font-size:10px;color:var(--c-text2);white-space:nowrap;font-weight:500}
 .nv-clabel--red{color:#f28b82}.nv-clabel--orange{color:#fba45c}
 .nv-cdivider{width:1px;height:32px;background:var(--c-line);margin:0 8px}
+
+/* Chat */
 .nv-chat{position:fixed;top:0;right:-380px;height:100%;width:360px;background:var(--c-surf);border-left:1px solid var(--c-line);display:flex;flex-direction:column;z-index:210;transition:right .25s cubic-bezier(.4,0,.2,1)}
 .nv-chat--open{right:0}
 .nv-chdr{height:56px;flex-shrink:0;border-bottom:1px solid var(--c-line);display:flex;align-items:center;justify-content:space-between;padding:0 18px}
@@ -1069,6 +897,8 @@ export default {
 .nv-csend{width:38px;height:38px;border:none;border-radius:50%;background:var(--c-blue);color:#fff;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:background .15s;flex-shrink:0}
 .nv-csend:disabled{opacity:.4;cursor:default}
 .nv-csend:not(:disabled):hover{background:var(--c-blue2)}
+
+/* Modals */
 .nv-modal-overlay{position:fixed;inset:0;z-index:20000;background:rgba(0,0,0,.65);display:flex;align-items:center;justify-content:center;backdrop-filter:blur(4px);animation:nv-fade-in .18s ease}
 @keyframes nv-fade-in{from{opacity:0}to{opacity:1}}
 .nv-modal{background:var(--c-surf);border:1px solid var(--c-line);border-radius:20px;padding:36px 32px 28px;width:100%;max-width:420px;text-align:center;box-shadow:0 24px 80px rgba(0,0,0,.6);animation:nv-slide-up .2s cubic-bezier(.34,1.56,.64,1)}
@@ -1087,10 +917,21 @@ export default {
 .nv-modal-btn--danger:disabled,.nv-modal-btn--primary:disabled{opacity:.55;cursor:not-allowed}
 .nv-modal-btn--primary{background:var(--c-blue);border:none;color:#fff}
 .nv-modal-btn--primary:hover:not(:disabled){background:var(--c-blue2)}
+
+/* Spinners & Toast */
+.nv-spinner{display:inline-block;width:14px;height:14px;border:2px solid rgba(255,255,255,.3);border-top-color:#fff;border-radius:50%;animation:nv-spin .65s linear infinite}
+.nv-spinner--sm{width:13px;height:13px;border:2px solid rgba(255,255,255,.25);border-top-color:currentColor}
+.nv-spinner--lg{width:36px;height:36px;border-width:3px;border-color:rgba(255,255,255,.2);border-top-color:var(--c-blue)}
+@keyframes nv-spin{to{transform:rotate(360deg)}}
 .nv-toast{position:fixed;bottom:96px;left:50%;transform:translateX(-50%);display:flex;align-items:center;gap:8px;padding:10px 20px;border-radius:24px;background:var(--c-surf2);border:1px solid var(--c-line);font-size:13px;font-weight:500;color:#81c995;box-shadow:0 4px 24px rgba(0,0,0,.4);z-index:30000;pointer-events:none;white-space:nowrap}
 .nv-toast--error{color:#f28b82;border-color:rgba(234,67,53,.35)}
 .nv-toast-fx-enter-active,.nv-toast-fx-leave-active{transition:opacity .2s,transform .2s}
 .nv-toast-fx-enter-from{opacity:0;transform:translateX(-50%) translateY(10px)}
 .nv-toast-fx-leave-to{opacity:0;transform:translateX(-50%) translateY(10px)}
-@media(max-width:768px){.nv-daily-wrap.nv-daily--chat-open{right:0}.nv-chat{width:100vw;right:-100vw}.nv-modal{margin:0 16px}}
+
+@media(max-width:768px){
+  .nv-daily-wrap.nv-daily--chat-open{right:0}
+  .nv-chat{width:100vw;right:-100vw}
+  .nv-modal{margin:0 16px}
+}
 </style>
