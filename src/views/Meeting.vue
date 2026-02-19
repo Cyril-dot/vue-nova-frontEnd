@@ -1,4 +1,4 @@
-<!-- Meeting.vue — SCREEN SHARE FIXED + CAMERA OFF FIXED -->
+<!-- Meeting.vue — SCREEN SHARE FIXED + USERNAMES FIXED -->
 <template>
   <div class="nv-root">
 
@@ -140,6 +140,7 @@
         <!-- SCREEN SHARE LAYOUT -->
         <template v-if="isPresenting">
           <div class="nv-gmain">
+            <!-- LOCAL screen share -->
             <div v-if="screenStream" class="nv-tile nv-tile--screen">
               <video ref="screenVideo" autoplay playsinline muted style="width:100%;height:100%;object-fit:contain;background:#000;display:block;"></video>
               <div class="nv-tilebar">
@@ -149,6 +150,7 @@
                 </div>
               </div>
             </div>
+            <!-- REMOTE screen share -->
             <div v-else-if="activePresenterId" class="nv-tile nv-tile--screen">
               <video
                 :ref="`peerScreen_${activePresenterId}`"
@@ -165,6 +167,7 @@
           </div>
 
           <div class="nv-gsidebar">
+            <!-- Local camera tile (sidebar during screenshare) -->
             <div class="nv-tile nv-tile--me">
               <video ref="localVideo" autoplay muted playsinline></video>
               <div class="nv-tilebar">
@@ -177,18 +180,18 @@
               <div v-if="!videoOn" class="nv-nocam"><div class="nv-avatar">{{ userInitials }}</div></div>
             </div>
 
+            <!-- Peer tiles in sidebar -->
             <div v-for="pid in peerIds" :key="`sidebar-${pid}`" class="nv-tile">
               <video :ref="`peerVideo_${pid}`" autoplay playsinline style="width:100%;height:100%;object-fit:cover;display:block;"></video>
               <div class="nv-tilebar">
                 <div class="nv-tilemeta">{{ getPeerName(pid) }}</div>
                 <div class="nv-tilebadges">
                   <span v-if="peerMuted[pid]" class="nv-badge nv-badge--red"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="1" y1="1" x2="23" y2="23"/></svg></span>
-                  <span v-if="!peerHasVideo[pid]" class="nv-badge nv-badge--red"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="1" y1="1" x2="23" y2="23"/></svg></span>
                 </div>
               </div>
-              <!-- Show avatar when camera is off OR no video stream -->
-              <div v-if="!peerHasVideo[pid] || !peerStreams[pid]" class="nv-nocam">
-                <div class="nv-avatar nv-avatar--sm">{{ getPeerInitials(pid) }}</div>
+              <!-- FIX: Show initials when peer has no stream OR has video turned off -->
+              <div v-if="!peerStreams[pid] || peerVideoOff[pid]" class="nv-nocam">
+                <div class="nv-avatar nv-avatar--sm">{{ getPeerName(pid).charAt(0).toUpperCase() }}</div>
               </div>
             </div>
           </div>
@@ -214,12 +217,12 @@
               <div class="nv-tilemeta">{{ getPeerName(pid) }}</div>
               <div class="nv-tilebadges">
                 <span v-if="peerMuted[pid]" class="nv-badge nv-badge--red"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="1" y1="1" x2="23" y2="23"/></svg></span>
-                <span v-if="!peerHasVideo[pid]" class="nv-badge nv-badge--red"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="1" y1="1" x2="23" y2="23"/></svg></span>
+                <span v-if="peerVideoOff[pid]" class="nv-badge nv-badge--red"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="1" y1="1" x2="23" y2="23"/></svg></span>
               </div>
             </div>
-            <!-- Show avatar when camera is off OR no video stream -->
-            <div v-if="!peerHasVideo[pid] || !peerStreams[pid]" class="nv-nocam">
-              <div class="nv-avatar nv-avatar--sm">{{ getPeerInitials(pid) }}</div>
+            <!-- FIX: Show initials when peer has no stream OR has video turned off -->
+            <div v-if="!peerStreams[pid] || peerVideoOff[pid]" class="nv-nocam">
+              <div class="nv-avatar nv-avatar--sm">{{ getPeerName(pid).charAt(0).toUpperCase() }}</div>
             </div>
           </div>
         </template>
@@ -395,12 +398,13 @@ export default {
       peerCameraStreamIds: {},  // peerId → camera stream.id string
       peerNames: {},
       peerMuted: {},
-      peerVideoOff: {},         // Track if peer's video is intentionally off
-      peerHasVideo: {},         // Track if peer has any video track at all
+      peerVideoOff: {},
       pendingCandidates: {},
 
       localStream: null,
       screenStream: null,
+      // FIX: Track the actual screen track sender per peer so we can cleanly remove it
+      screenSenders: {},        // peerId → RTCRtpSender for the screen track
 
       meetingCode: '',
       myPeerId: `peer_${Math.random().toString(36).substr(2, 9)}`,
@@ -452,22 +456,14 @@ export default {
 
   methods: {
     getPeerName(peerId) {
-      // Return actual username if available, otherwise generate a friendly name
       if (this.peerNames[peerId]) {
         return this.peerNames[peerId];
       }
-      
-      // Generate a friendly fallback name based on peerId
       const adjectives = ['Happy', 'Clever', 'Swift', 'Brave', 'Calm', 'Bold', 'Kind', 'Wise', 'Cool', 'Bright', 'Sharp', 'Neat'];
       const animals = ['Panda', 'Falcon', 'Otter', 'Tiger', 'Koala', 'Eagle', 'Fox', 'Wolf', 'Lynx', 'Hawk', 'Bear', 'Deer'];
       let seed = 0;
       for (let i = 0; i < peerId.length; i++) seed += peerId.charCodeAt(i);
       return `${adjectives[seed % adjectives.length]} ${animals[Math.floor(seed / adjectives.length) % animals.length]}`;
-    },
-
-    getPeerInitials(peerId) {
-      const name = this.getPeerName(peerId);
-      return name.charAt(0).toUpperCase();
     },
 
     setPeerStream(peerId, stream) {
@@ -587,7 +583,6 @@ export default {
       const user = JSON.parse(sessionStorage.getItem('nova_user') || '{}');
       this.userName = user.name || user.username || user.displayName || user.firstName || '';
 
-      // If no username in session, try to fetch from API
       if (!this.userName && this.token) {
         try {
           const res = await fetch(`${API}/auth/me`, {
@@ -604,7 +599,6 @@ export default {
         } catch (_) {}
       }
 
-      // Final fallback
       if (!this.userName) this.userName = 'Guest';
       this.userInitials = this.userName.charAt(0).toUpperCase();
 
@@ -638,13 +632,12 @@ export default {
 
       this.ws.onopen = () => {
         console.log('✅ WS open');
-        // Send JOIN with username
         this.sendWs({ 
           type: 'JOIN', 
           data: { 
             name: this.userName, 
             peerId: this.myPeerId,
-            username: this.userName // Send username explicitly
+            username: this.userName
           } 
         });
       };
@@ -674,7 +667,7 @@ export default {
         toPeerId, 
         data: { 
           name: this.userName,
-          username: this.userName // Send username explicitly
+          username: this.userName
         } 
       });
     },
@@ -712,7 +705,6 @@ export default {
           if (!fromId) break;
           this.participantCount++;
           
-          // Try multiple possible name fields
           const joinName = msg.data?.name || msg.data?.username || msg.data?.displayName || msg.data?.userName || null;
           
           if (joinName) {
@@ -761,6 +753,7 @@ export default {
           break;
 
         case 'TOGGLE_VIDEO':
+          // FIX: update peerVideoOff state so the initials overlay is shown/hidden reactively
           this.peerVideoOff = { ...this.peerVideoOff, [fromId]: !msg.data?.enabled };
           break;
 
@@ -813,11 +806,27 @@ export default {
 
       const pc = new RTCPeerConnection(ICE_SERVERS);
 
-      // Add local tracks if available
+      // Add local camera/mic tracks
       if (this.localStream) {
         this.localStream.getTracks().forEach(track => {
           pc.addTrack(track, this.localStream);
         });
+      }
+
+      // FIX: If we are already screen sharing when a new peer joins, add the screen track to their PC too
+      if (this.screenStream) {
+        const screenTrack = this.screenStream.getVideoTracks()[0];
+        if (screenTrack) {
+          try {
+            // Use the localStream as the container so receivers can distinguish by stream.id
+            const sender = pc.addTrack(screenTrack, this.screenStream);
+            if (!this.screenSenders[peerId]) this.screenSenders[peerId] = [];
+            this.screenSenders[peerId] = sender;
+            console.log(`🖥️ Added existing screen track to new peer ${peerId}`);
+          } catch (e) {
+            console.warn('addTrack screen to new peer failed:', e);
+          }
+        }
       }
 
       pc.ontrack = (event) => {
@@ -827,9 +836,6 @@ export default {
         if (track.kind === 'audio') return;
 
         console.log(`🎥 ontrack from ${peerId}: kind=${track.kind}, streamId=${incomingStream?.id}`);
-
-        // Update peerHasVideo when we receive any video track
-        this.peerHasVideo = { ...this.peerHasVideo, [peerId]: true };
 
         if (!incomingStream) {
           if (!this.peerCameraStreamIds[peerId]) {
@@ -844,7 +850,7 @@ export default {
         const knownCamId = this.peerCameraStreamIds[peerId];
 
         if (!knownCamId) {
-          // First video track → CAMERA
+          // First video stream → CAMERA
           this.peerCameraStreamIds = { ...this.peerCameraStreamIds, [peerId]: incomingStream.id };
           this.setPeerStream(peerId, incomingStream);
           this.$nextTick(() => this.bindPeerVideoWithRetry(peerId));
@@ -855,7 +861,6 @@ export default {
           console.log(`🖥️ Screen stream detected for ${peerId}: ${incomingStream.id}`);
           this.peerScreenStreams = { ...this.peerScreenStreams, [peerId]: incomingStream };
           
-          // If this peer is the active presenter, bind the screen
           if (this.activePresenterId === peerId) {
             this.$nextTick(() => this.bindPeerScreenWithRetry(peerId));
           }
@@ -1014,17 +1019,21 @@ export default {
         localEl.srcObject = this.localStream;
       }
       
-      const screenEl = this.$refs.screenVideo;
-      if (screenEl && this.screenStream && screenEl.srcObject !== this.screenStream) {
-        screenEl.srcObject = this.screenStream;
-        screenEl.play().catch(() => {});
-      }
-      
-      this.peerIds.forEach(pid => {
-        this.bindPeerVideoWithRetry(pid);
-        if (this.peerScreenStreams[pid]) {
-          this.bindPeerScreenWithRetry(pid);
+      // FIX: Always bind the local screenVideo ref when we have a screen stream
+      this.$nextTick(() => {
+        const screenEl = this.$refs.screenVideo;
+        if (screenEl && this.screenStream && screenEl.srcObject !== this.screenStream) {
+          screenEl.srcObject = this.screenStream;
+          screenEl.play().catch(() => {});
+          console.log('🖥️ Bound local screenVideo ref');
         }
+
+        this.peerIds.forEach(pid => {
+          this.bindPeerVideoWithRetry(pid);
+          if (this.activePresenterId === pid && this.peerScreenStreams[pid]) {
+            this.bindPeerScreenWithRetry(pid);
+          }
+        });
       });
     },
 
@@ -1037,8 +1046,8 @@ export default {
       const n = { ...this.peerNames };   delete n[peerId];   this.peerNames = n;
       const m = { ...this.peerMuted };   delete m[peerId];   this.peerMuted = m;
       const v = { ...this.peerVideoOff }; delete v[peerId]; this.peerVideoOff = v;
-      const hv = { ...this.peerHasVideo }; delete hv[peerId]; this.peerHasVideo = hv;
       delete this.pendingCandidates[peerId];
+      delete this.screenSenders[peerId];
       if (this.activePresenterId === peerId) this.activePresenterId = null;
       this.participantCount = Math.max(1, this.participantCount - 1);
       console.log(`👋 ${peerId} left`);
@@ -1053,8 +1062,8 @@ export default {
       this.peerNames = {}; 
       this.peerMuted = {}; 
       this.peerVideoOff = {};
-      this.peerHasVideo = {};
       this.pendingCandidates = {};
+      this.screenSenders = {};
       this.activePresenterId = null; 
       this.participantCount = 1;
     },
@@ -1075,66 +1084,64 @@ export default {
 
     async toggleScreen() {
       if (this.screenStream) {
-        // STOP sharing
+        // ── STOP sharing ─────────────────────────────────────────
         console.log('🛑 Stopping screen share');
         this.screenStream.getTracks().forEach(t => t.stop());
         this.screenStream = null;
 
-        // Remove screen tracks from all peers
-        for (const pc of Object.values(this.peers)) {
-          const senders = pc.getSenders();
-          for (const sender of senders) {
-            // Remove video tracks that are NOT the camera track
-            if (sender.track?.kind === 'video' && sender.track !== this.localStream?.getVideoTracks()[0]) {
-              try {
-                pc.removeTrack(sender);
-                console.log('Removed screen track from peer connection');
-              } catch (e) {
-                console.warn('Failed to remove screen track:', e);
-              }
+        // FIX: Remove screen senders cleanly using stored sender references
+        for (const [peerId, sender] of Object.entries(this.screenSenders)) {
+          const pc = this.peers[peerId];
+          if (pc && sender) {
+            try {
+              pc.removeTrack(sender);
+              console.log(`Removed screen sender from ${peerId}`);
+            } catch (e) {
+              console.warn('Failed to remove screen sender:', e);
             }
           }
         }
+        this.screenSenders = {};
 
         this.sendWs({ type: 'SCREEN_SHARE_STOP' });
         await this.$nextTick();
         await this.$nextTick();
         this.bindAllVideos();
-        
+
       } else {
-        // START sharing
+        // ── START sharing ─────────────────────────────────────────
         try {
           console.log('📺 Starting screen share');
           this.screenStream = await navigator.mediaDevices.getDisplayMedia({ 
-            video: { 
-              cursor: 'always',
-              displaySurface: 'monitor' 
-            }, 
+            video: { cursor: 'always' }, 
             audio: false 
           });
           
           const screenTrack = this.screenStream.getVideoTracks()[0];
-          console.log('Screen track obtained:', screenTrack);
+          console.log('Screen track obtained:', screenTrack.label);
 
-          // Handle when user stops sharing via browser UI
+          // Handle user stopping via browser UI
           screenTrack.onended = () => {
             console.log('Screen share ended by browser UI');
-            this.toggleScreen(); // This will trigger the stop sharing flow
+            if (this.screenStream) this.toggleScreen();
           };
 
-          // Add the screen track to each peer connection
-          for (const pc of Object.values(this.peers)) {
+          // FIX: Add screen track to each peer connection using THIS screenStream as the container
+          // This ensures receivers see a different stream.id from the camera stream → screen detection works
+          this.screenSenders = {};
+          for (const [peerId, pc] of Object.entries(this.peers)) {
             try {
-              // Create a NEW stream for EACH peer connection with a unique ID
-              const streamForPeer = new MediaStream([screenTrack]);
-              pc.addTrack(screenTrack, streamForPeer);
-              console.log(`Added screen track to peer connection`);
+              const sender = pc.addTrack(screenTrack, this.screenStream);
+              this.screenSenders[peerId] = sender;
+              console.log(`📤 Added screen track to ${peerId}`);
             } catch (e) { 
-              console.warn('addTrack screen failed:', e); 
+              console.warn(`addTrack screen failed for ${peerId}:`, e); 
             }
           }
 
           this.sendWs({ type: 'SCREEN_SHARE_START' });
+
+          // FIX: Bind the local screenVideo element after Vue renders the tile
           await this.$nextTick();
           await this.$nextTick();
           this.bindAllVideos();
