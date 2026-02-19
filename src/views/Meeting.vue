@@ -1,8 +1,8 @@
-<!-- Meeting.vue — Powered by Daily.co SDK | Aligned to MeetingController -->
+<!-- Meeting.vue — Nova | Daily.co SDK via wrap() | Full debug logging -->
 <template>
   <div class="nv-root">
 
-    <!-- ════════════════════════════════════════ CREATE ════════════════════════════════════════ -->
+    <!-- ════════════ CREATE ════════════ -->
     <div v-if="view === 'create'" class="nv-create-wrap">
       <nav class="nv-cnav">
         <div class="nv-cbrand" @click="goToDashboard">
@@ -26,8 +26,6 @@
         </div>
 
         <div class="nv-card">
-
-          <!-- Success banner after create -->
           <div v-if="created.code" class="nv-success-banner">
             <div class="nv-success-check">
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="20 6 9 17 4 12"/></svg>
@@ -42,7 +40,6 @@
             </div>
           </div>
 
-          <!-- Form -->
           <div v-if="!created.code" class="nv-form-body">
             <div class="nv-section-label">Meeting details</div>
             <div class="nv-field">
@@ -61,13 +58,11 @@
                 </div>
               </label>
             </div>
-
             <button class="nv-btn-primary" @click="createMeeting" :disabled="creating">
               <span v-if="creating" class="nv-spinner"></span>
               <svg v-else width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
               {{ creating ? 'Creating…' : 'Create meeting' }}
             </button>
-
             <div v-if="createError" class="nv-alert-error">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
               {{ createError }}
@@ -85,7 +80,7 @@
       </main>
     </div>
 
-    <!-- ════════════════════════════════════════ MEETING ════════════════════════════════════════ -->
+    <!-- ════════════ MEETING ════════════ -->
     <div v-if="view === 'meeting'" class="nv-meet">
 
       <header class="nv-header">
@@ -111,9 +106,7 @@
             <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
             Host
           </span>
-          <span v-if="recording" class="nv-rec-badge">
-            <span class="nv-rec-dot"></span>REC
-          </span>
+          <span v-if="recording" class="nv-rec-badge"><span class="nv-rec-dot"></span>REC</span>
         </div>
         <div class="nv-hright">
           <span class="nv-clock">{{ currentTime }}</span>
@@ -137,11 +130,15 @@
         <div v-if="dailyLoading" class="nv-daily-loading">
           <div class="nv-loading-inner">
             <span class="nv-spinner nv-spinner--lg"></span>
-            <p>Connecting to meeting…</p>
+            <p>{{ loadingStatus }}</p>
           </div>
         </div>
-        <!-- ✅ Plain div ref — Daily SDK mounts its iframe here.
-             position:relative is required so the iframe absolute-fills it. -->
+        <div v-if="joinError" class="nv-join-error">
+          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+          <p>{{ joinError }}</p>
+          <button class="nv-btn-primary" style="max-width:200px;margin-top:16px" @click="retryJoin">Retry</button>
+        </div>
+        <!-- Daily SDK iframe mounts here — plain div, no Vue reactivity wrapping the ref usage -->
         <div ref="dailyContainer" class="nv-daily-frame"></div>
       </div>
 
@@ -155,7 +152,6 @@
             </button>
             <span class="nv-clabel">{{ audioOn ? 'Mute' : 'Unmute' }}</span>
           </div>
-
           <div class="nv-cslot">
             <button class="nv-ctrl" :class="videoOn ? 'nv-ctrl--on' : 'nv-ctrl--off'" @click="toggleVideo">
               <svg v-if="videoOn" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2"/></svg>
@@ -163,7 +159,6 @@
             </button>
             <span class="nv-clabel">{{ videoOn ? 'Stop video' : 'Start video' }}</span>
           </div>
-
           <div class="nv-cslot">
             <button class="nv-ctrl" :class="screenSharing ? 'nv-ctrl--sharing' : 'nv-ctrl--on'" @click="toggleScreen">
               <svg v-if="!screenSharing" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/><polyline points="8 10 12 6 16 10"/><line x1="12" y1="6" x2="12" y2="14"/></svg>
@@ -171,9 +166,7 @@
             </button>
             <span class="nv-clabel">{{ screenSharing ? 'Stop sharing' : 'Present' }}</span>
           </div>
-
           <div class="nv-cdivider"></div>
-
           <template v-if="isHost">
             <div class="nv-cslot">
               <button class="nv-ctrl nv-ctrl--restart" @click="restartMeeting" :disabled="restarting">
@@ -191,7 +184,6 @@
             </div>
             <div class="nv-cdivider"></div>
           </template>
-
           <div class="nv-cslot">
             <button class="nv-ctrl nv-ctrl--leave" @click="leave">
               <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.68 13.31a16 16 0 0 0 3.41 2.6l1.27-1.27a2 2 0 0 1 2.11-.45c1.12.45 2.3.78 3.53.978a2 2 0 0 1 1.67 1.98V20a2 2 0 0 1-2 2h-1C7.82 22 2 16.18 2 9V8a2 2 0 0 1 2-2h3.5a2 2 0 0 1 1.98 1.67c.19 1.23.52 2.41.978 3.53a2 2 0 0 1-.45 2.11L10.68 13.31z"/><line x1="22" y1="2" x2="11" y2="13"/></svg>
@@ -201,7 +193,7 @@
         </div>
       </div>
 
-      <!-- Chat panel -->
+      <!-- Chat -->
       <div class="nv-chat" :class="{ 'nv-chat--open': chatOpen }">
         <div class="nv-chdr">
           <div class="nv-chdr-title">
@@ -282,6 +274,33 @@
 import { TokenService } from '@/utils/apiService';
 import { MeetingSession } from '@/utils/meetingSession';
 
+// ─── Debug logger ─────────────────────────────────────────────────────────────
+// All logs are prefixed so they're easy to filter in DevTools.
+// Set window.__NOVA_VERBOSE = false to suppress non-error logs.
+const log  = (...a) => { if (window.__NOVA_VERBOSE !== false) console.log('[Nova]',  ...a); };
+const warn = (...a) => console.warn('[Nova]',  ...a);
+const err  = (...a) => console.error('[Nova]', ...a);
+
+// ─── Safe structured-clone test ───────────────────────────────────────────────
+// Returns true if the value can be cloned across a postMessage boundary.
+function isCloneable(val) {
+  try { structuredClone(val); return true; } catch (e) { return false; }
+}
+
+// ─── Strip Vue reactive proxy from a value ────────────────────────────────────
+// Vue 3 wraps data/computed refs in a Proxy. Daily's SDK passes joinOpts and
+// the iframe element through internal postMessage calls; Proxy objects are NOT
+// structured-cloneable, causing DataCloneError.
+// This helper walks an object and returns a plain clone with zero proxy metadata.
+function deproxy(val) {
+  if (val === null || val === undefined) return val;
+  if (typeof val === 'string')  return String(val);   // force new primitive
+  if (typeof val === 'boolean') return Boolean(val);  // force new primitive
+  if (typeof val === 'number')  return Number(val);   // force new primitive
+  // For objects, use JSON round-trip — guaranteed plain, no proxy, no prototype chain
+  try { return JSON.parse(JSON.stringify(val)); } catch { return val; }
+}
+
 export default {
   name: 'Meeting',
   props: { code: { type: String, default: null } },
@@ -290,17 +309,23 @@ export default {
     return {
       view: 'create',
 
+      // Create form
       form:        { roomName: '', isPrivate: false },
       creating:    false,
       createError: '',
       created:     { code: null },
 
+      // Meeting state
       meetingCode:      '',
       dailyRoomUrl:     '',
       dailyRoomName:    '',
       callFrame:        null,
       dailyLoading:     true,
+      loadingStatus:    'Initialising…',
+      joinError:        '',
+      retryCount:       0,
 
+      // Media
       audioOn:          true,
       videoOn:          true,
       screenSharing:    false,
@@ -308,19 +333,23 @@ export default {
       isHost:           false,
       userName:         'Guest',
 
+      // Recording
       recording:        false,
       recordingLoading: false,
 
+      // Modals
       showEndModal:     false,
       showRestartModal: false,
       ending:           false,
       restarting:       false,
 
+      // Chat
       chatOpen:         false,
       chatMessage:      '',
       messages:         [],
       unreadCount:      0,
 
+      // Toast
       toastVisible:     false,
       toastMessage:     '',
       toastType:        'success',
@@ -337,40 +366,34 @@ export default {
   methods: {
 
     // ═══════════════════════════════════════════════════════
-    //  FETCH DAILY TOKEN
-    // ═══════════════════════════════════════════════════════
-
-    async fetchDailyToken(meetingCode) {
-      console.log('🔑 [Meeting] fetchDailyToken — code:', meetingCode, '| auth:', this.isAuthenticated);
-      return MeetingSession.fetchDailyToken(meetingCode, this.isHost);
-    },
-
-    // ═══════════════════════════════════════════════════════
     //  CREATE MEETING
     // ═══════════════════════════════════════════════════════
 
     async createMeeting() {
       this.createError = '';
       const name = this.form.roomName.trim().toLowerCase().replace(/[^a-z0-9-]/g, '-');
+      log('createMeeting() — sanitised name:', name);
+
       if (!name) { this.createError = 'Please enter a valid room name.'; return; }
       if (!this.isAuthenticated) { this.createError = 'You must be signed in to create a meeting.'; return; }
 
       this.creating = true;
       try {
+        log('createMeeting() — calling MeetingSession.createMeeting…');
         const roomData = await MeetingSession.createMeeting(name, this.form.isPrivate);
-        const code     = roomData?.name || roomData?.meetingCode || name;
+        log('createMeeting() — raw roomData:', roomData);
 
+        const code = roomData?.name || roomData?.meetingCode || name;
         MeetingSession.setMeetingCode(code);
         if (roomData?.url) sessionStorage.setItem('nova_daily_room', roomData.url);
         sessionStorage.setItem('nova_meeting_title', name);
 
         this.created = { code };
         MeetingSession.saveRecentMeeting(code, name);
-
-        console.log('✅ Meeting created:', code, '→ room URL:', roomData?.url);
-      } catch (err) {
-        this.createError = err.message || 'Failed to create meeting.';
-        console.error('createMeeting error:', err);
+        log('✅ createMeeting() — code:', code, '| url:', roomData?.url);
+      } catch (e) {
+        err('createMeeting() — error:', e);
+        this.createError = e.message || 'Failed to create meeting.';
       } finally {
         this.creating = false;
       }
@@ -383,6 +406,7 @@ export default {
 
     enterMeeting() {
       if (!this.created.code) return;
+      log('enterMeeting() — code:', this.created.code);
       this.meetingCode = this.created.code;
       this.isHost      = true;
       MeetingSession.setIsHost(true);
@@ -395,63 +419,105 @@ export default {
     // ═══════════════════════════════════════════════════════
 
     async initMeeting() {
+      log('════ initMeeting() ════');
+
       if (!this.meetingCode) {
         this.meetingCode = this.code
           || this.$route?.params?.code
           || MeetingSession.getMeetingCode();
       }
+
+      log('initMeeting() — meetingCode:', this.meetingCode);
+
       if (!this.meetingCode) {
+        warn('initMeeting() — no meetingCode, redirecting to join');
         this.$router.push('/meetings/join');
         return;
       }
 
+      this.joinError     = '';
+      this.dailyLoading  = true;
+      this.loadingStatus = 'Resolving user…';
+
       this.userName = MeetingSession.getUserDisplayName();
       this.isHost   = this.isHost || MeetingSession.isHost();
+      log('initMeeting() — userName:', this.userName, '| isHost:', this.isHost);
 
-      const guestUser = MeetingSession.getUser();
-      if (guestUser?.isGuest) {
-        console.log('🚀 [Meeting] Guest user:', guestUser.name);
-      }
+      // ── Fetch Daily token ──────────────────────────────
+      this.loadingStatus = 'Fetching token…';
+      log('initMeeting() — fetching token for:', this.meetingCode);
 
-      console.log('🚀 [Meeting] Fetching Daily token for:', this.meetingCode);
-      const tokenData = await this.fetchDailyToken(this.meetingCode);
+      const tokenData = await MeetingSession.fetchDailyToken(this.meetingCode, this.isHost);
+      log('initMeeting() — tokenData:', tokenData);
 
-      if (tokenData) {
+      if (tokenData?.roomUrl) {
         this.dailyRoomUrl  = tokenData.roomUrl;
         this.dailyRoomName = tokenData.roomName;
-        this.isHost        = this.isHost || tokenData.isOwner;
-        console.log('🚀 [Meeting] roomUrl:', this.dailyRoomUrl);
+        this.isHost        = this.isHost || !!tokenData.isOwner;
+        log('initMeeting() — roomUrl:', this.dailyRoomUrl, '| isOwner:', this.isHost);
       } else {
+        warn('initMeeting() — token fetch failed, trying cache…');
         const cached = MeetingSession.getDailyRoom();
+        log('initMeeting() — cached room:', cached);
         if (cached.roomUrl) {
           this.dailyRoomUrl  = cached.roomUrl;
           this.dailyRoomName = cached.roomName;
         } else {
-          this.showToast('Could not connect — no room data available.', 'error');
+          err('initMeeting() — no room URL available');
+          this.joinError    = 'Could not get room URL. Try again.';
           this.dailyLoading = false;
           return;
         }
       }
 
-      this.updateClock();
-      this.clockInterval = setInterval(this.updateClock, 10_000);
-      await this.loadDailySDK();
+      // ── Load Daily SDK ────────────────────────────────
+      this.loadingStatus = 'Loading video SDK…';
+      try {
+        await this.loadDailySDK();
+        log('initMeeting() — Daily SDK ready | DailyIframe:', typeof window.DailyIframe);
+      } catch (e) {
+        err('initMeeting() — SDK load failed:', e);
+        this.joinError    = 'Failed to load video SDK. Check your connection.';
+        this.dailyLoading = false;
+        return;
+      }
 
-      // ✅ Always extract a plain string token — never pass the full tokenData object
-      const rawToken = typeof tokenData?.token === 'string'
+      // ── Extract plain string token ─────────────────────
+      let rawToken = typeof tokenData?.token === 'string'
         ? tokenData.token
         : (MeetingSession.getDailyToken() || null);
 
+      log('initMeeting() — rawToken type:', typeof rawToken, '| length:', rawToken?.length);
+
+      if (rawToken && typeof rawToken !== 'string') {
+        warn('initMeeting() — rawToken was not a string, discarding');
+        rawToken = null;
+      }
+
+      this.updateClock();
+      this.clockInterval = setInterval(this.updateClock, 10_000);
+
+      // ── Join ──────────────────────────────────────────
+      this.loadingStatus = 'Joining room…';
       await this.joinDailyRoom(rawToken);
     },
 
+    // ═══════════════════════════════════════════════════════
+    //  LOAD DAILY SDK
+    // ═══════════════════════════════════════════════════════
+
     loadDailySDK() {
       return new Promise((resolve, reject) => {
-        if (window.DailyIframe) { resolve(); return; }
+        if (window.DailyIframe) {
+          log('loadDailySDK() — already loaded');
+          resolve();
+          return;
+        }
+        log('loadDailySDK() — injecting script…');
         const s   = document.createElement('script');
         s.src     = 'https://unpkg.com/@daily-co/daily-js';
-        s.onload  = resolve;
-        s.onerror = () => reject(new Error('Failed to load Daily.co SDK'));
+        s.onload  = () => { log('loadDailySDK() — script loaded ✅'); resolve(); };
+        s.onerror = (e) => { err('loadDailySDK() — script error:', e); reject(new Error('Failed to load Daily SDK')); };
         document.head.appendChild(s);
       });
     },
@@ -459,105 +525,196 @@ export default {
     // ═══════════════════════════════════════════════════════
     //  JOIN DAILY ROOM
     //
-    //  ROOT CAUSE of "postMessage: #<Object> could not be cloned":
-    //  Vue 3 wraps all template refs in a Proxy. DailyIframe.createFrame()
-    //  passes the container element through an internal postMessage call
-    //  during iframe initialisation. A Proxy is NOT structured-cloneable,
-    //  so the browser throws immediately.
+    //  Strategy: manually create an <iframe> and append it to the container
+    //  div, then call DailyIframe.wrap(iframe) instead of createFrame().
     //
-    //  FIX 1 — unwrap the Vue Proxy before passing to createFrame():
-    //    const rawContainer = ref.$el ?? ref
-    //    $el exists on component refs; plain DOM refs don't have it,
-    //    so the fallback `?? ref` handles the <div ref="..."> case.
+    //  Why wrap() instead of createFrame():
+    //    createFrame() creates an iframe internally and passes it via
+    //    postMessage during setup. In Vue 3, anything touched by the
+    //    reactivity system becomes a Proxy, which is NOT structured-cloneable,
+    //    causing DataCloneError. wrap() accepts an already-existing DOM node
+    //    that we create ourselves — no cloning of DOM references involved.
     //
-    //  FIX 2 — supply iframeStyle via createFrame() options instead of
-    //    patching the iframe after the fact with a $nextTick querySelector.
-    //
-    //  FIX 3 — joinOpts must contain ONLY plain primitive/boolean values.
-    //    token must be a string or absent.
+    //  Why deproxy() on joinOpts:
+    //    Even plain JS object literals `{}` created inside a Vue method can
+    //    carry hidden reactive metadata if any value came from a reactive data
+    //    property. deproxy() JSON-round-trips the values to produce clean
+    //    primitives with zero Vue involvement.
     // ═══════════════════════════════════════════════════════
 
     async joinDailyRoom(token = null) {
-  try {
-    this.dailyLoading = true;
+      log('════ joinDailyRoom() ════');
 
-    if (!token) {
-      const fresh = await this.fetchDailyToken(this.meetingCode);
-      token = typeof fresh?.token === 'string' ? fresh.token : null;
-    }
-    if (token !== null && typeof token !== 'string') {
-      token = null;
-    }
+      try {
+        this.dailyLoading = true;
+        this.joinError    = '';
 
-    // ✅ Create a plain iframe manually and append it to the container.
-    //    Then use DailyIframe.wrap() instead of createFrame().
-    //    This sidesteps the internal postMessage clone error entirely —
-    //    wrap() takes an already-existing iframe node, no cloning needed.
-    const container = this.$refs.dailyContainer?.$el ?? this.$refs.dailyContainer;
-    if (!container) throw new Error('Daily container not found');
+        // ── 1. Ensure we have a plain string token ─────
+        if (token && typeof token !== 'string') {
+          warn('joinDailyRoom() — token was not a string:', typeof token, '— discarding');
+          token = null;
+        }
 
-    // Remove any leftover iframe from a previous session
-    const old = container.querySelector('iframe');
-    if (old) old.remove();
+        // If no token, try to fetch a fresh one
+        if (!token) {
+          log('joinDailyRoom() — no token supplied, fetching fresh…');
+          const fresh = await MeetingSession.fetchDailyToken(this.meetingCode, this.isHost);
+          token = typeof fresh?.token === 'string' ? fresh.token : null;
+          log('joinDailyRoom() — fresh token length:', token?.length ?? 'none');
+        }
 
-    const iframe = document.createElement('iframe');
-    iframe.style.cssText = 'position:absolute;top:0;left:0;width:100%;height:100%;border:none;background:#202124;';
-    iframe.allow = 'camera;microphone;fullscreen;display-capture;autoplay';
-    container.appendChild(iframe);
+        // ── 2. Get the container — read from DOM directly ──
+        //    We read $refs.dailyContainer once and immediately extract the
+        //    raw DOM node. We NEVER store the result in a reactive data
+        //    property (that would re-wrap it in a Proxy).
+        const containerRef = this.$refs.dailyContainer;
+        log('joinDailyRoom() — containerRef type:', Object.prototype.toString.call(containerRef));
 
-    // wrap() takes a real DOM iframe — no postMessage cloning involved
-    this.callFrame = window.DailyIframe.wrap(iframe, {
-      showLeaveButton:      false,
-      showFullscreenButton: false,
-    });
+        // Unwrap Vue component ref ($el) or use the element directly
+        const container = containerRef?.$el instanceof HTMLElement
+          ? containerRef.$el
+          : (containerRef instanceof HTMLElement ? containerRef : null);
 
-    this.callFrame
-      .on('joined-meeting',      this.onJoinedMeeting)
-      .on('left-meeting',        this.onLeftMeeting)
-      .on('participant-joined',  this.onParticipantJoined)
-      .on('participant-updated', this.onParticipantUpdated)
-      .on('participant-left',    this.onParticipantLeft)
-      .on('app-message',         this.onAppMessage)
-      .on('error',               this.onDailyError)
-      .on('camera-error',        this.onCameraError);
+        log('joinDailyRoom() — container:', container?.tagName, container?.id || container?.className);
 
-    const joinOpts = {
-      url:           String(this.dailyRoomUrl),
-      userName:      String(this.userName),
-      startVideoOff: false,
-      startAudioOff: false,
-    };
-    if (token && token.trim().length > 0) {
-      joinOpts.token = token;
-    }
+        if (!container) {
+          throw new Error('Daily container <div> not found in DOM. Check ref="dailyContainer".');
+        }
 
-    console.log('🚀 [Meeting] Joining Daily room:', {
-      url: joinOpts.url, userName: joinOpts.userName, hasToken: !!joinOpts.token,
-    });
+        // ── 3. Remove any stale iframe from a previous session ──
+        const stale = container.querySelector('iframe');
+        if (stale) {
+          warn('joinDailyRoom() — removing stale iframe');
+          stale.remove();
+        }
 
-    await this.callFrame.join(joinOpts);
-    console.log('✅ [Meeting] Joined Daily room successfully');
-  } catch (err) {
-    console.error('❌ [Meeting] joinDailyRoom error:', err.message);
-    this.dailyLoading = false;
-    this.showToast('Failed to join: ' + err.message, 'error');
-  }
-},
+        // ── 4. Create a brand-new <iframe> and append to container ──
+        //    We set all attributes before inserting into the DOM so Daily
+        //    sees a fully-configured iframe when wrap() is called.
+        log('joinDailyRoom() — creating iframe element…');
+        const iframe = document.createElement('iframe');
+        iframe.allow = 'camera; microphone; fullscreen; display-capture; autoplay; clipboard-write';
+        iframe.style.cssText = [
+          'position:absolute',
+          'top:0',
+          'left:0',
+          'width:100%',
+          'height:100%',
+          'border:none',
+          'background:#202124',
+        ].join(';');
+
+        container.appendChild(iframe);
+        log('joinDailyRoom() — iframe appended ✅ | inDOM:', document.contains(iframe));
+
+        // ── 5. Verify iframe is cloneable BEFORE calling wrap() ──
+        const iframeCloneable = isCloneable(iframe);
+        log('joinDailyRoom() — iframe structuredClone test:', iframeCloneable ? '✅ pass' : '❌ FAIL');
+
+        // ── 6. Call DailyIframe.wrap() with the raw DOM iframe ──
+        log('joinDailyRoom() — calling DailyIframe.wrap()…');
+        this.callFrame = window.DailyIframe.wrap(iframe, {
+          showLeaveButton:      false,
+          showFullscreenButton: false,
+        });
+        log('joinDailyRoom() — callFrame created ✅:', typeof this.callFrame);
+
+        // ── 7. Register event listeners ──────────────────
+        this.callFrame
+          .on('joined-meeting',      this.onJoinedMeeting)
+          .on('left-meeting',        this.onLeftMeeting)
+          .on('participant-joined',  this.onParticipantJoined)
+          .on('participant-updated', this.onParticipantUpdated)
+          .on('participant-left',    this.onParticipantLeft)
+          .on('app-message',         this.onAppMessage)
+          .on('error',               this.onDailyError)
+          .on('camera-error',        this.onCameraError)
+          .on('load-attempt-failed', this.onLoadAttemptFailed);
+        log('joinDailyRoom() — event listeners registered ✅');
+
+        // ── 8. Build joinOpts from fully deproxied primitives ──
+        //    Every value is passed through deproxy() to strip any Vue
+        //    reactive metadata before Daily touches it.
+        const safeUrl      = deproxy(this.dailyRoomUrl);
+        const safeUserName = deproxy(this.userName);
+        const safeToken    = token ? deproxy(token) : undefined;
+
+        log('joinDailyRoom() — safeUrl type:', typeof safeUrl, '| value:', safeUrl);
+        log('joinDailyRoom() — safeUserName type:', typeof safeUserName, '| value:', safeUserName);
+        log('joinDailyRoom() — safeToken type:', typeof safeToken, '| present:', !!safeToken);
+
+        // Build opts on a null-prototype object — no prototype chain = no hidden proxy
+        const joinOpts = Object.create(null);
+        joinOpts.url           = safeUrl;
+        joinOpts.userName      = safeUserName;
+        joinOpts.startVideoOff = false;
+        joinOpts.startAudioOff = false;
+        if (safeToken && safeToken.trim().length > 0) {
+          joinOpts.token = safeToken;
+        }
+
+        // ── 9. Verify joinOpts is cloneable BEFORE calling join() ──
+        const optsCloneable = isCloneable(joinOpts);
+        log('joinDailyRoom() — joinOpts structuredClone test:', optsCloneable ? '✅ pass' : '❌ FAIL');
+        if (!optsCloneable) {
+          // If this fires, log each field individually to find the culprit
+          for (const [k, v] of Object.entries(joinOpts)) {
+            const ok = isCloneable(v);
+            log(`  joinOpts["${k}"] (${typeof v}) → cloneable: ${ok ? '✅' : '❌'}`);
+          }
+          throw new Error('joinOpts is not structured-cloneable — check logs above for culprit field');
+        }
+
+        log('joinDailyRoom() — calling callFrame.join()…', {
+          url:      joinOpts.url,
+          userName: joinOpts.userName,
+          hasToken: !!joinOpts.token,
+        });
+
+        // ── 10. JOIN ──────────────────────────────────────
+        await this.callFrame.join(joinOpts);
+        log('✅ joinDailyRoom() — joined successfully');
+
+      } catch (e) {
+        err('joinDailyRoom() — CAUGHT ERROR:', e?.name, e?.message);
+        err('joinDailyRoom() — stack:', e?.stack);
+        this.dailyLoading = false;
+        this.joinError    = e.message || 'Failed to join meeting.';
+        this.showToast('Failed to join: ' + (e.message || 'Unknown error'), 'error');
+        this.retryCount++;
+      }
+    },
+
+    // Exposed for the "Retry" button shown when joinError is set
+    async retryJoin() {
+      log('retryJoin() — attempt #', this.retryCount + 1);
+      this.joinError = '';
+      await this.joinDailyRoom(null);
+    },
 
     // ═══════════════════════════════════════════════════════
     //  DAILY EVENTS
     // ═══════════════════════════════════════════════════════
 
     onJoinedMeeting(event) {
+      log('Daily event: joined-meeting', event);
       this.dailyLoading = false;
+      this.joinError    = '';
       const local = event?.participants?.local;
-      if (local) { this.audioOn = !local.audio_disabled; this.videoOn = !local.video_disabled; }
+      if (local) {
+        this.audioOn = !local.audio_disabled;
+        this.videoOn = !local.video_disabled;
+        log('onJoinedMeeting() — audio:', this.audioOn, '| video:', this.videoOn);
+      }
       this.syncParticipantCount();
     },
 
-    onLeftMeeting() { console.log('👋 [Daily] left-meeting'); },
+    onLeftMeeting(event) {
+      log('Daily event: left-meeting', event);
+    },
 
     onParticipantJoined(event) {
+      log('Daily event: participant-joined', event?.participant?.user_name);
       const name = event?.participant?.user_name;
       this.syncParticipantCount();
       if (name && name !== this.userName) this.showToast(`${name} joined`);
@@ -566,19 +723,33 @@ export default {
     onParticipantUpdated(event) {
       const p = event?.participant;
       if (!p) return;
-      if (p.local) { this.audioOn = !p.audio_disabled; this.videoOn = !p.video_disabled; this.screenSharing = !!p.screen; }
+      if (p.local) {
+        this.audioOn      = !p.audio_disabled;
+        this.videoOn      = !p.video_disabled;
+        this.screenSharing = !!p.screen;
+      }
       this.syncParticipantCount();
     },
 
-    onParticipantLeft() { this.syncParticipantCount(); },
+    onParticipantLeft(event) {
+      log('Daily event: participant-left', event?.participant?.user_name);
+      this.syncParticipantCount();
+    },
 
     syncParticipantCount() {
       if (!this.callFrame) return;
-      try { this.participantCount = Object.keys(this.callFrame.participants()).length; } catch (_) {}
+      try {
+        const count = Object.keys(this.callFrame.participants()).length;
+        log('syncParticipantCount() —', count);
+        this.participantCount = count;
+      } catch (e) {
+        warn('syncParticipantCount() — error:', e.message);
+      }
     },
 
     onAppMessage(event) {
       const data = event?.data;
+      log('Daily event: app-message', data?.type);
       if (!data) return;
 
       if (data.type === 'chat') {
@@ -602,29 +773,52 @@ export default {
     },
 
     onDailyError(event) {
-      console.error('❌ [Daily] error:', event);
+      err('Daily event: error', event);
       this.showToast('Connection error: ' + (event?.errorMsg || 'Unknown'), 'error');
     },
 
-    onCameraError() {
+    onCameraError(event) {
+      warn('Daily event: camera-error', event);
       this.showToast('Camera/mic error — check your permissions.', 'error');
+    },
+
+    onLoadAttemptFailed(event) {
+      err('Daily event: load-attempt-failed', event);
+      this.joinError = 'Room failed to load. The room may not exist yet.';
+      this.dailyLoading = false;
     },
 
     // ═══════════════════════════════════════════════════════
     //  MEDIA CONTROLS
     // ═══════════════════════════════════════════════════════
 
-    toggleAudio() { if (this.callFrame) this.callFrame.setLocalAudio(!this.audioOn); },
-    toggleVideo() { if (this.callFrame) this.callFrame.setLocalVideo(!this.videoOn); },
+    toggleAudio() {
+      if (!this.callFrame) return;
+      log('toggleAudio() — new state:', !this.audioOn);
+      this.callFrame.setLocalAudio(!this.audioOn);
+    },
+
+    toggleVideo() {
+      if (!this.callFrame) return;
+      log('toggleVideo() — new state:', !this.videoOn);
+      this.callFrame.setLocalVideo(!this.videoOn);
+    },
 
     async toggleScreen() {
       if (!this.callFrame) return;
       try {
-        if (this.screenSharing) await this.callFrame.stopScreenShare();
-        else                     await this.callFrame.startScreenShare();
-      } catch (err) {
-        if (err.name !== 'NotAllowedError' && err.name !== 'AbortError')
-          this.showToast('Screen share error: ' + err.message, 'error');
+        if (this.screenSharing) {
+          log('toggleScreen() — stopping share');
+          await this.callFrame.stopScreenShare();
+        } else {
+          log('toggleScreen() — starting share');
+          await this.callFrame.startScreenShare();
+        }
+      } catch (e) {
+        if (e.name !== 'NotAllowedError' && e.name !== 'AbortError') {
+          err('toggleScreen() error:', e.message);
+          this.showToast('Screen share error: ' + e.message, 'error');
+        }
       }
     },
 
@@ -637,16 +831,19 @@ export default {
       this.recordingLoading = true;
       try {
         if (this.recording) {
+          log('toggleRecording() — stopping');
           await MeetingSession.stopRecording(this.meetingCode);
           this.recording = false;
           this.showToast('Recording stopped.');
         } else {
+          log('toggleRecording() — starting');
           await MeetingSession.startRecording(this.meetingCode);
           this.recording = true;
           this.showToast('Recording started.');
         }
-      } catch (err) {
-        this.showToast('Recording error: ' + err.message, 'error');
+      } catch (e) {
+        err('toggleRecording() error:', e.message);
+        this.showToast('Recording error: ' + e.message, 'error');
       } finally {
         this.recordingLoading = false;
       }
@@ -660,6 +857,7 @@ export default {
     restartMeeting() { this.showRestartModal = true; },
 
     async confirmEndMeeting() {
+      log('confirmEndMeeting()');
       this.ending = true;
       try {
         if (this.callFrame) {
@@ -669,8 +867,8 @@ export default {
         await MeetingSession.endMeeting(this.meetingCode);
         this.showEndModal = false;
         this.cleanupAndNavigate();
-      } catch (err) {
-        console.error('End meeting error:', err);
+      } catch (e) {
+        err('confirmEndMeeting() error:', e);
         this.showToast('Failed to end meeting.', 'error');
       } finally {
         this.ending = false;
@@ -678,6 +876,7 @@ export default {
     },
 
     async confirmRestartMeeting() {
+      log('confirmRestartMeeting()');
       this.restarting = true;
       try {
         if (this.callFrame) {
@@ -694,8 +893,8 @@ export default {
         this.dailyLoading = true;
         await new Promise(r => setTimeout(r, 1000));
         await this.initMeeting();
-      } catch (err) {
-        console.error('Restart error:', err);
+      } catch (e) {
+        err('confirmRestartMeeting() error:', e);
         this.showToast('Failed to restart meeting.', 'error');
       } finally {
         this.restarting = false;
@@ -707,26 +906,29 @@ export default {
         ? 'Leave? Use "End" to close for everyone.'
         : 'Leave this meeting?';
       if (!confirm(msg)) return;
+      log('leave() — confirmed');
       this.cleanupAndNavigate();
     },
 
-   cleanupAndNavigate() {
-  clearInterval(this.clockInterval);
-  if (this.recording) MeetingSession.stopRecording(this.meetingCode).catch(() => {});
-  if (this.callFrame) {
-    try { this.callFrame.destroy(); } catch (_) {}
-    this.callFrame = null;
-  }
-  // Remove the manually created iframe
-  const container = this.$refs.dailyContainer?.$el ?? this.$refs.dailyContainer;
-  if (container) {
-    const iframe = container.querySelector('iframe');
-    if (iframe) iframe.remove();
-  }
-  MeetingSession.clearMeetingData();
-  if (window.history.length > 1) this.$router.go(-1);
-  else this.$router.push(this.isAuthenticated ? '/meeting-dashboard' : '/meetings/join');
-},
+    cleanupAndNavigate() {
+      log('cleanupAndNavigate()');
+      clearInterval(this.clockInterval);
+      if (this.recording) MeetingSession.stopRecording(this.meetingCode).catch(() => {});
+      if (this.callFrame) {
+        try { this.callFrame.destroy(); } catch (_) {}
+        this.callFrame = null;
+      }
+      // Remove manually-created iframe
+      const containerRef = this.$refs.dailyContainer;
+      const container    = containerRef?.$el instanceof HTMLElement ? containerRef.$el : containerRef;
+      if (container instanceof HTMLElement) {
+        const iframe = container.querySelector('iframe');
+        if (iframe) { log('cleanupAndNavigate() — removing iframe'); iframe.remove(); }
+      }
+      MeetingSession.clearMeetingData();
+      if (window.history.length > 1) this.$router.go(-1);
+      else this.$router.push(this.isAuthenticated ? '/meeting-dashboard' : '/meetings/join');
+    },
 
     // ═══════════════════════════════════════════════════════
     //  CHAT
@@ -743,14 +945,16 @@ export default {
       this.addMsg(this.userName, text, true);
 
       if (this.callFrame) {
-        try { this.callFrame.sendAppMessage({ type: 'chat', sender: this.userName, text }, '*'); } catch (e) {
-          console.warn('sendAppMessage failed:', e);
+        try {
+          this.callFrame.sendAppMessage({ type: 'chat', sender: this.userName, text }, '*');
+        } catch (e) {
+          warn('sendChatMessage() — sendAppMessage failed:', e.message);
         }
       }
 
       if (this.isAuthenticated && this.meetingCode) {
         MeetingSession.sendMessage(this.meetingCode, { type: 'chat', sender: this.userName, text })
-          .catch(() => {});
+          .catch(e => warn('sendChatMessage() — backend send failed:', e.message));
       }
 
       this.chatMessage = '';
@@ -773,7 +977,9 @@ export default {
     },
 
     showToast(msg, type = 'success') {
-      this.toastMessage = msg; this.toastType = type; this.toastVisible = true;
+      this.toastMessage = msg;
+      this.toastType    = type;
+      this.toastVisible = true;
       setTimeout(() => { this.toastVisible = false; }, 2800);
     },
 
@@ -788,19 +994,32 @@ export default {
     goBack() { this.goToDashboard(); },
   },
 
+  // ═══════════════════════════════════════════════════════
+  //  LIFECYCLE
+  // ═══════════════════════════════════════════════════════
+
   mounted() {
+    log('mounted() — route query:', this.$route?.query, '| prop code:', this.code);
+
     const forceCreate = this.$route?.query?.create === 'true';
 
     if (forceCreate) {
       MeetingSession.clearMeetingData();
       this.view = 'create';
+      log('mounted() → force-create mode');
     } else {
       const resolvedCode = this.code || this.$route?.params?.code || MeetingSession.getMeetingCode();
+      log('mounted() — resolvedCode:', resolvedCode);
       if (resolvedCode) {
         this.meetingCode = resolvedCode;
         this.isHost      = MeetingSession.isHost();
         this.view        = 'meeting';
-        this.$nextTick(() => this.initMeeting());
+        this.$nextTick(() => {
+          log('mounted() → $nextTick → initMeeting()');
+          this.initMeeting();
+        });
+      } else {
+        log('mounted() → no code found, staying on create view');
       }
     }
 
@@ -814,6 +1033,7 @@ export default {
   },
 
   beforeUnmount() {
+    log('beforeUnmount()');
     window.removeEventListener('keydown', this._keyHandler);
     clearInterval(this.clockInterval);
     if (this.callFrame) { try { this.callFrame.destroy(); } catch (_) {} this.callFrame = null; }
@@ -832,7 +1052,7 @@ export default {
   font-family:'Google Sans',system-ui,sans-serif;
 }
 
-/* ── Create view ─────────────────────────────────────────── */
+/* ── Create ──────────────────────────────────────────────── */
 .nv-create-wrap{min-height:100vh;background:var(--c-bg);color:var(--c-text);display:flex;flex-direction:column}
 .nv-cnav{display:flex;align-items:center;justify-content:space-between;padding:14px 32px;background:var(--c-surf);border-bottom:1px solid var(--c-line)}
 .nv-cbrand{display:flex;align-items:center;gap:10px;font-size:17px;font-weight:600;color:var(--c-text);cursor:pointer}
@@ -861,7 +1081,8 @@ export default {
 .nv-trow{display:flex;align-items:center;justify-content:space-between;padding:13px 16px;cursor:pointer;border-bottom:1px solid var(--c-line);transition:background .12s}
 .nv-trow:last-child{border-bottom:none}
 .nv-trow:hover{background:rgba(255,255,255,.03)}
-.nv-trow-label{font-size:14px;color:var(--c-text)}.nv-trow-sub{font-size:12px;color:var(--c-text2);margin-top:2px}
+.nv-trow-label{font-size:14px;color:var(--c-text)}
+.nv-trow-sub{font-size:12px;color:var(--c-text2);margin-top:2px}
 .nv-switch{width:40px;height:22px;border-radius:22px;background:var(--c-surf2);border:1px solid var(--c-line);position:relative;flex-shrink:0;transition:background .2s,border-color .2s}
 .nv-switch--on{background:var(--c-blue);border-color:var(--c-blue)}
 .nv-switch-thumb{position:absolute;width:16px;height:16px;border-radius:50%;background:var(--c-text2);top:2px;left:2px;transition:transform .2s,background .2s}
@@ -876,7 +1097,7 @@ export default {
 .nv-postcreate{margin-top:8px}
 .nv-alert-error{display:flex;align-items:center;gap:8px;margin-top:14px;padding:11px 14px;border-radius:var(--c-r);background:rgba(234,67,53,.1);border:1px solid rgba(234,67,53,.3);font-size:13px;color:#f28b82}
 
-/* ── Meeting view ─────────────────────────────────────────── */
+/* ── Meeting ──────────────────────────────────────────────── */
 .nv-meet{background:var(--c-bg);color:var(--c-text);display:flex;flex-direction:column;position:fixed;inset:0;z-index:9999;overflow:hidden}
 .nv-header{height:60px;flex-shrink:0;background:var(--c-bg);border-bottom:1px solid var(--c-line);display:flex;align-items:center;justify-content:space-between;padding:0 20px;z-index:200}
 .nv-hleft,.nv-hright{display:flex;align-items:center;gap:10px}
@@ -900,15 +1121,16 @@ export default {
 .nv-unread{min-width:17px;height:17px;border-radius:9px;background:var(--c-blue);color:#fff;font-size:10px;font-weight:700;display:inline-flex;align-items:center;justify-content:center;padding:0 4px}
 .nv-daily-wrap{position:absolute;top:60px;bottom:80px;left:0;right:0;transition:right .25s cubic-bezier(.4,0,.2,1);background:#000}
 .nv-daily-wrap.nv-daily--chat-open{right:360px}
-/* position:relative required so Daily's absolute-positioned iframe fills this div */
 .nv-daily-frame{position:relative;width:100%;height:100%}
 .nv-daily-loading{position:absolute;inset:0;z-index:5;background:var(--c-bg);display:flex;align-items:center;justify-content:center}
 .nv-loading-inner{display:flex;flex-direction:column;align-items:center;gap:16px;color:var(--c-text2);font-size:15px}
+.nv-join-error{position:absolute;inset:0;z-index:6;background:var(--c-bg);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;color:#f28b82;font-size:15px;padding:32px;text-align:center}
 .nv-controls{position:fixed;bottom:0;left:0;right:0;height:80px;background:var(--c-bg);border-top:1px solid var(--c-line);display:flex;align-items:center;justify-content:center;z-index:201}
 .nv-ctrl-row{display:flex;align-items:center;gap:6px}
 .nv-cslot{display:flex;flex-direction:column;align-items:center;gap:5px}
 .nv-ctrl{width:48px;height:48px;border-radius:50%;border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:background .15s,transform .1s;color:var(--c-text)}
-.nv-ctrl:hover:not(:disabled){transform:scale(1.06)}.nv-ctrl:disabled{opacity:.5;cursor:not-allowed}
+.nv-ctrl:hover:not(:disabled){transform:scale(1.06)}
+.nv-ctrl:disabled{opacity:.5;cursor:not-allowed}
 .nv-ctrl--on{background:var(--c-surf2);border:1px solid var(--c-line)}
 .nv-ctrl--on:hover{background:#4e5256}
 .nv-ctrl--off{background:var(--c-red-bg);color:#f28b82;border:1px solid rgba(234,67,53,.3)}
@@ -921,7 +1143,8 @@ export default {
 .nv-ctrl--restart{background:rgba(250,123,23,.15);color:#fba45c;border:1.5px solid rgba(250,123,23,.4)}
 .nv-ctrl--restart:hover:not(:disabled){background:rgba(250,123,23,.3)}
 .nv-clabel{font-size:10px;color:var(--c-text2);white-space:nowrap;font-weight:500}
-.nv-clabel--red{color:#f28b82}.nv-clabel--orange{color:#fba45c}
+.nv-clabel--red{color:#f28b82}
+.nv-clabel--orange{color:#fba45c}
 .nv-cdivider{width:1px;height:32px;background:var(--c-line);margin:0 8px}
 
 /* Chat */
