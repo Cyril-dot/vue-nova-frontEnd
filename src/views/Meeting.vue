@@ -14,13 +14,21 @@
 <template>
   <div class="nv-root">
 
+    <!-- ════════════════════ PHASE 1 — CREATE ════════════════════ -->
     <div v-if="view === 'create'" class="nv-create-wrap">
       <nav class="nv-cnav">
         <div class="nv-cbrand" @click="goToDashboard">
-          <svg width="28" height="28" viewBox="0 0 32 32" fill="none"><rect width="32" height="32" rx="8" fill="#1a73e8"/><path d="M20 16L26 11V21L20 16Z" fill="white"/><rect x="6" y="10" width="15" height="12" rx="2" fill="white"/></svg>
+          <svg width="28" height="28" viewBox="0 0 32 32" fill="none">
+            <rect width="32" height="32" rx="8" fill="#1a73e8"/>
+            <path d="M20 16L26 11V21L20 16Z" fill="white"/>
+            <rect x="6" y="10" width="15" height="12" rx="2" fill="white"/>
+          </svg>
           <span>Nova</span>
         </div>
-        <button class="nv-cnav-back" @click="goToDashboard">Dashboard</button>
+        <button class="nv-cnav-back" @click="goToDashboard">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+          Dashboard
+        </button>
       </nav>
 
       <main class="nv-cmain">
@@ -30,91 +38,325 @@
         </div>
         <div class="nv-card">
           <div v-if="created.code" class="nv-success-banner">
-            <div class="nv-success-check">✓</div>
+            <div class="nv-success-check">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="20 6 9 17 4 12"/></svg>
+            </div>
             <div>
               <div class="nv-success-title">Meeting created!</div>
-              <div class="nv-code-pill" @click="copyCreatedCode">{{ created.code }}</div>
+              <div class="nv-success-sub">Share this code with participants</div>
+            </div>
+            <div class="nv-code-pill" @click="copyCreatedCode" title="Click to copy">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+              {{ created.code }}
             </div>
           </div>
 
           <div v-if="!created.code" class="nv-form-body">
+            <div class="nv-section-label">Meeting details</div>
             <div class="nv-field">
-              <label class="nv-flabel">Title *</label>
-              <input class="nv-finput" v-model="form.title" type="text" />
+              <label class="nv-flabel">Title <span class="nv-req">*</span></label>
+              <input class="nv-finput" v-model="form.title" type="text" placeholder="e.g. Weekly team standup" />
+            </div>
+            <div class="nv-field">
+              <label class="nv-flabel">Description <span class="nv-opt">(optional)</span></label>
+              <textarea class="nv-finput nv-ftextarea" v-model="form.description" placeholder="What's this meeting about?"></textarea>
+            </div>
+            <div class="nv-row2">
+              <div class="nv-field">
+                <label class="nv-flabel">Max participants</label>
+                <input class="nv-finput" v-model.number="form.maxParticipants" type="number" min="2" max="500" />
+              </div>
+              <div class="nv-field">
+                <label class="nv-flabel">Password <span class="nv-opt">(optional)</span></label>
+                <input class="nv-finput" v-model="form.password" type="text" placeholder="Leave blank = open" />
+              </div>
+            </div>
+            <div class="nv-section-label" style="margin-top:28px">Options</div>
+            <div class="nv-toggle-list">
+              <label class="nv-trow" v-for="opt in toggleOpts" :key="opt.key">
+                <div>
+                  <div class="nv-trow-label">{{ opt.label }}</div>
+                  <div v-if="opt.sub" class="nv-trow-sub">{{ opt.sub }}</div>
+                </div>
+                <div class="nv-switch" :class="{ 'nv-switch--on': form[opt.key] }" @click="form[opt.key] = !form[opt.key]">
+                  <div class="nv-switch-thumb"></div>
+                </div>
+              </label>
             </div>
             <button class="nv-btn-primary" @click="createMeeting" :disabled="creating">
-              {{ creating ? 'Creating...' : 'Create meeting' }}
+              <span v-if="creating" class="nv-spinner"></span>
+              <svg v-else width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+              {{ creating ? 'Creating…' : 'Create meeting' }}
             </button>
+            <div v-if="createError" class="nv-alert-error">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+              {{ createError }}
+            </div>
           </div>
 
           <div v-if="created.code" class="nv-postcreate">
-            <button class="nv-btn-primary" @click="enterMeeting">Start meeting now</button>
+            <button class="nv-btn-primary nv-btn-go" @click="enterMeeting">
+              <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+              Start meeting now
+            </button>
+            <button class="nv-btn-ghost" @click="goToDashboard">Back to dashboard</button>
           </div>
         </div>
       </main>
     </div>
 
+    <!-- ════════════════════ PHASE 2 — MEETING ════════════════════ -->
     <div v-if="view === 'meeting'" class="nv-meet">
+
       <header class="nv-header">
         <div class="nv-hleft">
-          <div class="nv-brand"><span>Nova</span> <span class="nv-live-pill">LIVE</span></div>
-          <button class="nv-code-chip" @click="copyMeetingCode">{{ meetingCode }}</button>
-          <div class="nv-pcount">Participants: {{ participantCount }}</div>
+          <div class="nv-brand">
+            <svg width="28" height="28" viewBox="0 0 32 32" fill="none">
+              <rect width="32" height="32" rx="8" fill="#1a73e8"/>
+              <path d="M20 16L26 11V21L20 16Z" fill="white"/>
+              <rect x="6" y="10" width="15" height="12" rx="2" fill="white"/>
+            </svg>
+            <span class="nv-brand-name">Nova</span>
+            <span class="nv-live-pill"><span class="nv-live-dot"></span>LIVE</span>
+          </div>
+          <button class="nv-code-chip" @click="copyMeetingCode">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+            <span>{{ meetingCode }}</span>
+          </button>
+          <div class="nv-pcount">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+            {{ participantCount }}
+          </div>
+          <span v-if="isHost" class="nv-host-badge">
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+            Host
+          </span>
         </div>
         <div class="nv-hright">
           <span class="nv-clock">{{ currentTime }}</span>
-          <button class="nv-hbtn" @click="toggleChat">Chat</button>
-          <button class="nv-hbtn nv-hbtn--danger" @click="goBack">Back</button>
+          <button class="nv-hbtn" :class="{ 'nv-hbtn--on': chatOpen }" @click="toggleChat">
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+            Chat
+            <span v-if="unreadCount > 0" class="nv-unread">{{ unreadCount }}</span>
+          </button>
+          <button class="nv-hbtn nv-hbtn--danger" @click="goBack">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+            Back
+          </button>
         </div>
       </header>
 
-      <div class="nv-grid" :class="{ 'nv-grid--presenting': isPresenting }">
-        
+      <!-- ══ VIDEO GRID ══ -->
+      <div class="nv-grid" :class="{ 'nv-grid--presenting': isPresenting }" ref="videosGrid">
+
+        <!-- SCREEN SHARE LAYOUT -->
         <template v-if="isPresenting">
           <div class="nv-gmain">
             <div v-if="screenStream" class="nv-tile nv-tile--screen">
-              <video ref="screenVideo" :key="'local-screen'" autoplay playsinline muted></video>
-              <div class="nv-tilebar"><div class="nv-tilemeta">You are presenting</div></div>
+              <video ref="screenVideo" autoplay playsinline muted style="width:100%;height:100%;object-fit:contain;background:#000;display:block;"></video>
+              <div class="nv-tilebar">
+                <div class="nv-tilemeta">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>
+                  {{ userName }} · Presenting
+                </div>
+              </div>
             </div>
             <div v-else-if="activePresenterId" class="nv-tile nv-tile--screen">
-              <video :ref="`peerScreen_${activePresenterId}`" :key="`remote-screen-${activePresenterId}`" autoplay playsinline></video>
-              <div class="nv-tilebar"><div class="nv-tilemeta">{{ getPeerName(activePresenterId) }} is presenting</div></div>
+              <video
+                :ref="`peerScreen_${activePresenterId}`"
+                autoplay playsinline
+                style="width:100%;height:100%;object-fit:contain;background:#000;display:block;"
+              ></video>
+              <div class="nv-tilebar">
+                <div class="nv-tilemeta">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>
+                  {{ getPeerName(activePresenterId) }} · Presenting
+                </div>
+              </div>
             </div>
           </div>
 
           <div class="nv-gsidebar">
             <div class="nv-tile nv-tile--me">
-              <video ref="localVideo" :key="'local-cam-side'" autoplay muted playsinline></video>
+              <video ref="localVideo" autoplay muted playsinline></video>
+              <div class="nv-tilebar">
+                <div class="nv-tilemeta"><span class="nv-you-dot"></span>You</div>
+                <div class="nv-tilebadges">
+                  <span v-if="!audioOn" class="nv-badge nv-badge--red"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="1" y1="1" x2="23" y2="23"/></svg></span>
+                  <span v-if="!videoOn" class="nv-badge nv-badge--red"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="1" y1="1" x2="23" y2="23"/></svg></span>
+                </div>
+              </div>
               <div v-if="!videoOn" class="nv-nocam"><div class="nv-avatar">{{ userInitials }}</div></div>
             </div>
-            <div v-for="pid in peerIds" :key="`side-${pid}`" class="nv-tile">
-              <video :ref="`peerVideo_${pid}`" :key="`peer-vid-side-${pid}`" autoplay playsinline></video>
-              <div v-if="!peerStreams[pid]" class="nv-nocam"><div class="nv-avatar">{{ getPeerName(pid).charAt(0) }}</div></div>
+
+            <div v-for="pid in peerIds" :key="`sidebar-${pid}`" class="nv-tile">
+              <video :ref="`peerVideo_${pid}`" autoplay playsinline style="width:100%;height:100%;object-fit:cover;display:block;"></video>
+              <div class="nv-tilebar">
+                <div class="nv-tilemeta">{{ getPeerName(pid) }}</div>
+                <div class="nv-tilebadges">
+                  <span v-if="peerMuted[pid]" class="nv-badge nv-badge--red"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="1" y1="1" x2="23" y2="23"/></svg></span>
+                </div>
+              </div>
+              <div v-if="!peerStreams[pid]" class="nv-nocam">
+                <div class="nv-avatar nv-avatar--sm">{{ getPeerName(pid).charAt(0).toUpperCase() }}</div>
+              </div>
             </div>
           </div>
         </template>
 
+        <!-- NORMAL GRID LAYOUT -->
         <template v-else>
           <div class="nv-tile nv-tile--me">
-            <video ref="localVideo" :key="'local-cam-grid'" autoplay muted playsinline></video>
+            <video ref="localVideo" autoplay muted playsinline></video>
+            <div class="nv-tilebar">
+              <div class="nv-tilemeta"><span class="nv-you-dot"></span>{{ userName }} (you)</div>
+              <div class="nv-tilebadges">
+                <span v-if="!audioOn" class="nv-badge nv-badge--red"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="1" y1="1" x2="23" y2="23"/></svg></span>
+                <span v-if="!videoOn" class="nv-badge nv-badge--red"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="1" y1="1" x2="23" y2="23"/></svg></span>
+              </div>
+            </div>
             <div v-if="!videoOn" class="nv-nocam"><div class="nv-avatar">{{ userInitials }}</div></div>
           </div>
+
           <div v-for="pid in peerIds" :key="`grid-${pid}`" class="nv-tile">
-            <video :ref="`peerVideo_${pid}`" :key="`peer-vid-grid-${pid}`" autoplay playsinline></video>
-            <div v-if="!peerStreams[pid]" class="nv-nocam"><div class="nv-avatar">{{ getPeerName(pid).charAt(0) }}</div></div>
+            <video :ref="`peerVideo_${pid}`" autoplay playsinline style="width:100%;height:100%;object-fit:cover;display:block;"></video>
+            <div class="nv-tilebar">
+              <div class="nv-tilemeta">{{ getPeerName(pid) }}</div>
+              <div class="nv-tilebadges">
+                <span v-if="peerMuted[pid]" class="nv-badge nv-badge--red"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="1" y1="1" x2="23" y2="23"/></svg></span>
+                <span v-if="peerVideoOff[pid]" class="nv-badge nv-badge--red"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="1" y1="1" x2="23" y2="23"/></svg></span>
+              </div>
+            </div>
+            <div v-if="!peerStreams[pid]" class="nv-nocam">
+              <div class="nv-avatar nv-avatar--sm">{{ getPeerName(pid).charAt(0).toUpperCase() }}</div>
+            </div>
           </div>
         </template>
       </div>
 
+      <!-- Controls -->
       <div class="nv-controls">
-        <button class="nv-ctrl" @click="toggleAudio">{{ audioOn ? 'Mute' : 'Unmute' }}</button>
-        <button class="nv-ctrl" @click="toggleVideo">{{ videoOn ? 'Stop Video' : 'Start Video' }}</button>
-        <button class="nv-ctrl" :class="{'nv-ctrl--sharing': screenStream}" @click="toggleScreen">
-          {{ screenStream ? 'Stop Sharing' : 'Share Screen' }}
-        </button>
-        <button v-if="isHost" class="nv-ctrl nv-ctrl--end" @click="endMeeting">End</button>
-        <button class="nv-ctrl nv-ctrl--leave" @click="leave">Leave</button>
+        <div class="nv-ctrl-row">
+          <div class="nv-cslot">
+            <button class="nv-ctrl" :class="audioOn ? 'nv-ctrl--on' : 'nv-ctrl--off'" @click="toggleAudio">
+              <svg v-if="audioOn" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2M12 19v4M8 23h8"/></svg>
+              <svg v-else width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="1" y1="1" x2="23" y2="23"/><path d="M9 9v3a3 3 0 0 0 5.12 2.12M15 9.34V4a3 3 0 0 0-5.94-.6"/><path d="M17 16.95A7 7 0 0 1 5 12v-2m14 0v2a7 7 0 0 1-.11 1.23M12 19v4M8 23h8"/></svg>
+            </button>
+            <span class="nv-clabel">{{ audioOn ? 'Mute' : 'Unmute' }}</span>
+          </div>
+          <div class="nv-cslot">
+            <button class="nv-ctrl" :class="videoOn ? 'nv-ctrl--on' : 'nv-ctrl--off'" @click="toggleVideo">
+              <svg v-if="videoOn" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2"/></svg>
+              <svg v-else width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M16 16v1a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h2m5.66 0H14a2 2 0 0 1 2 2v3.34l1 1L23 7v10"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+            </button>
+            <span class="nv-clabel">{{ videoOn ? 'Stop video' : 'Start video' }}</span>
+          </div>
+          <div class="nv-cslot">
+            <button class="nv-ctrl" :class="screenStream ? 'nv-ctrl--sharing' : 'nv-ctrl--on'" @click="toggleScreen">
+              <svg v-if="!screenStream" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/><polyline points="8 10 12 6 16 10"/><line x1="12" y1="6" x2="12" y2="14"/></svg>
+              <svg v-else width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/><line x1="9" y1="9" x2="15" y2="15"/><line x1="15" y1="9" x2="9" y2="15"/></svg>
+            </button>
+            <span class="nv-clabel">{{ screenStream ? 'Stop sharing' : 'Present' }}</span>
+          </div>
+          <div class="nv-cdivider"></div>
+          <template v-if="isHost">
+            <div class="nv-cslot">
+              <button class="nv-ctrl nv-ctrl--restart" @click="restartMeeting" :disabled="restarting">
+                <span v-if="restarting" class="nv-spinner nv-spinner--sm"></span>
+                <svg v-else width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-4.5"/></svg>
+              </button>
+              <span class="nv-clabel">Restart</span>
+            </div>
+            <div class="nv-cslot">
+              <button class="nv-ctrl nv-ctrl--end" @click="endMeeting" :disabled="ending">
+                <span v-if="ending" class="nv-spinner nv-spinner--sm"></span>
+                <svg v-else width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="9" y1="9" x2="15" y2="15"/><line x1="15" y1="9" x2="9" y2="15"/></svg>
+              </button>
+              <span class="nv-clabel nv-clabel--orange">End</span>
+            </div>
+            <div class="nv-cdivider"></div>
+          </template>
+          <div class="nv-cslot">
+            <button class="nv-ctrl nv-ctrl--leave" @click="leave">
+              <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.68 13.31a16 16 0 0 0 3.41 2.6l1.27-1.27a2 2 0 0 1 2.11-.45c1.12.45 2.3.78 3.53.978a2 2 0 0 1 1.67 1.98V20a2 2 0 0 1-2 2h-1C7.82 22 2 16.18 2 9V8a2 2 0 0 1 2-2h3.5a2 2 0 0 1 1.98 1.67c.19 1.23.52 2.41.978 3.53a2 2 0 0 1-.45 2.11L10.68 13.31z"/><line x1="22" y1="2" x2="11" y2="13"/></svg>
+            </button>
+            <span class="nv-clabel nv-clabel--red">Leave</span>
+          </div>
+        </div>
       </div>
+
+      <!-- Chat -->
+      <div class="nv-chat" :class="{ 'nv-chat--open': chatOpen }">
+        <div class="nv-chdr">
+          <div class="nv-chdr-title">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+            In-call messages
+          </div>
+          <button class="nv-chdr-close" @click="toggleChat">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+          </button>
+        </div>
+        <div class="nv-cmsgs" ref="messagesContainer">
+          <div v-if="messages.length === 0" class="nv-cempty">
+            <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" opacity="0.2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+            <p>No messages yet</p>
+          </div>
+          <div v-for="msg in messages" :key="msg.id" class="nv-cmsg" :class="{ 'nv-cmsg--self': msg.isSelf }">
+            <div class="nv-cmsg-who">{{ msg.sender }}{{ msg.isSelf ? ' (you)' : '' }}</div>
+            <div class="nv-cmsg-body">{{ msg.text }}</div>
+          </div>
+        </div>
+        <div class="nv-cfoot">
+          <input class="nv-cinput" type="text" v-model="chatMessage" @keypress.enter="sendMessage" placeholder="Message everyone…" />
+          <button class="nv-csend" @click="sendMessage" :disabled="!chatMessage.trim()">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+          </button>
+        </div>
+      </div>
+
+      <!-- End Modal -->
+      <div v-if="showEndModal" class="nv-modal-overlay" @click.self="showEndModal = false">
+        <div class="nv-modal">
+          <div class="nv-modal-icon nv-modal-icon--red">
+            <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="9" y1="9" x2="15" y2="15"/><line x1="15" y1="9" x2="9" y2="15"/></svg>
+          </div>
+          <h2 class="nv-modal-title">End meeting for everyone?</h2>
+          <p class="nv-modal-body">This will end the call for all participants and mark the meeting as completed.</p>
+          <div class="nv-modal-actions">
+            <button class="nv-modal-btn nv-modal-btn--ghost" @click="showEndModal = false">Cancel</button>
+            <button class="nv-modal-btn nv-modal-btn--danger" @click="confirmEndMeeting" :disabled="ending">
+              <span v-if="ending" class="nv-spinner nv-spinner--sm"></span>
+              End for everyone
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Restart Modal -->
+      <div v-if="showRestartModal" class="nv-modal-overlay" @click.self="showRestartModal = false">
+        <div class="nv-modal">
+          <div class="nv-modal-icon nv-modal-icon--blue">
+            <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-4.5"/></svg>
+          </div>
+          <h2 class="nv-modal-title">Restart this meeting?</h2>
+          <p class="nv-modal-body">All current participants will be disconnected and the meeting will restart fresh.</p>
+          <div class="nv-modal-actions">
+            <button class="nv-modal-btn nv-modal-btn--ghost" @click="showRestartModal = false">Cancel</button>
+            <button class="nv-modal-btn nv-modal-btn--primary" @click="confirmRestartMeeting" :disabled="restarting">
+              <span v-if="restarting" class="nv-spinner nv-spinner--sm"></span>
+              Restart meeting
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <transition name="nv-toast-fx">
+        <div v-if="toastVisible" class="nv-toast" :class="toastType === 'error' ? 'nv-toast--error' : ''">
+          <svg v-if="toastType !== 'error'" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="20 6 9 17 4 12"/></svg>
+          <svg v-else width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><circle cx="12" cy="12" r="10"/></svg>
+          {{ toastMessage }}
+        </div>
+      </transition>
     </div>
   </div>
 </template>
@@ -721,7 +963,7 @@ export default {
       this.peers = {}; this.peerStreams = {}; this.peerScreenStreams = {};
       this.peerCameraStreamIds = {};
       this.peerNames = {}; this.peerMuted = {}; this.peerVideoOff = {};
-      this.pendingCandidates = {}; this._screenSenders = [];
+      this.pendingCandidates = {};
       this.activePresenterId = null; this.participantCount = 1;
     },
 
@@ -739,70 +981,67 @@ export default {
       this.sendWs({ type: 'TOGGLE_VIDEO', data: { enabled: this.videoOn } });
     },
 
- async toggleScreen() {
-  if (this.screenStream) {
-    // ── STOP SHARING ──
-    this.screenStream.getTracks().forEach(t => t.stop());
-    this.screenStream = null;
+    async toggleScreen() {
+      if (this.screenStream) {
+        // ── STOP sharing ──
+        this.screenStream.getTracks().forEach(t => t.stop());
+        this.screenStream = null;
 
-    // Remove the screen track from all peer connections
-    for (const [peerId, pc] of Object.entries(this.peers)) {
-      if (this._screenSenders && this._screenSenders[peerId]) {
+        // Remove screen tracks from all peers
+        for (const pc of Object.values(this.peers)) {
+          const senders = pc.getSenders();
+          for (const sender of senders) {
+            if (sender.track?.kind === 'video' && sender.track !== this.localStream?.getVideoTracks()[0]) {
+              try {
+                pc.removeTrack(sender);
+              } catch (e) {
+                console.warn('Failed to remove screen track:', e);
+              }
+            }
+          }
+        }
+
+        this.sendWs({ type: 'SCREEN_SHARE_STOP' });
+        await this.$nextTick(); await this.$nextTick();
+        this.bindAllVideos();
+      } else {
+        // ── START sharing ──
         try {
-          pc.removeTrack(this._screenSenders[peerId]);
-        } catch (e) { console.warn(e); }
-      }
-      // Re-negotiate after removing track
-      const offer = await pc.createOffer();
-      await pc.setLocalDescription(offer);
-      this.sendWs({ type: 'OFFER', toPeerId: peerId, data: pc.localDescription });
-    }
-    this._screenSenders = {};
-
-    this.sendWs({ type: 'SCREEN_SHARE_STOP' });
-    await this.$nextTick(); 
-    this.bindAllVideos();
-  } else {
-    // ── START SHARING ──
-    try {
-      this.screenStream = await navigator.mediaDevices.getDisplayMedia({ 
-        video: { cursor: 'always' }, 
-        audio: false 
-      });
-      const screenTrack = this.screenStream.getVideoTracks()[0];
-
-      if (!this._screenSenders) this._screenSenders = {};
-
-      for (const [peerId, pc] of Object.entries(this.peers)) {
-        try {
-          // Create a stream with a unique ID for the screen
-          const screenOnlyStream = new MediaStream([screenTrack]);
-          const sender = pc.addTrack(screenTrack, screenOnlyStream);
-          this._screenSenders[peerId] = sender;
-
-          // ✅ CRITICAL: Trigger Renegotiation
-          const offer = await pc.createOffer();
-          await pc.setLocalDescription(offer);
-          this.sendWs({ 
-            type: 'OFFER', 
-            toPeerId: peerId, 
-            data: pc.localDescription, 
-            senderName: this.userName 
+          this.screenStream = await navigator.mediaDevices.getDisplayMedia({ 
+            video: { cursor: 'always' }, 
+            audio: false 
           });
-        } catch (e) { console.warn('addTrack failed for peer:', peerId, e); }
-      }
+          
+          const screenTrack = this.screenStream.getVideoTracks()[0];
 
-      screenTrack.onended = () => this.toggleScreen();
-      this.sendWs({ type: 'SCREEN_SHARE_START' });
-      
-      await this.$nextTick();
-      this.bindAllVideos();
-    } catch (err) {
-      if (err.name !== 'NotAllowedError') this.showToast('Screen share failed.', 'error');
-      this.screenStream = null;
-    }
-  }
-},
+          // Handle when user stops sharing via browser UI
+          screenTrack.onended = () => {
+            this.toggleScreen(); // This will trigger the stop sharing flow
+          };
+
+          // Add the screen track to each peer connection with its OWN stream
+          for (const pc of Object.values(this.peers)) {
+            try {
+              // IMPORTANT: Create a NEW stream for EACH peer connection
+              // This ensures each peer gets their own stream with a unique ID
+              const streamForPeer = new MediaStream([screenTrack]);
+              pc.addTrack(screenTrack, streamForPeer);
+            } catch (e) { 
+              console.warn('addTrack screen failed:', e); 
+            }
+          }
+
+          this.sendWs({ type: 'SCREEN_SHARE_START' });
+          await this.$nextTick(); await this.$nextTick();
+          this.bindAllVideos();
+        } catch (err) {
+          if (err.name !== 'NotAllowedError' && err.name !== 'AbortError') {
+            this.showToast('Screen share failed: ' + err.message, 'error');
+          }
+          this.screenStream = null;
+        }
+      }
+    },
 
     endMeeting()     { this.showEndModal = true; },
     restartMeeting() { this.showRestartModal = true; },
