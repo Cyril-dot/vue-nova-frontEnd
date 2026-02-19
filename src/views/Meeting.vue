@@ -140,6 +140,8 @@
             <p>Connecting to meeting…</p>
           </div>
         </div>
+        <!-- ✅ Plain div ref — Daily SDK mounts its iframe here.
+             position:relative is required so the iframe absolute-fills it. -->
         <div ref="dailyContainer" class="nv-daily-frame"></div>
       </div>
 
@@ -288,7 +290,6 @@ export default {
     return {
       view: 'create',
 
-      // Create form — only roomName + private (matches POST /meetings/create)
       form:        { roomName: '', isPrivate: false },
       creating:    false,
       createError: '',
@@ -307,7 +308,6 @@ export default {
       isHost:           false,
       userName:         'Guest',
 
-      // Recording — toggled via POST /meetings/{code}/recording/start|stop
       recording:        false,
       recordingLoading: false,
 
@@ -338,8 +338,6 @@ export default {
 
     // ═══════════════════════════════════════════════════════
     //  FETCH DAILY TOKEN
-    //  Auth:  POST /api/meetings/{code}/token   body: { isOwner }
-    //  Guest: POST /api/meetings/join/guest     body: { roomCode, displayName }
     // ═══════════════════════════════════════════════════════
 
     async fetchDailyToken(meetingCode) {
@@ -349,7 +347,6 @@ export default {
 
     // ═══════════════════════════════════════════════════════
     //  CREATE MEETING
-    //  POST /api/meetings/create  body: { roomName, private }
     // ═══════════════════════════════════════════════════════
 
     async createMeeting() {
@@ -425,7 +422,6 @@ export default {
         this.isHost        = this.isHost || tokenData.isOwner;
         console.log('🚀 [Meeting] roomUrl:', this.dailyRoomUrl);
       } else {
-        // Fallback to cache
         const cached = MeetingSession.getDailyRoom();
         if (cached.roomUrl) {
           this.dailyRoomUrl  = cached.roomUrl;
@@ -441,7 +437,7 @@ export default {
       this.clockInterval = setInterval(this.updateClock, 10_000);
       await this.loadDailySDK();
 
-      // ✅ FIX: always extract the plain string token — never pass the whole tokenData object
+      // ✅ Always extract a plain string token — never pass the full tokenData object
       const rawToken = typeof tokenData?.token === 'string'
         ? tokenData.token
         : (MeetingSession.getDailyToken() || null);
@@ -462,34 +458,60 @@ export default {
 
     // ═══════════════════════════════════════════════════════
     //  JOIN DAILY ROOM
-    //  FIX: joinOpts must contain only plain serializable values.
-    //  Passing an object (or anything non-cloneable) as `token`
-    //  causes the "postMessage could not be cloned" error.
+    //
+    //  ROOT CAUSE of "postMessage: #<Object> could not be cloned":
+    //  Vue 3 wraps all template refs in a Proxy. DailyIframe.createFrame()
+    //  passes the container element through an internal postMessage call
+    //  during iframe initialisation. A Proxy is NOT structured-cloneable,
+    //  so the browser throws immediately.
+    //
+    //  FIX 1 — unwrap the Vue Proxy before passing to createFrame():
+    //    const rawContainer = ref.$el ?? ref
+    //    $el exists on component refs; plain DOM refs don't have it,
+    //    so the fallback `?? ref` handles the <div ref="..."> case.
+    //
+    //  FIX 2 — supply iframeStyle via createFrame() options instead of
+    //    patching the iframe after the fact with a $nextTick querySelector.
+    //
+    //  FIX 3 — joinOpts must contain ONLY plain primitive/boolean values.
+    //    token must be a string or absent.
     // ═══════════════════════════════════════════════════════
 
     async joinDailyRoom(token = null) {
       try {
         this.dailyLoading = true;
 
-        // If no token was supplied, fetch a fresh one and extract the string
+        // If no token supplied, fetch fresh and extract the string
         if (!token) {
           const fresh = await this.fetchDailyToken(this.meetingCode);
           token = typeof fresh?.token === 'string' ? fresh.token : null;
         }
 
-        // Belt-and-suspenders: coerce to string or drop it entirely
+        // Discard token if it's not a plain string (extra safety net)
         if (token !== null && typeof token !== 'string') {
-          console.warn('⚠️ [Meeting] token was not a string — discarding to avoid postMessage error:', typeof token);
+          console.warn('⚠️ [Meeting] token was not a string — discarding:', typeof token);
           token = null;
         }
 
-        this.callFrame = window.DailyIframe.createFrame(this.$refs.dailyContainer);
+        // ✅ FIX 1: unwrap Vue Proxy → raw HTMLElement
+        const rawContainer = this.$refs.dailyContainer?.$el ?? this.$refs.dailyContainer;
+        if (!rawContainer) {
+          throw new Error('Daily container element not found in DOM');
+        }
 
-        this.$nextTick(() => {
-          const iframe = this.$refs.dailyContainer?.querySelector('iframe');
-          if (iframe) {
-            iframe.style.cssText = 'width:100%;height:100%;border:none;background:#202124';
-          }
+        // ✅ FIX 2: pass iframeStyle directly — no $nextTick querySelector needed
+        this.callFrame = window.DailyIframe.createFrame(rawContainer, {
+          iframeStyle: {
+            position:   'absolute',
+            top:        '0',
+            left:       '0',
+            width:      '100%',
+            height:     '100%',
+            border:     'none',
+            background: '#202124',
+          },
+          showLeaveButton:      false,
+          showFullscreenButton: false,
         });
 
         this.callFrame
@@ -502,9 +524,7 @@ export default {
           .on('error',               this.onDailyError)
           .on('camera-error',        this.onCameraError);
 
-        // ✅ Build joinOpts with ONLY plain primitive / boolean values.
-        //    Do NOT spread or pass complex objects — Daily's iframe uses
-        //    postMessage internally and will throw if anything is non-cloneable.
+        // ✅ FIX 3: only plain primitive / boolean values — no objects or Proxies
         const joinOpts = {
           url:           String(this.dailyRoomUrl),
           userName:      String(this.userName),
@@ -512,19 +532,18 @@ export default {
           startAudioOff: false,
         };
 
-        // Only attach token when it's a non-empty string
         if (token && token.trim().length > 0) {
           joinOpts.token = token;
         }
 
-        console.log('🚀 [Meeting] Joining Daily room with opts:', {
+        console.log('🚀 [Meeting] Joining Daily room:', {
           url:      joinOpts.url,
           userName: joinOpts.userName,
           hasToken: !!joinOpts.token,
         });
 
         await this.callFrame.join(joinOpts);
-        console.log('✅ [Meeting] Joined Daily room');
+        console.log('✅ [Meeting] Joined Daily room successfully');
       } catch (err) {
         console.error('❌ [Meeting] joinDailyRoom error:', err.message);
         this.dailyLoading = false;
@@ -618,8 +637,6 @@ export default {
 
     // ═══════════════════════════════════════════════════════
     //  RECORDING
-    //  POST /api/meetings/{code}/recording/start
-    //  POST /api/meetings/{code}/recording/stop
     // ═══════════════════════════════════════════════════════
 
     async toggleRecording() {
@@ -644,8 +661,6 @@ export default {
 
     // ═══════════════════════════════════════════════════════
     //  MEETING LIFECYCLE
-    //  End: DELETE /api/meetings/{code}
-    //  Restart: DELETE /api/meetings/{code} → POST /api/meetings/create
     // ═══════════════════════════════════════════════════════
 
     endMeeting()     { this.showEndModal     = true; },
@@ -883,8 +898,8 @@ export default {
 .nv-unread{min-width:17px;height:17px;border-radius:9px;background:var(--c-blue);color:#fff;font-size:10px;font-weight:700;display:inline-flex;align-items:center;justify-content:center;padding:0 4px}
 .nv-daily-wrap{position:absolute;top:60px;bottom:80px;left:0;right:0;transition:right .25s cubic-bezier(.4,0,.2,1);background:#000}
 .nv-daily-wrap.nv-daily--chat-open{right:360px}
-.nv-daily-frame{width:100%;height:100%}
-.nv-daily-frame iframe{width:100% !important;height:100% !important;border:none !important;background:#202124}
+/* position:relative required so Daily's absolute-positioned iframe fills this div */
+.nv-daily-frame{position:relative;width:100%;height:100%}
 .nv-daily-loading{position:absolute;inset:0;z-index:5;background:var(--c-bg);display:flex;align-items:center;justify-content:center}
 .nv-loading-inner{display:flex;flex-direction:column;align-items:center;gap:16px;color:var(--c-text2);font-size:15px}
 .nv-controls{position:fixed;bottom:0;left:0;right:0;height:80px;background:var(--c-bg);border-top:1px solid var(--c-line);display:flex;align-items:center;justify-content:center;z-index:201}
