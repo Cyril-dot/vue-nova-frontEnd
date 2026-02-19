@@ -149,18 +149,9 @@
         <!-- SCREEN SHARE LAYOUT -->
         <template v-if="isPresenting">
           <div class="nv-gmain">
-            <!-- LOCAL screen share: show screen + camera PiP overlay -->
+            <!-- LOCAL screen share big view -->
             <div v-if="screenStream" class="nv-tile nv-tile--screen">
               <video ref="screenVideo" autoplay playsinline muted style="width:100%;height:100%;object-fit:contain;background:#000;display:block;"></video>
-              <!-- ✅ Camera picture-in-picture overlay for the local presenter -->
-              <div class="nv-pip" v-if="videoOn && localStream">
-                <video ref="pipVideo" autoplay muted playsinline style="width:100%;height:100%;object-fit:cover;display:block;border-radius:10px;"></video>
-                <div class="nv-pip-label">{{ userName }}</div>
-              </div>
-              <div v-else class="nv-pip nv-pip--avatar">
-                <div class="nv-avatar nv-avatar--sm">{{ userInitials }}</div>
-                <div class="nv-pip-label">{{ userName }}</div>
-              </div>
               <div class="nv-tilebar">
                 <div class="nv-tilemeta">
                   <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>
@@ -168,26 +159,17 @@
                 </div>
               </div>
             </div>
-            <!-- REMOTE screen share: show their screen + their camera PiP overlay -->
+            <!-- REMOTE screen share big view -->
             <div v-else-if="activePresenterId" class="nv-tile nv-tile--screen">
               <video
                 :ref="`peerScreen_${activePresenterId}`"
                 autoplay playsinline
                 style="width:100%;height:100%;object-fit:contain;background:#000;display:block;"
               ></video>
-              <!-- ✅ Remote presenter's camera as PiP -->
-              <div class="nv-pip" v-if="peerStreams[activePresenterId]">
-                <video :ref="`peerPip_${activePresenterId}`" autoplay playsinline style="width:100%;height:100%;object-fit:cover;display:block;border-radius:10px;"></video>
-                <div class="nv-pip-label">{{ peerNames[activePresenterId] || 'Participant' }}</div>
-              </div>
-              <div v-else class="nv-pip nv-pip--avatar">
-                <div class="nv-avatar nv-avatar--sm">{{ (peerNames[activePresenterId] || '?').charAt(0).toUpperCase() }}</div>
-                <div class="nv-pip-label">{{ peerNames[activePresenterId] || 'Participant' }}</div>
-              </div>
               <div class="nv-tilebar">
                 <div class="nv-tilemeta">
                   <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>
-                  {{ peerNames[activePresenterId] || 'Participant' }} · Presenting
+                  {{ getPeerName(activePresenterId) }} · Presenting
                 </div>
               </div>
             </div>
@@ -209,13 +191,13 @@
             <div v-for="pid in peerIds" :key="`sidebar-${pid}`" class="nv-tile">
               <video :ref="`peerVideo_${pid}`" autoplay playsinline style="width:100%;height:100%;object-fit:cover;display:block;"></video>
               <div class="nv-tilebar">
-                <div class="nv-tilemeta">{{ peerNames[pid] || 'Connecting…' }}</div>
+                <div class="nv-tilemeta">{{ getPeerName(pid) }}</div>
                 <div class="nv-tilebadges">
                   <span v-if="peerMuted[pid]" class="nv-badge nv-badge--red"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="1" y1="1" x2="23" y2="23"/></svg></span>
                 </div>
               </div>
               <div v-if="!peerStreams[pid]" class="nv-nocam">
-                <div class="nv-avatar nv-avatar--sm">{{ (peerNames[pid] || '?').charAt(0).toUpperCase() }}</div>
+                <div class="nv-avatar nv-avatar--sm">{{ getPeerName(pid).charAt(0).toUpperCase() }}</div>
               </div>
             </div>
           </div>
@@ -238,14 +220,14 @@
           <div v-for="pid in peerIds" :key="`grid-${pid}`" class="nv-tile">
             <video :ref="`peerVideo_${pid}`" autoplay playsinline style="width:100%;height:100%;object-fit:cover;display:block;"></video>
             <div class="nv-tilebar">
-              <div class="nv-tilemeta">{{ peerNames[pid] || 'Connecting…' }}</div>
+              <div class="nv-tilemeta">{{ getPeerName(pid) }}</div>
               <div class="nv-tilebadges">
                 <span v-if="peerMuted[pid]" class="nv-badge nv-badge--red"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="1" y1="1" x2="23" y2="23"/></svg></span>
                 <span v-if="peerVideoOff[pid]" class="nv-badge nv-badge--red"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="1" y1="1" x2="23" y2="23"/></svg></span>
               </div>
             </div>
             <div v-if="!peerStreams[pid]" class="nv-nocam">
-              <div class="nv-avatar nv-avatar--sm">{{ (peerNames[pid] || '?').charAt(0).toUpperCase() }}</div>
+              <div class="nv-avatar nv-avatar--sm">{{ getPeerName(pid).charAt(0).toUpperCase() }}</div>
             </div>
           </div>
         </template>
@@ -466,6 +448,20 @@ export default {
   },
 
   methods: {
+    // ✅ Returns real name if known, otherwise a consistent fun random name seeded by peerId
+    getPeerName(peerId) {
+      if (this.peerNames[peerId]) return this.peerNames[peerId];
+      // Generate a consistent fun name from the peerId characters
+      const adjectives = ['Happy', 'Clever', 'Swift', 'Brave', 'Calm', 'Bold', 'Kind', 'Wise', 'Cool', 'Bright', 'Sharp', 'Neat'];
+      const animals    = ['Panda', 'Falcon', 'Otter', 'Tiger', 'Koala', 'Eagle', 'Fox', 'Wolf', 'Lynx', 'Hawk', 'Bear', 'Deer'];
+      // Seed from peerId string so the same peer always gets the same name
+      let seed = 0;
+      for (let i = 0; i < peerId.length; i++) seed += peerId.charCodeAt(i);
+      const adj    = adjectives[seed % adjectives.length];
+      const animal = animals[Math.floor(seed / adjectives.length) % animals.length];
+      return `${adj} ${animal}`;
+    },
+
     // ═══════════════════════════════════════════════════════
     //  HELPERS
     // ═══════════════════════════════════════════════════════
@@ -487,13 +483,8 @@ export default {
           el.play().catch(() => {});
           console.log(`✅ Bound peerVideo_${peerId} (attempt ${attempt})`);
         }
-        // ✅ Also bind remote presenter's PiP camera overlay
+        // Also bind remote presenter screen view (same stream — it contains screen track)
         if (this.activePresenterId === peerId) {
-          const pipEl = this.resolveRef(`peerPip_${peerId}`);
-          if (pipEl && pipEl.srcObject !== stream) {
-            pipEl.srcObject = stream;
-            pipEl.play().catch(() => {});
-          }
           const screenEl = this.resolveRef(`peerScreen_${peerId}`);
           if (screenEl && screenEl.srcObject !== stream) {
             screenEl.srcObject = stream;
@@ -919,13 +910,6 @@ export default {
         screenEl.play().catch(() => {});
       }
 
-      // ✅ Local camera PiP (on top of screen share when presenting)
-      const pipEl = this.$refs.pipVideo;
-      if (pipEl && this.localStream && pipEl.srcObject !== this.localStream) {
-        pipEl.srcObject = this.localStream;
-        pipEl.play().catch(() => {});
-      }
-
       // All remote peers
       this.peerIds.forEach(pid => this.bindPeerVideoWithRetry(pid));
     },
@@ -1000,13 +984,6 @@ export default {
           this.sendWs({ type: 'SCREEN_SHARE_START' });
           await this.$nextTick(); await this.$nextTick();
           this.bindAllVideos();
-          // ✅ Explicitly bind local cam to PiP after layout renders
-          await this.$nextTick();
-          const pipEl = this.$refs.pipVideo;
-          if (pipEl && this.localStream) {
-            pipEl.srcObject = this.localStream;
-            pipEl.play().catch(() => {});
-          }
         } catch (err) {
           if (err.name !== 'NotAllowedError') this.showToast('Screen share failed.', 'error');
           this.screenStream = null;
@@ -1240,43 +1217,6 @@ export default {
 .nv-hbtn--danger { border-color:rgba(234,67,53,.35); color:#f28b82; }
 .nv-hbtn--danger:hover { background:rgba(234,67,53,.14); border-color:var(--c-red); }
 .nv-unread { min-width:17px; height:17px; border-radius:9px; background:var(--c-blue); color:#fff; font-size:10px; font-weight:700; display:inline-flex; align-items:center; justify-content:center; padding:0 4px; }
-
-/* ── PiP camera overlay on screen share ──────────────── */
-.nv-pip {
-  position: absolute;
-  bottom: 48px;
-  right: 12px;
-  width: 140px;
-  height: 90px;
-  border-radius: 10px;
-  overflow: hidden;
-  border: 2px solid rgba(255,255,255,.25);
-  box-shadow: 0 4px 20px rgba(0,0,0,.5);
-  z-index: 3;
-  background: var(--c-surf);
-}
-.nv-pip--avatar {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 4px;
-}
-.nv-pip-label {
-  position: absolute;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  padding: 3px 6px;
-  background: rgba(0,0,0,.6);
-  font-size: 10px;
-  font-weight: 600;
-  color: #fff;
-  text-align: center;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
 
 /* ── GRID ─────────────────────────────────────────────── */
 .nv-grid { flex:1; min-height:0; display:grid; grid-template-columns:repeat(auto-fit,minmax(280px,1fr)); gap:12px; padding:16px; overflow-y:auto; align-content:start; background:var(--c-bg); }
