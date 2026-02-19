@@ -149,8 +149,18 @@
         <!-- SCREEN SHARE LAYOUT -->
         <template v-if="isPresenting">
           <div class="nv-gmain">
+            <!-- LOCAL screen share: show screen + camera PiP overlay -->
             <div v-if="screenStream" class="nv-tile nv-tile--screen">
-              <video ref="screenVideo" autoplay playsinline muted></video>
+              <video ref="screenVideo" autoplay playsinline muted style="width:100%;height:100%;object-fit:contain;background:#000;display:block;"></video>
+              <!-- ✅ Camera picture-in-picture overlay for the local presenter -->
+              <div class="nv-pip" v-if="videoOn && localStream">
+                <video ref="pipVideo" autoplay muted playsinline style="width:100%;height:100%;object-fit:cover;display:block;border-radius:10px;"></video>
+                <div class="nv-pip-label">{{ userName }}</div>
+              </div>
+              <div v-else class="nv-pip nv-pip--avatar">
+                <div class="nv-avatar nv-avatar--sm">{{ userInitials }}</div>
+                <div class="nv-pip-label">{{ userName }}</div>
+              </div>
               <div class="nv-tilebar">
                 <div class="nv-tilemeta">
                   <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>
@@ -158,12 +168,22 @@
                 </div>
               </div>
             </div>
+            <!-- REMOTE screen share: show their screen + their camera PiP overlay -->
             <div v-else-if="activePresenterId" class="nv-tile nv-tile--screen">
               <video
                 :ref="`peerScreen_${activePresenterId}`"
                 autoplay playsinline
                 style="width:100%;height:100%;object-fit:contain;background:#000;display:block;"
               ></video>
+              <!-- ✅ Remote presenter's camera as PiP -->
+              <div class="nv-pip" v-if="peerStreams[activePresenterId]">
+                <video :ref="`peerPip_${activePresenterId}`" autoplay playsinline style="width:100%;height:100%;object-fit:cover;display:block;border-radius:10px;"></video>
+                <div class="nv-pip-label">{{ peerNames[activePresenterId] || 'Participant' }}</div>
+              </div>
+              <div v-else class="nv-pip nv-pip--avatar">
+                <div class="nv-avatar nv-avatar--sm">{{ (peerNames[activePresenterId] || '?').charAt(0).toUpperCase() }}</div>
+                <div class="nv-pip-label">{{ peerNames[activePresenterId] || 'Participant' }}</div>
+              </div>
               <div class="nv-tilebar">
                 <div class="nv-tilemeta">
                   <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>
@@ -467,8 +487,13 @@ export default {
           el.play().catch(() => {});
           console.log(`✅ Bound peerVideo_${peerId} (attempt ${attempt})`);
         }
-        // Also bind screen view if this peer is the presenter
+        // ✅ Also bind remote presenter's PiP camera overlay
         if (this.activePresenterId === peerId) {
+          const pipEl = this.resolveRef(`peerPip_${peerId}`);
+          if (pipEl && pipEl.srcObject !== stream) {
+            pipEl.srcObject = stream;
+            pipEl.play().catch(() => {});
+          }
           const screenEl = this.resolveRef(`peerScreen_${peerId}`);
           if (screenEl && screenEl.srcObject !== stream) {
             screenEl.srcObject = stream;
@@ -476,7 +501,6 @@ export default {
           }
         }
       } else if (attempt < 20) {
-        // DOM element not rendered yet — wait 100ms and retry
         setTimeout(() => this.bindPeerVideoWithRetry(peerId, attempt + 1), 100);
       } else {
         console.warn(`⚠️ Could not find video element for ${peerId} after ${attempt} attempts`);
@@ -561,8 +585,27 @@ export default {
       }
       if (!this.meetingCode) { this.$router.push('/join-meeting'); return; }
 
+      // ✅ Try multiple places to get the real username
       const user = JSON.parse(sessionStorage.getItem('nova_user') || '{}');
-      this.userName     = user.name || user.username || user.displayName || 'Guest';
+      this.userName = user.name || user.username || user.displayName || user.firstName || '';
+
+      // If still no name, try fetching from API
+      if (!this.userName && this.token) {
+        try {
+          const res = await fetch(`${API}/auth/me`, {
+            headers: { 'Authorization': `Bearer ${this.token}`, 'ngrok-skip-browser-warning': 'true' },
+          });
+          if (res.ok) {
+            const data = await res.json();
+            const u = data?.data || data?.user || data || {};
+            this.userName = u.name || u.username || u.displayName || u.firstName || u.email?.split('@')[0] || '';
+            // Cache it back so we don't need to fetch again
+            if (this.userName) sessionStorage.setItem('nova_user', JSON.stringify({ ...user, name: this.userName }));
+          }
+        } catch (_) {}
+      }
+
+      if (!this.userName) this.userName = 'Guest';
       this.userInitials = this.userName.charAt(0).toUpperCase();
 
       if (!this.isHost) this.isHost = sessionStorage.getItem('nova_is_host') === 'true';
@@ -863,17 +906,27 @@ export default {
     },
 
     bindAllVideos() {
+      // Local camera (normal tile or sidebar)
       const localEl = this.$refs.localVideo;
       if (localEl && this.localStream && localEl.srcObject !== this.localStream) {
         localEl.srcObject = this.localStream;
       }
 
+      // Local screen share (big view)
       const screenEl = this.$refs.screenVideo;
       if (screenEl && this.screenStream && screenEl.srcObject !== this.screenStream) {
         screenEl.srcObject = this.screenStream;
         screenEl.play().catch(() => {});
       }
 
+      // ✅ Local camera PiP (on top of screen share when presenting)
+      const pipEl = this.$refs.pipVideo;
+      if (pipEl && this.localStream && pipEl.srcObject !== this.localStream) {
+        pipEl.srcObject = this.localStream;
+        pipEl.play().catch(() => {});
+      }
+
+      // All remote peers
       this.peerIds.forEach(pid => this.bindPeerVideoWithRetry(pid));
     },
 
@@ -947,6 +1000,13 @@ export default {
           this.sendWs({ type: 'SCREEN_SHARE_START' });
           await this.$nextTick(); await this.$nextTick();
           this.bindAllVideos();
+          // ✅ Explicitly bind local cam to PiP after layout renders
+          await this.$nextTick();
+          const pipEl = this.$refs.pipVideo;
+          if (pipEl && this.localStream) {
+            pipEl.srcObject = this.localStream;
+            pipEl.play().catch(() => {});
+          }
         } catch (err) {
           if (err.name !== 'NotAllowedError') this.showToast('Screen share failed.', 'error');
           this.screenStream = null;
@@ -1180,6 +1240,43 @@ export default {
 .nv-hbtn--danger { border-color:rgba(234,67,53,.35); color:#f28b82; }
 .nv-hbtn--danger:hover { background:rgba(234,67,53,.14); border-color:var(--c-red); }
 .nv-unread { min-width:17px; height:17px; border-radius:9px; background:var(--c-blue); color:#fff; font-size:10px; font-weight:700; display:inline-flex; align-items:center; justify-content:center; padding:0 4px; }
+
+/* ── PiP camera overlay on screen share ──────────────── */
+.nv-pip {
+  position: absolute;
+  bottom: 48px;
+  right: 12px;
+  width: 140px;
+  height: 90px;
+  border-radius: 10px;
+  overflow: hidden;
+  border: 2px solid rgba(255,255,255,.25);
+  box-shadow: 0 4px 20px rgba(0,0,0,.5);
+  z-index: 3;
+  background: var(--c-surf);
+}
+.nv-pip--avatar {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+}
+.nv-pip-label {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  padding: 3px 6px;
+  background: rgba(0,0,0,.6);
+  font-size: 10px;
+  font-weight: 600;
+  color: #fff;
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
 
 /* ── GRID ─────────────────────────────────────────────── */
 .nv-grid { flex:1; min-height:0; display:grid; grid-template-columns:repeat(auto-fit,minmax(280px,1fr)); gap:12px; padding:16px; overflow-y:auto; align-content:start; background:var(--c-bg); }
