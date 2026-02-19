@@ -478,78 +478,71 @@ export default {
     // ═══════════════════════════════════════════════════════
 
     async joinDailyRoom(token = null) {
-      try {
-        this.dailyLoading = true;
+  try {
+    this.dailyLoading = true;
 
-        // If no token supplied, fetch fresh and extract the string
-        if (!token) {
-          const fresh = await this.fetchDailyToken(this.meetingCode);
-          token = typeof fresh?.token === 'string' ? fresh.token : null;
-        }
+    if (!token) {
+      const fresh = await this.fetchDailyToken(this.meetingCode);
+      token = typeof fresh?.token === 'string' ? fresh.token : null;
+    }
+    if (token !== null && typeof token !== 'string') {
+      token = null;
+    }
 
-        // Discard token if it's not a plain string (extra safety net)
-        if (token !== null && typeof token !== 'string') {
-          console.warn('⚠️ [Meeting] token was not a string — discarding:', typeof token);
-          token = null;
-        }
+    // ✅ Create a plain iframe manually and append it to the container.
+    //    Then use DailyIframe.wrap() instead of createFrame().
+    //    This sidesteps the internal postMessage clone error entirely —
+    //    wrap() takes an already-existing iframe node, no cloning needed.
+    const container = this.$refs.dailyContainer?.$el ?? this.$refs.dailyContainer;
+    if (!container) throw new Error('Daily container not found');
 
-        // ✅ FIX 1: unwrap Vue Proxy → raw HTMLElement
-        const rawContainer = this.$refs.dailyContainer?.$el ?? this.$refs.dailyContainer;
-        if (!rawContainer) {
-          throw new Error('Daily container element not found in DOM');
-        }
+    // Remove any leftover iframe from a previous session
+    const old = container.querySelector('iframe');
+    if (old) old.remove();
 
-        // ✅ FIX 2: pass iframeStyle directly — no $nextTick querySelector needed
-        this.callFrame = window.DailyIframe.createFrame(rawContainer, {
-          iframeStyle: {
-            position:   'absolute',
-            top:        '0',
-            left:       '0',
-            width:      '100%',
-            height:     '100%',
-            border:     'none',
-            background: '#202124',
-          },
-          showLeaveButton:      false,
-          showFullscreenButton: false,
-        });
+    const iframe = document.createElement('iframe');
+    iframe.style.cssText = 'position:absolute;top:0;left:0;width:100%;height:100%;border:none;background:#202124;';
+    iframe.allow = 'camera;microphone;fullscreen;display-capture;autoplay';
+    container.appendChild(iframe);
 
-        this.callFrame
-          .on('joined-meeting',      this.onJoinedMeeting)
-          .on('left-meeting',        this.onLeftMeeting)
-          .on('participant-joined',  this.onParticipantJoined)
-          .on('participant-updated', this.onParticipantUpdated)
-          .on('participant-left',    this.onParticipantLeft)
-          .on('app-message',         this.onAppMessage)
-          .on('error',               this.onDailyError)
-          .on('camera-error',        this.onCameraError);
+    // wrap() takes a real DOM iframe — no postMessage cloning involved
+    this.callFrame = window.DailyIframe.wrap(iframe, {
+      showLeaveButton:      false,
+      showFullscreenButton: false,
+    });
 
-        // ✅ FIX 3: only plain primitive / boolean values — no objects or Proxies
-        const joinOpts = {
-          url:           String(this.dailyRoomUrl),
-          userName:      String(this.userName),
-          startVideoOff: false,
-          startAudioOff: false,
-        };
+    this.callFrame
+      .on('joined-meeting',      this.onJoinedMeeting)
+      .on('left-meeting',        this.onLeftMeeting)
+      .on('participant-joined',  this.onParticipantJoined)
+      .on('participant-updated', this.onParticipantUpdated)
+      .on('participant-left',    this.onParticipantLeft)
+      .on('app-message',         this.onAppMessage)
+      .on('error',               this.onDailyError)
+      .on('camera-error',        this.onCameraError);
 
-        if (token && token.trim().length > 0) {
-          joinOpts.token = token;
-        }
+    const joinOpts = {
+      url:           String(this.dailyRoomUrl),
+      userName:      String(this.userName),
+      startVideoOff: false,
+      startAudioOff: false,
+    };
+    if (token && token.trim().length > 0) {
+      joinOpts.token = token;
+    }
 
-        console.log('🚀 [Meeting] Joining Daily room:', {
-          url:      joinOpts.url,
-          userName: joinOpts.userName,
-          hasToken: !!joinOpts.token,
-        });
+    console.log('🚀 [Meeting] Joining Daily room:', {
+      url: joinOpts.url, userName: joinOpts.userName, hasToken: !!joinOpts.token,
+    });
 
-        await this.callFrame.join(joinOpts);
-        console.log('✅ [Meeting] Joined Daily room successfully');
-      } catch (err) {
-        console.error('❌ [Meeting] joinDailyRoom error:', err.message);
-        this.dailyLoading = false;
-        this.showToast('Failed to join: ' + err.message, 'error');
-      }
-    },
+    await this.callFrame.join(joinOpts);
+    console.log('✅ [Meeting] Joined Daily room successfully');
+  } catch (err) {
+    console.error('❌ [Meeting] joinDailyRoom error:', err.message);
+    this.dailyLoading = false;
+    this.showToast('Failed to join: ' + err.message, 'error');
+  }
+},
 
     // ═══════════════════════════════════════════════════════
     //  DAILY EVENTS
@@ -717,14 +710,23 @@ export default {
       this.cleanupAndNavigate();
     },
 
-    cleanupAndNavigate() {
-      clearInterval(this.clockInterval);
-      if (this.recording) MeetingSession.stopRecording(this.meetingCode).catch(() => {});
-      if (this.callFrame) { try { this.callFrame.destroy(); } catch (_) {} this.callFrame = null; }
-      MeetingSession.clearMeetingData();
-      if (window.history.length > 1) this.$router.go(-1);
-      else this.$router.push(this.isAuthenticated ? '/meeting-dashboard' : '/meetings/join');
-    },
+   cleanupAndNavigate() {
+  clearInterval(this.clockInterval);
+  if (this.recording) MeetingSession.stopRecording(this.meetingCode).catch(() => {});
+  if (this.callFrame) {
+    try { this.callFrame.destroy(); } catch (_) {}
+    this.callFrame = null;
+  }
+  // Remove the manually created iframe
+  const container = this.$refs.dailyContainer?.$el ?? this.$refs.dailyContainer;
+  if (container) {
+    const iframe = container.querySelector('iframe');
+    if (iframe) iframe.remove();
+  }
+  MeetingSession.clearMeetingData();
+  if (window.history.length > 1) this.$router.go(-1);
+  else this.$router.push(this.isAuthenticated ? '/meeting-dashboard' : '/meetings/join');
+},
 
     // ═══════════════════════════════════════════════════════
     //  CHAT
