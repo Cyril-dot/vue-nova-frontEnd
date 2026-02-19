@@ -28,7 +28,7 @@ export const meetingRoutes = [
   {
     path: '/meetings/join',
     name: 'JoinMeeting',
-    component: () => import('@/views/meetings/JoinMeeting.vue'),
+    component: () => import('@/views/JoinMeeting.vue'),
     meta: { requiresAuth: false },
   },
 
@@ -39,7 +39,7 @@ export const meetingRoutes = [
   {
     path: '/meetings/create',
     name: 'CreateMeeting',
-    component: () => import('@/views/meetings/Meeting.vue'),
+    component: () => import('@/views/Meeting.vue'),
     meta: { requiresAuth: true },
     beforeEnter(to, from, next) {
       // Pass ?create=true so Meeting.vue knows to show the form
@@ -60,7 +60,7 @@ export const meetingRoutes = [
   {
     path: '/meetings/:code',
     name: 'Meeting',
-    component: () => import('@/views/meetings/Meeting.vue'),
+    component: () => import('@/views/Meeting.vue'),
     meta: { requiresAuth: false },
     props: true,
   },
@@ -71,7 +71,7 @@ export const meetingRoutes = [
   {
     path: '/meeting-dashboard',
     name: 'MeetingsDashboard',
-    component: () => import('@/views/meetings/MeetingsDashboard.vue'),
+    component: () => import('@/views/meetingDashboard.vue'),
     meta: { requiresAuth: true },
   },
 
@@ -82,7 +82,7 @@ export const meetingRoutes = [
   {
     path: '/meeting',
     name: 'MeetingRoot',
-    component: () => import('@/views/meetings/Meeting.vue'),
+    component: () => import('@/views/Meeting.vue'),
     meta: { requiresAuth: false },
   },
 

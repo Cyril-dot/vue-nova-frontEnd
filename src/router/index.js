@@ -190,7 +190,7 @@ const routes = [
   {
     path: '/meetings/join',
     name: 'JoinMeeting',
-    component: () => import('../views/meetings/JoinMeeting.vue'),
+    component: () => import('../views/JoinMeeting.vue'),
     meta: { requiresAuth: false, title: 'Join Meeting | NovaSpace' },
   },
 
@@ -198,7 +198,7 @@ const routes = [
   {
     path: '/meetings/create',
     name: 'CreateMeeting',
-    component: () => import('../views/meetings/Meeting.vue'),
+    component: () => import('../views/Meeting.vue'),
     meta: { requiresAuth: true, title: 'New Meeting | NovaSpace' },
     beforeEnter(to, from, next) {
       if (!to.query.create) {
@@ -213,7 +213,7 @@ const routes = [
   {
     path: '/meetings/:code',
     name: 'MeetingRoom',
-    component: () => import('../views/meetings/Meeting.vue'),
+    component: () => import('../views/Meeting.vue'),
     meta: { requiresAuth: false, title: 'Meeting | NovaSpace' },
     props: true,
   },
@@ -222,7 +222,7 @@ const routes = [
   {
     path: '/meeting',
     name: 'MeetingRoot',
-    component: () => import('../views/meetings/Meeting.vue'),
+    component: () => import('../views/Meeting.vue'),
     meta: { requiresAuth: false, title: 'Meeting | NovaSpace' },
   },
 
@@ -230,7 +230,7 @@ const routes = [
   {
     path: '/meeting-dashboard',
     name: 'MeetingDashboard',
-    component: () => import('../views/meetings/MeetingsDashboard.vue'),
+    component: () => import('../views/meetingDashboard.vue'),
     meta: { requiresAuth: true, title: 'Meeting Dashboard | NovaSpace' },
   },
 
