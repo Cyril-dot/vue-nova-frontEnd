@@ -1,4 +1,4 @@
-<!-- Meeting.vue — SCREEN SHARE FIXED + USERNAMES FIXED -->
+<!-- Meeting.vue — SCREEN SHARE FIXED + CAMERA OFF FIXED -->
 <template>
   <div class="nv-root">
 
@@ -183,10 +183,12 @@
                 <div class="nv-tilemeta">{{ getPeerName(pid) }}</div>
                 <div class="nv-tilebadges">
                   <span v-if="peerMuted[pid]" class="nv-badge nv-badge--red"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="1" y1="1" x2="23" y2="23"/></svg></span>
+                  <span v-if="!peerHasVideo[pid]" class="nv-badge nv-badge--red"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="1" y1="1" x2="23" y2="23"/></svg></span>
                 </div>
               </div>
-              <div v-if="!peerStreams[pid]" class="nv-nocam">
-                <div class="nv-avatar nv-avatar--sm">{{ getPeerName(pid).charAt(0).toUpperCase() }}</div>
+              <!-- Show avatar when camera is off OR no video stream -->
+              <div v-if="!peerHasVideo[pid] || !peerStreams[pid]" class="nv-nocam">
+                <div class="nv-avatar nv-avatar--sm">{{ getPeerInitials(pid) }}</div>
               </div>
             </div>
           </div>
@@ -212,11 +214,12 @@
               <div class="nv-tilemeta">{{ getPeerName(pid) }}</div>
               <div class="nv-tilebadges">
                 <span v-if="peerMuted[pid]" class="nv-badge nv-badge--red"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="1" y1="1" x2="23" y2="23"/></svg></span>
-                <span v-if="peerVideoOff[pid]" class="nv-badge nv-badge--red"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="1" y1="1" x2="23" y2="23"/></svg></span>
+                <span v-if="!peerHasVideo[pid]" class="nv-badge nv-badge--red"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="1" y1="1" x2="23" y2="23"/></svg></span>
               </div>
             </div>
-            <div v-if="!peerStreams[pid]" class="nv-nocam">
-              <div class="nv-avatar nv-avatar--sm">{{ getPeerName(pid).charAt(0).toUpperCase() }}</div>
+            <!-- Show avatar when camera is off OR no video stream -->
+            <div v-if="!peerHasVideo[pid] || !peerStreams[pid]" class="nv-nocam">
+              <div class="nv-avatar nv-avatar--sm">{{ getPeerInitials(pid) }}</div>
             </div>
           </div>
         </template>
@@ -392,7 +395,8 @@ export default {
       peerCameraStreamIds: {},  // peerId → camera stream.id string
       peerNames: {},
       peerMuted: {},
-      peerVideoOff: {},
+      peerVideoOff: {},         // Track if peer's video is intentionally off
+      peerHasVideo: {},         // Track if peer has any video track at all
       pendingCandidates: {},
 
       localStream: null,
@@ -459,6 +463,11 @@ export default {
       let seed = 0;
       for (let i = 0; i < peerId.length; i++) seed += peerId.charCodeAt(i);
       return `${adjectives[seed % adjectives.length]} ${animals[Math.floor(seed / adjectives.length) % animals.length]}`;
+    },
+
+    getPeerInitials(peerId) {
+      const name = this.getPeerName(peerId);
+      return name.charAt(0).toUpperCase();
     },
 
     setPeerStream(peerId, stream) {
@@ -819,6 +828,9 @@ export default {
 
         console.log(`🎥 ontrack from ${peerId}: kind=${track.kind}, streamId=${incomingStream?.id}`);
 
+        // Update peerHasVideo when we receive any video track
+        this.peerHasVideo = { ...this.peerHasVideo, [peerId]: true };
+
         if (!incomingStream) {
           if (!this.peerCameraStreamIds[peerId]) {
             const s = new MediaStream([track]);
@@ -1025,6 +1037,7 @@ export default {
       const n = { ...this.peerNames };   delete n[peerId];   this.peerNames = n;
       const m = { ...this.peerMuted };   delete m[peerId];   this.peerMuted = m;
       const v = { ...this.peerVideoOff }; delete v[peerId]; this.peerVideoOff = v;
+      const hv = { ...this.peerHasVideo }; delete hv[peerId]; this.peerHasVideo = hv;
       delete this.pendingCandidates[peerId];
       if (this.activePresenterId === peerId) this.activePresenterId = null;
       this.participantCount = Math.max(1, this.participantCount - 1);
@@ -1040,6 +1053,7 @@ export default {
       this.peerNames = {}; 
       this.peerMuted = {}; 
       this.peerVideoOff = {};
+      this.peerHasVideo = {};
       this.pendingCandidates = {};
       this.activePresenterId = null; 
       this.participantCount = 1;
@@ -1113,8 +1127,8 @@ export default {
             try {
               // Create a NEW stream for EACH peer connection with a unique ID
               const streamForPeer = new MediaStream([screenTrack]);
-              const sender = pc.addTrack(screenTrack, streamForPeer);
-              console.log(`Added screen track to peer connection, sender:`, sender);
+              pc.addTrack(screenTrack, streamForPeer);
+              console.log(`Added screen track to peer connection`);
             } catch (e) { 
               console.warn('addTrack screen failed:', e); 
             }
