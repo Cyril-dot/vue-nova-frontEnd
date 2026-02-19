@@ -619,19 +619,27 @@ export default {
     },
 
     async handleWsMsg(msg) {
+      console.log('📨 WS message:', msg.type, '| from:', msg.fromPeerId, '| data:', JSON.stringify(msg.data)?.slice(0, 120));
       switch (msg.type) {
 
         // Server sends the list of already-connected peers → we offer to each one
         case 'PARTICIPANT_LIST': {
-          this.participantCount = (msg.data?.peers?.length || 0) + 1;
-          for (const id of (msg.data?.peers || [])) {
-            await this.createPC(id, true);
+          console.log('📋 PARTICIPANT_LIST raw:', JSON.stringify(msg.data));
+          // Handle different server shapes: { peers: [...] } or just [...]
+          const peerList = Array.isArray(msg.data) ? msg.data
+            : Array.isArray(msg.data?.peers) ? msg.data.peers
+            : [];
+          this.participantCount = peerList.length + 1;
+          for (const id of peerList) {
+            if (id && id !== this.myPeerId) await this.createPC(id, true);
           }
           break;
         }
 
         // New peer joined → send them an offer so they see us
         case 'JOIN': {
+          console.log('👤 JOIN raw:', JSON.stringify(msg));
+          if (!msg.fromPeerId || msg.fromPeerId === this.myPeerId) break;
           this.participantCount++;
           if (msg.data?.name) this.peerNames[msg.fromPeerId] = msg.data.name;
           await this.createPC(msg.fromPeerId, true);
@@ -704,6 +712,11 @@ export default {
     // ═══════════════════════════════════════════════════════
 
     async createPC(peerId, sendOffer) {
+      // ✅ Guard: never create a PC for null/undefined/self
+      if (!peerId || peerId === this.myPeerId) {
+        console.warn('createPC called with invalid peerId:', peerId);
+        return null;
+      }
       if (this.peers[peerId]) return this.peers[peerId];
 
       const pc = new RTCPeerConnection(ICE_SERVERS);
@@ -776,6 +789,7 @@ export default {
 
     async handleOffer(msg) {
       const peerId = msg.fromPeerId;
+      if (!peerId || peerId === this.myPeerId) { console.warn('handleOffer: invalid peerId', peerId); return; }
       console.log(`📥 Offer ← ${peerId}`);
 
       // Create PC without sending an offer (we're the answerer)
