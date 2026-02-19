@@ -1,396 +1,258 @@
-<!-- MeetingsDashboard.vue — Aligned to MeetingController -->
-<!--
-  Endpoints used:
-    GET    /api/meetings?limit=N&room=X       → meeting history
-    DELETE /api/meetings/{code}               → end / delete meeting
-    POST   /api/meetings/create  (restart)    → recreate room after end
-    GET    /api/meetings/{code}/presence      → live participant list
-    POST   /api/meetings/{code}/eject         → eject participants
-    POST   /api/meetings/{code}/recording/start
-    POST   /api/meetings/{code}/recording/stop
--->
 <template>
-  <div class="md-wrap">
+  <div class="md-shell">
 
-    <!-- ── Nav ─────────────────────────────────────────────────────────────── -->
-    <nav class="md-nav">
-      <div class="md-nav-inner">
-        <div class="md-nav-left">
-          <router-link to="/dashboard" class="md-back">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
-            Dashboard
-          </router-link>
-          <div class="md-nav-divider"></div>
-          <div class="md-page-id">
-            <div class="md-brand">
-              <svg width="26" height="26" viewBox="0 0 32 32" fill="none">
-                <rect width="32" height="32" rx="8" fill="#4a90e2"/>
-                <path d="M20 16L26 11V21L20 16Z" fill="white"/>
-                <rect x="6" y="10" width="15" height="12" rx="2" fill="white"/>
-              </svg>
-              <span class="md-brand-name">Nova</span>
-            </div>
-            <div class="md-page-meta">
-              <span class="md-page-title">Video Meetings</span>
-              <span class="md-page-sub">Manage your conferencing</span>
-            </div>
+    <!-- ── Sidebar ──────────────────────────────────────────────────────── -->
+    <aside class="md-sidebar">
+      <div class="md-sb-brand">
+        <div class="md-sb-logo">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M15 10l4.553-2.276A1 1 0 0121 8.723v6.554a1 1 0 01-1.447.894L15 14M3 8a2 2 0 012-2h10a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2V8z" stroke="white" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </div>
+        <span class="md-sb-brand-name">Nova<span class="md-sb-accent">Meet</span></span>
+      </div>
+
+      <nav class="md-sb-nav">
+        <div class="md-sb-section">OVERVIEW</div>
+        <button class="md-sb-item md-sb-item--active">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="7" width="20" height="15" rx="2"/><polygon points="23 7 16 12 23 17 23 7"/></svg>
+          Meetings
+          <span v-if="activeMeetings.length" class="md-sb-badge md-sb-badge--red">{{ activeMeetings.length }}</span>
+        </button>
+        <button class="md-sb-item" @click="$router.push('/dashboard')">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+          Dashboard
+        </button>
+      </nav>
+
+      <div class="md-sb-bottom">
+        <div class="md-sb-stats-mini">
+          <div class="md-sb-stat">
+            <span class="md-sb-stat-val">{{ allMeetings.length }}</span>
+            <span class="md-sb-stat-lbl">Rooms</span>
+          </div>
+          <div class="md-sb-divider-v"></div>
+          <div class="md-sb-stat">
+            <span class="md-sb-stat-val md-sb-stat-val--live">{{ activeMeetings.length }}</span>
+            <span class="md-sb-stat-lbl">Live</span>
+          </div>
+          <div class="md-sb-divider-v"></div>
+          <div class="md-sb-stat">
+            <span class="md-sb-stat-val">{{ privateCount }}</span>
+            <span class="md-sb-stat-lbl">Private</span>
           </div>
         </div>
-        <div class="md-nav-right">
-          <button class="md-btn md-btn--ghost" @click="joinMeeting">
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><polyline points="10 17 15 12 10 7"/><line x1="15" y1="12" x2="3" y2="12"/></svg>
+      </div>
+    </aside>
+
+    <!-- ── Main area ────────────────────────────────────────────────────── -->
+    <div class="md-main">
+
+      <!-- Top header -->
+      <header class="md-header">
+        <div class="md-header-left">
+          <h1 class="md-page-title">Video Meetings</h1>
+          <p class="md-page-sub">Manage rooms, monitor activity, launch calls</p>
+        </div>
+        <div class="md-header-right">
+          <button class="md-ghost-btn" @click="$router.push('/meetings/join')">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h4a2 2 0 012 2v14a2 2 0 01-2 2h-4M10 17l5-5-5-5M15 12H3"/></svg>
             Join meeting
           </button>
-          <button class="md-btn md-btn--primary" @click="createMeeting">
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          <button class="md-primary-btn" @click="createMeeting">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
             New meeting
           </button>
         </div>
-      </div>
-    </nav>
+      </header>
 
-    <!-- ── Main ──────────────────────────────────────────────────────────────── -->
-    <main class="md-main">
-
-      <div v-if="loading" class="md-state-panel">
-        <div class="md-spinner"></div>
-        <p class="md-state-text">Loading meetings…</p>
-      </div>
-
-      <div v-else-if="error" class="md-state-panel">
-        <div class="md-state-icon md-state-icon--red">
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+      <!-- Loading -->
+      <div v-if="loading" class="md-state-screen">
+        <div class="md-state-loader">
+          <div class="md-loader-ring"></div>
+          <p class="md-state-msg">Loading your meetings…</p>
         </div>
-        <p class="md-state-text">{{ error }}</p>
-        <button class="md-btn md-btn--primary" @click="fetchMeetingsData">Try again</button>
       </div>
 
+      <!-- Error -->
+      <div v-else-if="error" class="md-state-screen">
+        <div class="md-state-box md-state-box--error">
+          <div class="md-state-icon">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+          </div>
+          <p class="md-state-msg">{{ error }}</p>
+          <button class="md-primary-btn" @click="fetchMeetingsData">Try again</button>
+        </div>
+      </div>
+
+      <!-- Content -->
       <div v-else class="md-content">
 
-        <!-- ── Stats row ── -->
-        <div class="md-stats-row">
-          <div class="md-stat">
-            <div class="md-stat-icon md-stat-icon--blue">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="7" width="20" height="15" rx="2"/><polygon points="23 7 16 12 23 17 23 7"/></svg>
+        <!-- ── KPI strip ───────────────────────────────────────────────── -->
+        <div class="md-kpi-strip">
+          <div class="md-kpi">
+            <div class="md-kpi-icon md-kpi-icon--blue">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="2" y="7" width="20" height="15" rx="2"/><polygon points="23 7 16 12 23 17 23 7"/></svg>
             </div>
-            <div class="md-stat-body">
-              <span class="md-stat-label">Total meetings</span>
-              <span class="md-stat-val">{{ allMeetings.length }}</span>
-              <span class="md-stat-sub">All time</span>
-            </div>
-          </div>
-
-          <div class="md-stat" :class="{ 'md-stat--live': activeMeetings.length > 0 }">
-            <div class="md-stat-icon md-stat-icon--red">
-              <span v-if="activeMeetings.length > 0" class="md-live-ring"></span>
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="3" fill="currentColor" stroke="none"/></svg>
-            </div>
-            <div class="md-stat-body">
-              <div class="md-stat-label-row">
-                <span class="md-stat-label">Active now</span>
-                <span v-if="activeMeetings.length > 0" class="md-live-chip">LIVE</span>
-              </div>
-              <span class="md-stat-val">{{ activeMeetings.length }}</span>
-              <span class="md-stat-sub">{{ activeMeetings.length > 0 ? 'Meetings in progress' : 'No active meetings' }}</span>
+            <div class="md-kpi-body">
+              <span class="md-kpi-num">{{ allMeetings.length }}</span>
+              <span class="md-kpi-lbl">Total rooms</span>
             </div>
           </div>
-
-          <div class="md-stat">
-            <div class="md-stat-icon md-stat-icon--green">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>
+          <div class="md-kpi" :class="{ 'md-kpi--live': activeMeetings.length }">
+            <div class="md-kpi-icon md-kpi-icon--red">
+              <span v-if="activeMeetings.length" class="md-kpi-pulse"></span>
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="3" fill="currentColor" stroke="none"/></svg>
             </div>
-            <div class="md-stat-body">
-              <span class="md-stat-label">Rooms created</span>
-              <span class="md-stat-val">{{ allMeetings.length }}</span>
-              <span class="md-stat-sub">Via Daily.co</span>
+            <div class="md-kpi-body">
+              <span class="md-kpi-num">{{ activeMeetings.length }}</span>
+              <span class="md-kpi-lbl">Live now</span>
             </div>
           </div>
-
-          <div class="md-stat">
-            <div class="md-stat-icon md-stat-icon--amber">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+          <div class="md-kpi">
+            <div class="md-kpi-icon md-kpi-icon--purple">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>
             </div>
-            <div class="md-stat-body">
-              <span class="md-stat-label">Recent activity</span>
-              <span class="md-stat-val">{{ recentCount }}</span>
-              <span class="md-stat-sub">Last 7 days</span>
+            <div class="md-kpi-body">
+              <span class="md-kpi-num">{{ privateCount }}</span>
+              <span class="md-kpi-lbl">Private</span>
+            </div>
+          </div>
+          <div class="md-kpi">
+            <div class="md-kpi-icon md-kpi-icon--amber">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+            </div>
+            <div class="md-kpi-body">
+              <span class="md-kpi-num">{{ recentCount }}</span>
+              <span class="md-kpi-lbl">This week</span>
             </div>
           </div>
         </div>
 
-        <!-- ── Filter + Sort bar ── -->
-        <div class="md-filters">
-          <div class="md-filter-tabs">
-            <button v-for="tab in filterTabs" :key="tab.value" class="md-tab" :class="{ 'md-tab--active': activeFilter === tab.value }" @click="setFilter(tab.value)">
+        <!-- ── Active meetings banner ─────────────────────────────────── -->
+        <div v-if="activeMeetings.length" class="md-live-banner">
+          <div class="md-live-banner-hdr">
+            <div class="md-live-dot-wrap"><span class="md-live-dot"></span></div>
+            <span class="md-live-banner-title">{{ activeMeetings.length }} Active meeting{{ activeMeetings.length > 1 ? 's' : '' }}</span>
+          </div>
+          <div class="md-live-list">
+            <div v-for="m in activeMeetings" :key="m.name" class="md-live-row">
+              <div class="md-live-pulse"></div>
+              <div class="md-live-info">
+                <span class="md-live-name">{{ m.name }}</span>
+                <span class="md-live-meta">{{ getRelativeTime(m.created_at) }} · {{ m.privacy || 'public' }}</span>
+              </div>
+              <div class="md-live-actions">
+                <button class="md-live-join-btn" @click="joinMeetingWithCode(m.name)">
+                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+                  Join
+                </button>
+                <button class="md-live-end-btn" @click="promptEnd(m)">
+                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="9" y1="9" x2="15" y2="15"/><line x1="15" y1="9" x2="9" y2="15"/></svg>
+                  End
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ── Toolbar ────────────────────────────────────────────────── -->
+        <div class="md-toolbar">
+          <div class="md-tab-group">
+            <button v-for="tab in tabs" :key="tab.value"
+              class="md-tab" :class="{ 'md-tab--active': activeFilter === tab.value }"
+              @click="activeFilter = tab.value">
               {{ tab.label }}
-              <span v-if="tab.count > 0" class="md-tab-count">{{ tab.count }}</span>
+              <span class="md-tab-count" :class="{ 'md-tab-count--active': activeFilter === tab.value }">{{ tab.count }}</span>
             </button>
           </div>
-          <div class="md-sort-wrap" ref="sortWrap">
-            <button class="md-sort-btn" @click="toggleSortMenu">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 6h18M7 12h10M11 18h2"/></svg>
-              {{ currentSort.label }}
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="6 9 12 15 18 9"/></svg>
+          <div class="md-toolbar-right">
+            <div class="md-search-wrap">
+              <svg class="md-search-icon" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
+              <input class="md-search-input" v-model="search" placeholder="Search rooms…" />
+            </div>
+            <button class="md-refresh-btn" @click="fetchMeetingsData" :class="{ 'md-refresh-btn--spin': loading }">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 100 .49-4.5"/></svg>
             </button>
-            <transition name="md-drop">
-              <div v-if="showSortMenu" class="md-sort-menu">
-                <button v-for="opt in sortOptions" :key="opt.value" class="md-sort-opt" :class="{ 'md-sort-opt--active': currentSort.value === opt.value }" @click="setSortOption(opt)">
-                  <svg v-if="currentSort.value === opt.value" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="20 6 9 17 4 12"/></svg>
-                  <span v-else style="width:13px;display:inline-block"></span>
-                  {{ opt.label }}
-                </button>
-              </div>
-            </transition>
           </div>
         </div>
 
-        <!-- ── Body: list + sidebar ── -->
-        <div class="md-body-grid">
-          <div class="md-left-col">
+        <!-- ── Room grid ──────────────────────────────────────────────── -->
+        <div v-if="filteredMeetings.length === 0" class="md-empty">
+          <div class="md-empty-icon">
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><rect x="2" y="7" width="20" height="15" rx="2"/><polygon points="23 7 16 12 23 17 23 7"/></svg>
+          </div>
+          <p class="md-empty-title">No meetings found</p>
+          <p class="md-empty-sub">Create your first meeting to get started.</p>
+          <button class="md-primary-btn" @click="createMeeting">Create meeting</button>
+        </div>
 
-            <!-- Active meetings banner -->
-            <div v-if="activeMeetings.length > 0" class="md-panel md-active-panel">
-              <div class="md-panel-hdr">
-                <h2 class="md-panel-title">Active meetings</h2>
-                <span class="md-live-badge"><span class="md-live-dot"></span>LIVE</span>
+        <div v-else class="md-room-grid">
+          <div v-for="m in filteredMeetings" :key="m.name" class="md-room-card" :class="{ 'md-room-card--live': isRoomActive(m) }">
+
+            <div class="md-room-card-top">
+              <div class="md-room-status-row">
+                <span class="md-status-pill" :class="isRoomActive(m) ? 'md-status-pill--live' : m.privacy === 'private' ? 'md-status-pill--private' : 'md-status-pill--public'">
+                  <span v-if="isRoomActive(m)" class="md-status-blink"></span>
+                  {{ isRoomActive(m) ? 'Live' : m.privacy === 'private' ? 'Private' : 'Public' }}
+                </span>
+                <span class="md-room-time">{{ formatRoomTime(m) }}</span>
               </div>
-              <div class="md-panel-body">
-                <div class="md-active-list">
-                  <div v-for="m in activeMeetings" :key="m.id" class="md-active-row">
-                    <div class="md-active-pulse-wrap"><span class="md-active-pulse"></span></div>
-                    <div class="md-active-info">
-                      <div class="md-active-top">
-                        <span class="md-active-title">{{ m.name }}</span>
-                        <code class="md-active-code">{{ m.name }}</code>
-                      </div>
-                      <div class="md-active-meta">
-                        <span>
-                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
-                          {{ getRelativeTime(m.created_at) }}
-                        </span>
-                        <span>
-                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>
-                          {{ m.privacy || 'public' }}
-                        </span>
-                      </div>
-                    </div>
-                    <div class="md-active-actions">
-                      <button class="md-join-now-btn" @click="joinMeetingWithCode(m.name)">
-                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"/></svg>
-                        Join
-                      </button>
-                      <button class="md-restart-btn-sm" @click="promptRestart(m)" title="Restart">
-                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-4.5"/></svg>
-                        Restart
-                      </button>
-                      <button class="md-end-btn-sm" @click="promptEnd(m)" title="End meeting">
-                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="9" y1="9" x2="15" y2="15"/><line x1="15" y1="9" x2="9" y2="15"/></svg>
-                        End
-                      </button>
-                    </div>
-                  </div>
-                </div>
+              <h3 class="md-room-title">{{ m.name }}</h3>
+              <div class="md-room-code-row" @click="copyCode(m.name)" title="Copy room code">
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
+                <code class="md-room-code">{{ m.name }}</code>
               </div>
             </div>
 
-            <!-- Meeting cards panel -->
-            <div class="md-panel md-list-panel">
-              <div class="md-panel-hdr">
-                <h2 class="md-panel-title">{{ getFilterTitle() }}</h2>
-                <button class="md-refresh-btn" @click="fetchMeetingsData" :disabled="loading">
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-4.5"/></svg>
-                  Refresh
-                </button>
-              </div>
-              <div class="md-panel-body">
-
-                <div v-if="filteredMeetings.length === 0" class="md-empty">
-                  <div class="md-empty-icon">
-                    <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="7" width="20" height="15" rx="2"/><polygon points="23 7 16 12 23 17 23 7"/></svg>
-                  </div>
-                  <p class="md-empty-msg">{{ getEmptyStateMessage() }}</p>
-                  <div class="md-empty-actions">
-                    <button class="md-btn md-btn--primary" @click="createMeeting">New meeting</button>
-                    <button class="md-btn md-btn--ghost" @click="joinMeeting">Join instead</button>
-                  </div>
-                </div>
-
-                <div v-else class="md-card-grid">
-                  <!-- Each card = one Daily room returned by GET /api/meetings -->
-                  <div v-for="m in filteredMeetings" :key="m.id || m.name" class="md-mcard">
-                    <div class="md-mcard-top">
-                      <span class="md-status-chip" :class="getRoomStatusClass(m)">
-                        <span v-if="isRoomActive(m)" class="md-status-dot"></span>
-                        {{ getRoomStatusLabel(m) }}
-                      </span>
-                      <div class="md-mcard-topright">
-                        <span class="md-privacy-chip" :class="m.privacy === 'private' ? 'md-privacy--private' : 'md-privacy--public'">
-                          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
-                          {{ m.privacy || 'public' }}
-                        </span>
-                      </div>
-                    </div>
-
-                    <div class="md-mcard-body">
-                      <h3 class="md-mcard-title">{{ m.name }}</h3>
-
-                      <div class="md-mcard-code" @click="copyCode(m.name)" title="Click to copy">
-                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
-                        <code>{{ m.name }}</code>
-                        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" class="md-copy-icon"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
-                      </div>
-
-                      <div class="md-mcard-meta">
-                        <span class="md-meta-item">
-                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
-                          {{ formatRoomTime(m) }}
-                        </span>
-                        <span class="md-meta-item" v-if="m.url">
-                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
-                          <a :href="m.url" target="_blank" class="md-room-link">Open in Daily</a>
-                        </span>
-                      </div>
-                    </div>
-
-                    <div class="md-mcard-foot">
-                      <div class="md-mcard-actions">
-                        <button class="md-btn-join" @click="joinMeetingWithCode(m.name)">
-                          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"/></svg>
-                          Join
-                        </button>
-                        <button class="md-btn-restart" @click="promptRestart(m)">
-                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-4.5"/></svg>
-                          Restart
-                        </button>
-                        <button class="md-btn-end" @click="promptEnd(m)">
-                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="9" y1="9" x2="15" y2="15"/><line x1="15" y1="9" x2="9" y2="15"/></svg>
-                          Delete
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
+            <div class="md-room-card-foot">
+              <button class="md-card-join-btn" @click="joinMeetingWithCode(m.name)">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+                Join
+              </button>
+              <button class="md-card-icon-btn md-card-icon-btn--amber" @click="promptRestart(m)" title="Restart">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 100 .49-4.5"/></svg>
+              </button>
+              <button class="md-card-icon-btn md-card-icon-btn--red" @click="promptEnd(m)" title="Delete">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="9" y1="9" x2="15" y2="15"/><line x1="15" y1="9" x2="9" y2="15"/></svg>
+              </button>
             </div>
           </div>
-
-          <!-- Sidebar -->
-          <aside class="md-sidebar">
-            <div class="md-panel">
-              <div class="md-panel-hdr"><h2 class="md-panel-title">Statistics</h2></div>
-              <div class="md-panel-body">
-                <div class="md-sidebar-stats">
-                  <div class="md-ss-item">
-                    <div class="md-ss-icon md-ss-icon--blue">
-                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="7" width="20" height="15" rx="2"/><polygon points="23 7 16 12 23 17 23 7"/></svg>
-                    </div>
-                    <div class="md-ss-body">
-                      <span class="md-ss-val">{{ allMeetings.length }}</span>
-                      <span class="md-ss-lbl">Total rooms</span>
-                    </div>
-                  </div>
-                  <div class="md-ss-item">
-                    <div class="md-ss-icon md-ss-icon--red">
-                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="3" fill="currentColor" stroke="none"/></svg>
-                    </div>
-                    <div class="md-ss-body">
-                      <span class="md-ss-val">{{ activeMeetings.length }}</span>
-                      <span class="md-ss-lbl">Active now</span>
-                    </div>
-                  </div>
-                  <div class="md-ss-item">
-                    <div class="md-ss-icon md-ss-icon--purple">
-                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
-                    </div>
-                    <div class="md-ss-body">
-                      <span class="md-ss-val">{{ privateCount }}</span>
-                      <span class="md-ss-lbl">Private rooms</span>
-                    </div>
-                  </div>
-                  <div class="md-ss-item">
-                    <div class="md-ss-icon md-ss-icon--amber">
-                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
-                    </div>
-                    <div class="md-ss-body">
-                      <span class="md-ss-val">{{ recentCount }}</span>
-                      <span class="md-ss-lbl">Last 7 days</span>
-                    </div>
-                  </div>
-                </div>
-
-                <!-- Activity chart -->
-                <div class="md-chart-section">
-                  <h3 class="md-chart-title">Meeting activity</h3>
-                  <div class="md-chart">
-                    <div v-for="(day, i) in activityData" :key="i" class="md-chart-col">
-                      <div class="md-chart-track">
-                        <div class="md-chart-bar" :style="{ height: day.percentage + '%' }"></div>
-                      </div>
-                      <span class="md-chart-lbl">{{ day.label }}</span>
-                    </div>
-                  </div>
-                </div>
-
-                <div class="md-quick-stats">
-                  <div class="md-qs-row">
-                    <span class="md-qs-lbl">Public rooms</span>
-                    <span class="md-qs-val">{{ allMeetings.length - privateCount }}</span>
-                  </div>
-                  <div class="md-qs-row">
-                    <span class="md-qs-lbl">Private rooms</span>
-                    <span class="md-qs-val">{{ privateCount }}</span>
-                  </div>
-                  <div class="md-qs-row">
-                    <span class="md-qs-lbl">Active rate</span>
-                    <span class="md-qs-val">{{ allMeetings.length ? Math.round((activeMeetings.length / allMeetings.length) * 100) : 0 }}%</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </aside>
         </div>
       </div>
-    </main>
+    </div>
 
-    <!-- ── End Meeting Modal ─────────────────────────────────────────────────── -->
-    <transition name="md-modal-fx">
+    <!-- ── End Modal ────────────────────────────────────────────────────── -->
+    <transition name="md-modal">
       <div v-if="modal.show && modal.type === 'end'" class="md-modal-overlay" @click.self="closeModal">
         <div class="md-modal">
           <div class="md-modal-icon md-modal-icon--red">
-            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="9" y1="9" x2="15" y2="15"/><line x1="15" y1="9" x2="9" y2="15"/></svg>
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="9" y1="9" x2="15" y2="15"/><line x1="15" y1="9" x2="9" y2="15"/></svg>
           </div>
           <h2 class="md-modal-title">Delete "{{ modal.meeting?.name }}"?</h2>
-          <p class="md-modal-body">
-            This calls <code>DELETE /api/meetings/{{ modal.meeting?.name }}</code> — the Daily room will be permanently removed and all participants disconnected.
-          </p>
+          <p class="md-modal-body">This room will be permanently removed and all participants disconnected.</p>
           <div class="md-modal-actions">
-            <button class="md-modal-btn md-modal-btn--ghost" @click="closeModal" :disabled="modal.loading">Cancel</button>
-            <button class="md-modal-btn md-modal-btn--danger" @click="confirmEnd" :disabled="modal.loading">
-              <span v-if="modal.loading" class="md-modal-spinner"></span>
-              <svg v-else width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="9" y1="9" x2="15" y2="15"/><line x1="15" y1="9" x2="9" y2="15"/></svg>
-              Delete for everyone
+            <button class="md-ghost-btn" @click="closeModal" :disabled="modal.loading">Cancel</button>
+            <button class="md-danger-btn" @click="confirmEnd" :disabled="modal.loading">
+              <span v-if="modal.loading" class="md-btn-spinner"></span>
+              Delete room
             </button>
           </div>
         </div>
       </div>
     </transition>
 
-    <!-- ── Restart Meeting Modal ──────────────────────────────────────────────── -->
-    <transition name="md-modal-fx">
+    <!-- ── Restart Modal ────────────────────────────────────────────────── -->
+    <transition name="md-modal">
       <div v-if="modal.show && modal.type === 'restart'" class="md-modal-overlay" @click.self="closeModal">
         <div class="md-modal">
-          <div class="md-modal-icon md-modal-icon--orange">
-            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-4.5"/></svg>
+          <div class="md-modal-icon md-modal-icon--amber">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 100 .49-4.5"/></svg>
           </div>
           <h2 class="md-modal-title">Restart "{{ modal.meeting?.name }}"?</h2>
-          <p class="md-modal-body">
-            The room will be deleted then recreated with the same name. Participants can rejoin using the same code.
-          </p>
+          <p class="md-modal-body">The room will be deleted then re-created. Participants can rejoin with the same code.</p>
           <div class="md-modal-actions">
-            <button class="md-modal-btn md-modal-btn--ghost" @click="closeModal" :disabled="modal.loading">Cancel</button>
-            <button class="md-modal-btn md-modal-btn--orange" @click="confirmRestart" :disabled="modal.loading">
-              <span v-if="modal.loading" class="md-modal-spinner"></span>
-              <svg v-else width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-4.5"/></svg>
+            <button class="md-ghost-btn" @click="closeModal" :disabled="modal.loading">Cancel</button>
+            <button class="md-amber-btn" @click="confirmRestart" :disabled="modal.loading">
+              <span v-if="modal.loading" class="md-btn-spinner"></span>
               Restart meeting
             </button>
           </div>
@@ -399,221 +261,137 @@
     </transition>
 
     <!-- Toast -->
-    <transition name="md-toast-fx">
+    <transition name="md-toast">
       <div v-if="toast.show" class="md-toast" :class="'md-toast--' + toast.type">
-        <svg v-if="toast.type === 'success'" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="20 6 9 17 4 12"/></svg>
-        <svg v-else width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
+        <svg v-if="toast.type === 'success'" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="20 6 9 17 4 12"/></svg>
+        <svg v-else width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
         <span>{{ toast.message }}</span>
       </div>
     </transition>
   </div>
 </template>
 
-<!-- MeetingsDashboard.vue — Jitsi aligned -->
-<!-- Only the <script> section changes significantly; template & styles are identical to your original -->
 <script>
 import { TokenService, apiRequest } from '@/utils/apiService';
 import { MeetingSession } from '@/utils/meetingSession';
 
 export default {
   name: 'MeetingsDashboard',
-
   data() {
     return {
       loading: true,
-      error:   null,
-      allMeetings:    [],
+      error: null,
+      allMeetings: [],
       activeMeetings: [],
-      activityData:   [],
-
       activeFilter: 'all',
-      filterTabs:   [
-        { label: 'All',     value: 'all',     count: 0 },
-        { label: 'Private', value: 'private', count: 0 },
-        { label: 'Public',  value: 'public',  count: 0 },
-      ],
-
-      showSortMenu: false,
-      currentSort: { label: 'Most recent', value: 'recent' },
-      sortOptions: [
-        { label: 'Most recent',  value: 'recent' },
-        { label: 'Oldest first', value: 'oldest' },
-        { label: 'Name A→Z',     value: 'name-asc' },
-        { label: 'Name Z→A',     value: 'name-desc' },
-      ],
-
+      search: '',
       modal: { show: false, type: null, meeting: null, loading: false },
       toast: { show: false, message: '', type: 'success' },
     };
   },
-
   computed: {
     isAuthenticated() { return TokenService.isAuthenticated(); },
-
-    filteredMeetings() {
-      let list = [...this.allMeetings];
-      if (this.activeFilter === 'private') list = list.filter(m => m.privacy === 'private');
-      else if (this.activeFilter === 'public') list = list.filter(m => m.privacy !== 'private');
-      list.sort((a, b) => {
-        switch (this.currentSort.value) {
-          case 'recent':   return new Date(b.created_at || 0) - new Date(a.created_at || 0);
-          case 'oldest':   return new Date(a.created_at || 0) - new Date(b.created_at || 0);
-          case 'name-asc': return (a.name || '').localeCompare(b.name || '');
-          case 'name-desc':return (b.name || '').localeCompare(a.name || '');
-          default: return 0;
-        }
-      });
-      return list;
-    },
-
-    privateCount() { return this.allMeetings.filter(m => m.privacy === 'private').length; },
-
+    privateCount()    { return this.allMeetings.filter(m => m.privacy === 'private').length; },
     recentCount() {
       const cutoff = Date.now() - 7 * 24 * 60 * 60 * 1000;
       return this.allMeetings.filter(m => m.created_at && new Date(m.created_at) > cutoff).length;
     },
+    tabs() {
+      const all     = this.allMeetings.length;
+      const priv    = this.privateCount;
+      const pub     = all - priv;
+      const live    = this.activeMeetings.length;
+      return [
+        { label: 'All',     value: 'all',     count: all },
+        { label: 'Live',    value: 'live',    count: live },
+        { label: 'Public',  value: 'public',  count: pub },
+        { label: 'Private', value: 'private', count: priv },
+      ];
+    },
+    filteredMeetings() {
+      let list = [...this.allMeetings];
+      if (this.activeFilter === 'live')    list = list.filter(m => m.active === true);
+      if (this.activeFilter === 'public')  list = list.filter(m => m.privacy !== 'private');
+      if (this.activeFilter === 'private') list = list.filter(m => m.privacy === 'private');
+      if (this.search) {
+        const q = this.search.toLowerCase();
+        list = list.filter(m => (m.name || '').toLowerCase().includes(q));
+      }
+      return list.sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0));
+    },
   },
-
   methods: {
-
     async fetchMeetingsData() {
-      this.loading = true;
-      this.error   = null;
+      this.loading = true; this.error = null;
       try {
         if (!TokenService.getAccessToken()) { this.$router.push('/auth'); return; }
-
         const res  = await apiRequest('/meetings?limit=100', { method: 'GET' });
         if (!res.ok) throw new Error(`Server returned ${res.status}`);
-
         const body = await res.json();
-
-        // Handle both array and wrapped responses
-        let raw = [];
-        if (Array.isArray(body))            raw = body;
-        else if (Array.isArray(body.data))  raw = body.data;
-        else if (Array.isArray(body.rooms)) raw = body.rooms;
-
+        let raw = Array.isArray(body) ? body : (body.data || body.rooms || []);
         this.allMeetings    = raw;
         this.activeMeetings = raw.filter(m => m.active === true);
-        this.updateFilterCounts();
-        this.generateActivityData();
-
       } catch (e) {
-        console.error('[MeetingsDashboard] fetch error:', e);
+        console.error('[MeetingsDashboard]', e);
         this.error = 'Failed to load meetings. Please try again.';
       } finally {
         this.loading = false;
       }
     },
 
-    updateFilterCounts() {
-      this.filterTabs.forEach(t => {
-        if (t.value === 'all')     t.count = this.allMeetings.length;
-        if (t.value === 'private') t.count = this.privateCount;
-        if (t.value === 'public')  t.count = this.allMeetings.length - this.privateCount;
-      });
-    },
+    isRoomActive(m)    { return m.active === true; },
+    formatRoomTime(m)  { return m.created_at ? this.getRelativeTime(m.created_at) : ''; },
 
-    generateActivityData() {
-      const days   = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-      const counts = new Array(7).fill(0);
-      this.allMeetings.forEach(m => {
-        if (!m.created_at) return;
-        const idx = (new Date(m.created_at).getDay() + 6) % 7;
-        counts[idx]++;
-      });
-      const maxCount = Math.max(...counts, 1);
-      this.activityData = days.map((label, i) => ({
-        label, count: counts[i],
-        percentage: Math.max((counts[i] / maxCount) * 100, counts[i] > 0 ? 8 : 3),
-      }));
-    },
+    createMeeting()    { sessionStorage.removeItem('nova_meeting_code'); this.$router.push({ path: '/meeting', query: { create: 'true' } }); },
 
-    isRoomActive(m)       { return m.active === true; },
-    getRoomStatusClass(m) { return this.isRoomActive(m) ? 'md-status--live' : m.privacy === 'private' ? 'md-status--private' : 'md-status--public'; },
-    getRoomStatusLabel(m) { return this.isRoomActive(m) ? 'Live' : m.privacy === 'private' ? 'Private' : 'Public'; },
-    formatRoomTime(m)     { return m.created_at ? `Created ${this.getRelativeTime(m.created_at)}` : 'Unknown date'; },
-
-    setFilter(v)       { this.activeFilter = v; },
-    toggleSortMenu()   { this.showSortMenu = !this.showSortMenu; },
-    setSortOption(opt) { this.currentSort = opt; this.showSortMenu = false; },
-    getFilterTitle()   { return (this.filterTabs.find(t => t.value === this.activeFilter) || {}).label || 'Meetings'; },
-    getEmptyStateMessage() {
-      const map = { private: 'No private rooms.', public: 'No public rooms.' };
-      return map[this.activeFilter] || 'No meetings yet. Create your first!';
-    },
-
-    createMeeting() {
-      sessionStorage.removeItem('nova_meeting_code');
-      this.$router.push({ path: '/meeting', query: { create: 'true' } });
-    },
-    joinMeeting()             { this.$router.push({ path: '/join-meeting' }); },
     joinMeetingWithCode(code) {
       MeetingSession.setMeetingCode(code);
       MeetingSession.setIsHost(false);
-      this.$router.push({ path: '/meeting' });
+      this.$router.push('/meeting');
     },
 
     copyCode(code) {
       navigator.clipboard.writeText(code)
         .then(() => this.showToast('Code copied!', 'success'))
-        .catch(() => this.showToast('Failed to copy', 'error'));
+        .catch(() => this.showToast('Copy failed', 'error'));
     },
 
-    promptEnd(meeting)     { this.modal = { show: true, type: 'end',     meeting, loading: false }; },
-    promptRestart(meeting) { this.modal = { show: true, type: 'restart', meeting, loading: false }; },
+    promptEnd(m)     { this.modal = { show: true, type: 'end',     meeting: m, loading: false }; },
+    promptRestart(m) { this.modal = { show: true, type: 'restart', meeting: m, loading: false }; },
+    closeModal()     { this.modal = { show: false, type: null, meeting: null, loading: false }; },
 
     async confirmEnd() {
       this.modal.loading = true;
       const code = this.modal.meeting.name;
       try {
         const res = await apiRequest(`/meetings/${encodeURIComponent(code)}`, { method: 'DELETE' });
-        if (!res.ok) {
-          const d = await res.json().catch(() => ({}));
-          throw new Error(d.message || `Delete failed (HTTP ${res.status})`);
-        }
+        if (!res.ok) { const d = await res.json().catch(() => ({})); throw new Error(d.message || `Delete failed (${res.status})`); }
         this.allMeetings    = this.allMeetings.filter(m => m.name !== code);
         this.activeMeetings = this.activeMeetings.filter(m => m.name !== code);
-        this.updateFilterCounts();
-        this.showToast(`"${code}" deleted.`, 'success');
-      } catch (err) {
-        this.showToast('Failed to delete: ' + err.message, 'error');
-      } finally {
-        this.modal.loading = false;
-        this.closeModal();
-      }
+        this.showToast(`"${code}" deleted`, 'success');
+      } catch (e) { this.showToast('Failed: ' + e.message, 'error'); }
+      finally { this.modal.loading = false; this.closeModal(); }
     },
 
     async confirmRestart() {
       this.modal.loading = true;
-      const m    = this.modal.meeting;
-      const name = m.name;
+      const m = this.modal.meeting;
       try {
-        await apiRequest(`/meetings/${encodeURIComponent(name)}`, { method: 'DELETE' }).catch(() => {});
-        await apiRequest('/meetings/create', {
-          method: 'POST',
-          body: JSON.stringify({ roomName: name, private: m.privacy === 'private' }),
-        });
-        this.showToast(`"${name}" restarted!`, 'success');
-        setTimeout(() => this.fetchMeetingsData(), 800);
-      } catch (err) {
-        this.showToast('Failed to restart: ' + err.message, 'error');
-      } finally {
-        this.modal.loading = false;
-        this.closeModal();
-      }
+        await apiRequest(`/meetings/${encodeURIComponent(m.name)}`, { method: 'DELETE' }).catch(() => {});
+        await apiRequest('/meetings/create', { method: 'POST', body: JSON.stringify({ roomName: m.name, private: m.privacy === 'private' }) });
+        this.showToast(`"${m.name}" restarted!`, 'success');
+        setTimeout(() => this.fetchMeetingsData(), 600);
+      } catch (e) { this.showToast('Failed: ' + e.message, 'error'); }
+      finally { this.modal.loading = false; this.closeModal(); }
     },
-
-    closeModal() { this.modal = { show: false, type: null, meeting: null, loading: false }; },
 
     getRelativeTime(ds) {
       if (!ds) return '';
       const d = Math.floor((Date.now() - new Date(ds)) / 1000);
-      if (d < 60)     return 'just now';
-      if (d < 3600)   return `${Math.floor(d / 60)}m ago`;
-      if (d < 86400)  return `${Math.floor(d / 3600)}h ago`;
-      if (d < 604800) return `${Math.floor(d / 86400)}d ago`;
-      return `${Math.floor(d / 604800)}w ago`;
+      if (d < 60)    return 'just now';
+      if (d < 3600)  return `${Math.floor(d/60)}m ago`;
+      if (d < 86400) return `${Math.floor(d/3600)}h ago`;
+      return `${Math.floor(d/86400)}d ago`;
     },
 
     showToast(msg, type = 'success') {
@@ -621,246 +399,320 @@ export default {
       setTimeout(() => { this.toast.show = false; }, 3500);
     },
   },
-
   mounted() {
     if (!this.isAuthenticated) { this.$router.push('/auth'); return; }
-    document.addEventListener('click', e => {
-      if (this.$refs.sortWrap && !this.$refs.sortWrap.contains(e.target)) this.showSortMenu = false;
-    });
     this.fetchMeetingsData();
   },
 };
 </script>
 
 <style scoped>
-@import url('https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Space+Grotesk:wght@400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600&display=swap');
 
-.md-wrap {
-  --md-blue:#4a90e2;--md-blue-dk:#2c6fbd;--md-blue-soft:#e8f2fc;--md-blue-mid:#c9dff5;
-  --md-blue-glow:rgba(74,144,226,.22);--md-ink:#0d1b36;--md-ink-s:#2d3748;--md-ink-m:#64748b;
-  --md-white:#ffffff;--md-border:#e2ecf6;--md-bg:#f8fafc;--md-purple:#8b5cf6;
-  --md-green:#10b981;--md-orange:#f59e0b;--md-red:#ef4444;
-  --md-surf:#ffffff;--md-surf2:#f0f6fd;
-  --md-shadow-sm:0 1px 3px rgba(13,27,54,.08);--md-shadow-md:0 4px 12px rgba(13,27,54,.10);
-  --md-shadow-lg:0 10px 28px rgba(13,27,54,.12);--md-r:12px;
-  font-family:'Manrope',system-ui,sans-serif;background:var(--md-bg);color:var(--md-ink);
-  min-height:100vh;display:flex;flex-direction:column;
+.md-shell {
+  --md-bg:     #0a0c10;
+  --md-surf:   #111318;
+  --md-surf2:  #181c24;
+  --md-surf3:  #1e2230;
+  --md-bd:     rgba(255,255,255,.07);
+  --md-bd2:    rgba(255,255,255,.11);
+  --md-blue:   #3b8eea;
+  --md-blg:    rgba(59,142,234,.25);
+  --md-green:  #22c55e;
+  --md-red:    #ef4444;
+  --md-amber:  #f59e0b;
+  --md-purple: #8b5cf6;
+  --md-text:   #e6eaf2;
+  --md-t2:     #8892a4;
+  --md-t3:     #525c6e;
+  --md-r:      10px;
+  font-family: 'DM Sans', system-ui, sans-serif;
+  background: var(--md-bg);
+  color: var(--md-text);
+  min-height: 100vh;
+  display: grid;
+  grid-template-columns: 220px 1fr;
 }
-.md-wrap * { box-sizing:border-box;margin:0;padding:0; }
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
-/* Nav */
-.md-nav{height:64px;flex-shrink:0;background:var(--md-white);border-bottom:1px solid var(--md-border);position:sticky;top:0;z-index:100;box-shadow:var(--md-shadow-sm)}
-.md-nav-inner{height:100%;max-width:1600px;margin:0 auto;padding:0 28px;display:flex;align-items:center;justify-content:space-between}
-.md-nav-left,.md-nav-right{display:flex;align-items:center;gap:14px}
-.md-back{display:flex;align-items:center;gap:7px;color:var(--md-ink-m);text-decoration:none;font-size:13px;font-weight:600;padding:7px 12px;border-radius:var(--md-r);transition:all .15s}
-.md-back:hover{background:var(--md-blue-soft);color:var(--md-blue)}
-.md-nav-divider{width:1px;height:22px;background:var(--md-border)}
-.md-page-id{display:flex;align-items:center;gap:12px}
-.md-brand{display:flex;align-items:center;gap:8px}
-.md-brand svg{border-radius:8px;box-shadow:var(--md-shadow-sm)}
-.md-brand-name{font-family:'Space Grotesk',sans-serif;font-size:16px;font-weight:700;color:var(--md-ink)}
-.md-page-meta{display:flex;flex-direction:column;gap:1px;padding-left:12px;border-left:1px solid var(--md-border)}
-.md-page-title{font-size:14px;font-weight:700;color:var(--md-ink);line-height:1.2}
-.md-page-sub{font-size:11px;color:var(--md-ink-m);font-weight:500}
-.md-btn{display:inline-flex;align-items:center;gap:7px;padding:8px 18px;border-radius:var(--md-r);font-family:'Manrope',sans-serif;font-size:13px;font-weight:700;cursor:pointer;border:none;transition:all .18s}
-.md-btn--ghost{background:transparent;border:1.5px solid var(--md-border);color:var(--md-ink-m)}
-.md-btn--ghost:hover{border-color:var(--md-blue);color:var(--md-blue);background:var(--md-blue-soft)}
-.md-btn--primary{background:var(--md-blue);color:var(--md-white);box-shadow:0 2px 10px var(--md-blue-glow)}
-.md-btn--primary:hover{background:var(--md-blue-dk);transform:translateY(-1px)}
+/* ── Sidebar ──────────────────────────────────────────────── */
+.md-sidebar {
+  background: var(--md-surf); border-right: 1px solid var(--md-bd);
+  display: flex; flex-direction: column;
+  position: sticky; top: 0; height: 100vh; overflow-y: auto;
+}
+.md-sb-brand {
+  display: flex; align-items: center; gap: 9px;
+  padding: 20px 18px 18px; border-bottom: 1px solid var(--md-bd);
+}
+.md-sb-logo {
+  width: 30px; height: 30px; border-radius: 8px;
+  background: linear-gradient(135deg,#3b8eea,#5b6df8);
+  display: flex; align-items: center; justify-content: center;
+  box-shadow: 0 4px 12px var(--md-blg); flex-shrink: 0;
+}
+.md-sb-brand-name { font-family:'Syne',sans-serif; font-size:16px; font-weight:700; color:var(--md-text); }
+.md-sb-accent { color:var(--md-blue); }
 
-/* Main */
-.md-main{flex:1;max-width:1600px;margin:0 auto;padding:28px;width:100%}
-.md-state-panel{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:380px;gap:16px;background:var(--md-white);border:1px solid var(--md-border);border-radius:16px;padding:48px;box-shadow:var(--md-shadow-sm)}
-.md-state-text{font-size:15px;color:var(--md-ink-m);font-weight:600}
-.md-spinner{width:40px;height:40px;border:3px solid var(--md-blue-mid);border-top-color:var(--md-blue);border-radius:50%;animation:md-spin .75s linear infinite}
-@keyframes md-spin{to{transform:rotate(360deg)}}
-.md-state-icon{width:52px;height:52px;border-radius:50%;display:flex;align-items:center;justify-content:center}
-.md-state-icon--red{background:rgba(239,68,68,0.1);color:var(--md-red);border:1px solid rgba(239,68,68,0.2)}
-.md-content{display:flex;flex-direction:column;gap:20px}
+.md-sb-nav { flex:1; padding:14px 10px; display:flex; flex-direction:column; gap:2px; }
+.md-sb-section { font-size:10px; font-weight:700; letter-spacing:1.5px; color:var(--md-t3); text-transform:uppercase; padding:8px 10px 4px; }
+.md-sb-item {
+  display:flex; align-items:center; gap:9px;
+  padding:9px 12px; border-radius:8px;
+  background:transparent; border:none;
+  color:var(--md-t2); font-family:'DM Sans',sans-serif; font-size:13px; font-weight:500;
+  cursor:pointer; transition:all .15s; text-align:left; width:100%;
+}
+.md-sb-item:hover { background:var(--md-surf2); color:var(--md-text); }
+.md-sb-item--active { background:rgba(59,142,234,.1); border:1px solid rgba(59,142,234,.2); color:var(--md-blue); font-weight:600; }
+.md-sb-badge {
+  margin-left:auto; min-width:18px; height:18px; padding:0 5px; border-radius:9px;
+  font-size:10px; font-weight:700; display:flex; align-items:center; justify-content:center;
+}
+.md-sb-badge--red { background:rgba(239,68,68,.15); border:1px solid rgba(239,68,68,.25); color:#f87171; }
 
-/* Stats */
-.md-stats-row{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}
-.md-stat{background:var(--md-white);border:1px solid var(--md-border);border-radius:14px;padding:18px 20px;display:flex;align-items:flex-start;gap:14px;transition:border-color .15s,box-shadow .15s,transform .15s;box-shadow:var(--md-shadow-sm)}
-.md-stat:hover{border-color:var(--md-blue-mid);box-shadow:var(--md-shadow-md);transform:translateY(-1px)}
-.md-stat--live{border-color:rgba(239,68,68,.3)}
-.md-stat-icon{width:44px;height:44px;border-radius:12px;flex-shrink:0;display:flex;align-items:center;justify-content:center;position:relative}
-.md-stat-icon--blue{background:var(--md-blue-soft);color:var(--md-blue)}
-.md-stat-icon--red{background:rgba(239,68,68,.10);color:var(--md-red)}
-.md-stat-icon--green{background:rgba(16,185,129,.12);color:var(--md-green)}
-.md-stat-icon--amber{background:rgba(245,158,11,.12);color:var(--md-orange)}
-.md-live-ring{position:absolute;inset:-5px;border-radius:50%;border:2px solid rgba(239,68,68,.35);animation:md-ring-pulse 2s ease-out infinite}
-@keyframes md-ring-pulse{0%{opacity:.8;transform:scale(1)}100%{opacity:0;transform:scale(1.6)}}
-.md-stat-body{flex:1;display:flex;flex-direction:column;gap:3px}
-.md-stat-label-row{display:flex;align-items:center;gap:8px}
-.md-stat-label{font-size:12px;font-weight:700;color:var(--md-ink-m);letter-spacing:.2px;text-transform:uppercase}
-.md-stat-val{font-family:'Space Grotesk',sans-serif;font-size:30px;font-weight:700;color:var(--md-ink);line-height:1.1}
-.md-stat-sub{font-size:11px;color:var(--md-ink-m);font-weight:500}
-.md-live-chip{font-size:9px;font-weight:800;letter-spacing:.6px;padding:2px 6px;border-radius:4px;background:rgba(239,68,68,.10);color:var(--md-red);border:1px solid rgba(239,68,68,.25);animation:md-blink 2s ease-in-out infinite}
-@keyframes md-blink{0%,100%{opacity:1}50%{opacity:.5}}
+.md-sb-bottom { padding:14px 10px; border-top:1px solid var(--md-bd); }
+.md-sb-stats-mini { display:flex; align-items:center; justify-content:space-around; background:var(--md-surf2); border:1px solid var(--md-bd2); border-radius:var(--md-r); padding:12px; }
+.md-sb-stat { display:flex; flex-direction:column; align-items:center; gap:2px; }
+.md-sb-stat-val { font-family:'Syne',sans-serif; font-size:18px; font-weight:700; color:var(--md-text); }
+.md-sb-stat-val--live { color:var(--md-red); }
+.md-sb-stat-lbl { font-size:10px; color:var(--md-t3); font-weight:500; letter-spacing:.3px; }
+.md-sb-divider-v { width:1px; height:28px; background:var(--md-bd2); }
 
-/* Filters */
-.md-filters{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
-.md-filter-tabs{display:flex;gap:4px;background:var(--md-white);border:1px solid var(--md-border);border-radius:12px;padding:4px;box-shadow:var(--md-shadow-sm)}
-.md-tab{display:flex;align-items:center;gap:7px;padding:8px 16px;border:none;background:transparent;color:var(--md-ink-m);font-family:'Manrope',sans-serif;font-size:13px;font-weight:600;border-radius:8px;cursor:pointer;transition:all .15s}
-.md-tab:hover{color:var(--md-blue);background:var(--md-blue-soft)}
-.md-tab--active{background:var(--md-blue);color:var(--md-white);box-shadow:0 2px 8px var(--md-blue-glow)}
-.md-tab-count{min-width:18px;height:18px;padding:0 5px;border-radius:9px;font-size:10px;font-weight:700;display:inline-flex;align-items:center;justify-content:center;background:rgba(255,255,255,.25)}
-.md-tab:not(.md-tab--active) .md-tab-count{background:var(--md-blue-soft);color:var(--md-blue)}
-.md-sort-wrap{position:relative}
-.md-sort-btn{display:flex;align-items:center;gap:7px;padding:8px 14px;background:var(--md-white);border:1px solid var(--md-border);border-radius:var(--md-r);color:var(--md-ink-m);font-family:'Manrope',sans-serif;font-size:13px;font-weight:600;cursor:pointer;transition:all .15s;box-shadow:var(--md-shadow-sm)}
-.md-sort-btn:hover{border-color:var(--md-blue);color:var(--md-blue);background:var(--md-blue-soft)}
-.md-sort-menu{position:absolute;top:calc(100% + 6px);right:0;min-width:190px;background:var(--md-white);border:1px solid var(--md-border);border-radius:12px;box-shadow:var(--md-shadow-lg);padding:6px;z-index:50}
-.md-sort-opt{display:flex;align-items:center;gap:8px;width:100%;padding:9px 12px;border:none;background:transparent;border-radius:8px;color:var(--md-ink-m);font-family:'Manrope',sans-serif;font-size:13px;font-weight:600;cursor:pointer;transition:all .12s}
-.md-sort-opt:hover{background:var(--md-blue-soft);color:var(--md-blue)}
-.md-sort-opt--active{color:var(--md-blue);background:var(--md-blue-soft)}
-.md-drop-enter-active,.md-drop-leave-active{transition:opacity .15s,transform .15s}
-.md-drop-enter-from,.md-drop-leave-to{opacity:0;transform:translateY(-6px)}
+/* ── Main ────────────────────────────────────────────────── */
+.md-main { display:flex; flex-direction:column; min-height:100vh; overflow-y:auto; }
 
-/* Body grid */
-.md-body-grid{display:grid;grid-template-columns:1fr 300px;gap:18px}
-.md-left-col{display:flex;flex-direction:column;gap:18px;min-width:0}
-.md-panel{background:var(--md-white);border:1px solid var(--md-border);border-radius:16px;overflow:hidden;box-shadow:var(--md-shadow-sm)}
-.md-panel-hdr{padding:18px 22px;border-bottom:1px solid var(--md-border);display:flex;align-items:center;justify-content:space-between;background:linear-gradient(to right,var(--md-white),var(--md-surf2))}
-.md-panel-title{font-family:'Space Grotesk',sans-serif;font-size:16px;font-weight:700;color:var(--md-ink)}
-.md-panel-body{padding:20px 22px}
-.md-active-panel{border-color:rgba(239,68,68,.25)}
-.md-live-badge{display:flex;align-items:center;gap:6px;font-size:10px;font-weight:800;letter-spacing:.5px;padding:4px 10px;border-radius:20px;background:rgba(239,68,68,.10);border:1px solid rgba(239,68,68,.25);color:var(--md-red)}
-.md-live-dot{width:6px;height:6px;border-radius:50%;background:var(--md-red);animation:md-blink 2s ease-in-out infinite}
-.md-active-list{display:flex;flex-direction:column;gap:10px}
-.md-active-row{display:flex;align-items:center;gap:14px;padding:14px 16px;border-radius:12px;background:var(--md-surf2);border:1px solid var(--md-border);border-left:3px solid var(--md-red);flex-wrap:wrap;transition:background .15s}
-.md-active-row:hover{background:var(--md-blue-soft)}
-.md-active-pulse-wrap{position:relative;width:10px;height:10px;flex-shrink:0}
-.md-active-pulse{position:absolute;inset:0;border-radius:50%;background:var(--md-red)}
-.md-active-pulse::after{content:'';position:absolute;inset:-3px;border-radius:50%;border:2px solid var(--md-red);animation:md-ring-pulse 1.8s ease-out infinite}
-.md-active-info{flex:1;min-width:0;display:flex;flex-direction:column;gap:5px}
-.md-active-top{display:flex;align-items:center;gap:10px}
-.md-active-title{font-size:14px;font-weight:700;color:var(--md-ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.md-active-code{font-family:'Space Grotesk',monospace;font-size:11px;color:var(--md-blue);background:var(--md-blue-soft);padding:3px 8px;border-radius:5px;border:1px solid var(--md-blue-mid);white-space:nowrap;flex-shrink:0}
-.md-active-meta{display:flex;align-items:center;gap:14px;flex-wrap:wrap}
-.md-active-meta span{display:flex;align-items:center;gap:5px;font-size:12px;color:var(--md-ink-m);font-weight:600}
-.md-active-actions{display:flex;align-items:center;gap:6px;flex-shrink:0}
-.md-join-now-btn{display:flex;align-items:center;gap:5px;padding:7px 13px;background:var(--md-blue);color:var(--md-white);border:none;border-radius:8px;font-family:'Manrope',sans-serif;font-size:12px;font-weight:700;cursor:pointer;box-shadow:0 2px 8px var(--md-blue-glow);transition:all .15s}
-.md-join-now-btn:hover{background:var(--md-blue-dk);transform:translateY(-1px)}
-.md-restart-btn-sm{display:flex;align-items:center;gap:5px;padding:7px 11px;background:rgba(245,158,11,.12);color:#d97706;border:1.5px solid rgba(245,158,11,.35);border-radius:8px;font-family:'Manrope',sans-serif;font-size:12px;font-weight:700;cursor:pointer;transition:all .15s}
-.md-restart-btn-sm:hover{background:rgba(245,158,11,.22)}
-.md-end-btn-sm{display:flex;align-items:center;gap:5px;padding:7px 11px;background:rgba(239,68,68,.10);color:var(--md-red);border:1.5px solid rgba(239,68,68,.3);border-radius:8px;font-family:'Manrope',sans-serif;font-size:12px;font-weight:700;cursor:pointer;transition:all .15s}
-.md-end-btn-sm:hover{background:var(--md-red);color:var(--md-white);border-color:var(--md-red)}
-.md-refresh-btn{display:flex;align-items:center;gap:6px;padding:6px 12px;background:transparent;border:1px solid var(--md-border);border-radius:8px;color:var(--md-ink-m);font-family:'Manrope',sans-serif;font-size:12px;font-weight:600;cursor:pointer;transition:all .15s}
-.md-refresh-btn:hover{border-color:var(--md-blue);color:var(--md-blue)}
-.md-refresh-btn:disabled{opacity:.4;cursor:not-allowed}
+/* ── Header ──────────────────────────────────────────────── */
+.md-header {
+  display:flex; align-items:center; justify-content:space-between;
+  padding:24px 28px; border-bottom:1px solid var(--md-bd);
+  background:rgba(10,12,16,.8); backdrop-filter:blur(10px);
+  position:sticky; top:0; z-index:20;
+}
+.md-page-title { font-family:'Syne',sans-serif; font-size:22px; font-weight:800; color:var(--md-text); margin-bottom:3px; }
+.md-page-sub { font-size:13px; color:var(--md-t2); }
+.md-header-right { display:flex; align-items:center; gap:10px; }
 
-/* Cards */
-.md-card-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:14px}
-.md-mcard{background:var(--md-white);border:1px solid var(--md-border);border-radius:14px;overflow:hidden;display:flex;flex-direction:column;transition:border-color .15s,box-shadow .15s,transform .15s;box-shadow:var(--md-shadow-sm)}
-.md-mcard:hover{border-color:var(--md-blue-mid);box-shadow:var(--md-shadow-lg);transform:translateY(-2px)}
-.md-mcard-top{display:flex;align-items:center;justify-content:space-between;padding:14px 16px 10px}
-.md-mcard-topright{display:flex;align-items:center;gap:6px}
-.md-status-chip{display:inline-flex;align-items:center;gap:5px;font-size:10px;font-weight:800;letter-spacing:.5px;padding:4px 10px;border-radius:20px;text-transform:uppercase}
-.md-status--live{background:rgba(239,68,68,.10);color:var(--md-red);border:1px solid rgba(239,68,68,.25)}
-.md-status--private{background:rgba(139,92,246,.10);color:var(--md-purple);border:1px solid rgba(139,92,246,.25)}
-.md-status--public{background:rgba(16,185,129,.10);color:var(--md-green);border:1px solid rgba(16,185,129,.25)}
-.md-status-dot{width:5px;height:5px;border-radius:50%;background:var(--md-red);animation:md-blink 2s ease-in-out infinite}
-.md-privacy-chip{display:inline-flex;align-items:center;gap:4px;font-size:9px;font-weight:700;padding:3px 8px;border-radius:12px;text-transform:uppercase;letter-spacing:.3px}
-.md-privacy--private{background:rgba(139,92,246,.08);color:var(--md-purple);border:1px solid rgba(139,92,246,.2)}
-.md-privacy--public{background:rgba(16,185,129,.08);color:var(--md-green);border:1px solid rgba(16,185,129,.2)}
-.md-mcard-body{padding:0 16px 14px;flex:1;display:flex;flex-direction:column;gap:10px}
-.md-mcard-title{font-family:'Space Grotesk',sans-serif;font-size:16px;font-weight:700;color:var(--md-ink);line-height:1.3;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.md-mcard-code{display:inline-flex;align-items:center;gap:7px;align-self:flex-start;padding:7px 11px;background:var(--md-blue-soft);border:1px solid var(--md-blue-mid);border-radius:8px;cursor:pointer;transition:border-color .15s,background .15s}
-.md-mcard-code:hover{border-color:var(--md-blue);background:var(--md-blue-mid)}
-.md-mcard-code code{font-family:'Space Grotesk',monospace;font-size:12px;color:var(--md-blue-dk);font-weight:600;letter-spacing:.5px}
-.md-copy-icon{color:var(--md-ink-m);opacity:0;transition:opacity .15s}
-.md-mcard-code:hover .md-copy-icon{opacity:1}
-.md-mcard-meta{display:flex;flex-wrap:wrap;gap:8px 14px}
-.md-meta-item{display:flex;align-items:center;gap:5px;font-size:12px;color:var(--md-ink-m);font-weight:600}
-.md-meta-item svg{flex-shrink:0;color:var(--md-blue)}
-.md-room-link{color:var(--md-blue);text-decoration:none;font-size:12px;font-weight:600}
-.md-room-link:hover{text-decoration:underline}
-.md-mcard-foot{display:flex;align-items:center;justify-content:flex-end;gap:10px;padding:12px 16px;border-top:1px solid var(--md-border);background:var(--md-surf2)}
-.md-mcard-actions{display:flex;gap:6px;flex-wrap:wrap}
-.md-btn-join{display:flex;align-items:center;gap:5px;padding:7px 13px;background:var(--md-blue);color:var(--md-white);border:none;border-radius:8px;font-family:'Manrope',sans-serif;font-size:12px;font-weight:700;cursor:pointer;box-shadow:0 2px 8px var(--md-blue-glow);transition:all .15s}
-.md-btn-join:hover{background:var(--md-blue-dk);transform:translateY(-1px)}
-.md-btn-restart{display:flex;align-items:center;gap:4px;padding:7px 11px;background:rgba(245,158,11,.10);color:#d97706;border:1.5px solid rgba(245,158,11,.35);border-radius:8px;font-family:'Manrope',sans-serif;font-size:12px;font-weight:700;cursor:pointer;transition:all .15s}
-.md-btn-restart:hover{background:rgba(245,158,11,.2);border-color:var(--md-orange)}
-.md-btn-end{display:flex;align-items:center;gap:4px;padding:7px 11px;background:rgba(239,68,68,.08);color:var(--md-red);border:1.5px solid rgba(239,68,68,.28);border-radius:8px;font-family:'Manrope',sans-serif;font-size:12px;font-weight:700;cursor:pointer;transition:all .15s}
-.md-btn-end:hover{background:var(--md-red);color:var(--md-white);border-color:var(--md-red)}
+/* Buttons */
+.md-primary-btn {
+  display:inline-flex; align-items:center; gap:7px;
+  padding:9px 18px; background:var(--md-blue); color:#fff;
+  border:none; border-radius:var(--md-r);
+  font-family:'DM Sans',sans-serif; font-size:13px; font-weight:600;
+  cursor:pointer; transition:all .15s; box-shadow:0 4px 14px var(--md-blg);
+}
+.md-primary-btn:hover { background:#2464c4; transform:translateY(-1px); }
 
-/* Empty state */
-.md-empty{display:flex;flex-direction:column;align-items:center;padding:64px 24px;text-align:center;gap:12px}
-.md-empty-icon{width:72px;height:72px;border-radius:50%;background:var(--md-blue-soft);border:1.5px solid var(--md-blue-mid);display:flex;align-items:center;justify-content:center;color:var(--md-blue)}
-.md-empty-msg{font-size:15px;font-weight:600;color:var(--md-ink-m)}
-.md-empty-actions{display:flex;gap:10px;margin-top:8px;flex-wrap:wrap;justify-content:center}
+.md-ghost-btn {
+  display:inline-flex; align-items:center; gap:7px;
+  padding:9px 16px; background:transparent; border:1px solid var(--md-bd2);
+  border-radius:var(--md-r); color:var(--md-t2);
+  font-family:'DM Sans',sans-serif; font-size:13px; font-weight:500; cursor:pointer; transition:all .15s;
+}
+.md-ghost-btn:hover { border-color:var(--md-blue); color:var(--md-text); }
 
-/* Sidebar */
-.md-sidebar{position:sticky;top:82px;align-self:flex-start}
-.md-sidebar-stats{display:flex;flex-direction:column;gap:10px;margin-bottom:22px}
-.md-ss-item{display:flex;align-items:center;gap:12px;padding:12px 14px;background:var(--md-surf2);border-radius:10px;border:1px solid var(--md-border);transition:background .15s,border-color .15s}
-.md-ss-item:hover{background:var(--md-blue-soft);border-color:var(--md-blue-mid)}
-.md-ss-icon{width:36px;height:36px;border-radius:9px;flex-shrink:0;display:flex;align-items:center;justify-content:center}
-.md-ss-icon--blue{background:var(--md-blue-soft);color:var(--md-blue)}
-.md-ss-icon--red{background:rgba(239,68,68,.12);color:var(--md-red)}
-.md-ss-icon--amber{background:rgba(245,158,11,.12);color:var(--md-orange)}
-.md-ss-icon--purple{background:rgba(139,92,246,.12);color:var(--md-purple)}
-.md-ss-body{display:flex;flex-direction:column}
-.md-ss-val{font-family:'Space Grotesk',sans-serif;font-size:20px;font-weight:700;color:var(--md-ink);line-height:1.1}
-.md-ss-lbl{font-size:11px;color:var(--md-ink-m);font-weight:600;margin-top:2px}
-.md-chart-section{border-top:1px solid var(--md-border);padding-top:20px;margin-top:4px}
-.md-chart-title{font-family:'Space Grotesk',sans-serif;font-size:13px;font-weight:700;color:var(--md-ink);margin-bottom:14px}
-.md-chart{display:flex;align-items:flex-end;justify-content:space-between;gap:5px;height:90px;padding:10px;background:var(--md-surf2);border-radius:10px;border:1px solid var(--md-border)}
-.md-chart-col{flex:1;display:flex;flex-direction:column;align-items:center;gap:6px;height:100%}
-.md-chart-track{flex:1;width:100%;display:flex;align-items:flex-end}
-.md-chart-bar{width:100%;border-radius:4px 4px 0 0;min-height:3px;background:linear-gradient(180deg,var(--md-blue) 0%,var(--md-blue-dk) 100%);opacity:.65;transition:opacity .2s}
-.md-chart-col:hover .md-chart-bar{opacity:1}
-.md-chart-lbl{font-size:9px;font-weight:700;color:var(--md-ink-m);text-transform:uppercase;letter-spacing:.3px}
-.md-quick-stats{border-top:1px solid var(--md-border);padding-top:18px;margin-top:18px;display:flex;flex-direction:column;gap:8px}
-.md-qs-row{display:flex;align-items:center;justify-content:space-between;padding:9px 12px;background:var(--md-surf2);border-radius:8px;border:1px solid var(--md-border);transition:background .15s}
-.md-qs-row:hover{background:var(--md-blue-soft)}
-.md-qs-lbl{font-size:12px;font-weight:600;color:var(--md-ink-m)}
-.md-qs-val{font-family:'Space Grotesk',sans-serif;font-size:14px;font-weight:700;color:var(--md-ink)}
+.md-danger-btn {
+  display:inline-flex; align-items:center; gap:8px;
+  padding:10px 20px; background:var(--md-red); color:#fff;
+  border:none; border-radius:var(--md-r);
+  font-family:'DM Sans',sans-serif; font-size:13px; font-weight:600;
+  cursor:pointer; transition:all .15s; box-shadow:0 4px 14px rgba(239,68,68,.3);
+}
+.md-danger-btn:hover:not(:disabled) { background:#dc2626; }
+.md-danger-btn:disabled { opacity:.55; cursor:not-allowed; }
 
-/* Modals */
-.md-modal-overlay{position:fixed;inset:0;z-index:5000;background:rgba(13,27,54,.55);backdrop-filter:blur(4px);display:flex;align-items:center;justify-content:center;padding:20px}
-.md-modal{background:var(--md-white);border:1px solid var(--md-border);border-radius:20px;padding:40px 36px 32px;width:100%;max-width:430px;text-align:center;box-shadow:0 24px 80px rgba(13,27,54,.18);animation:md-modal-in .22s cubic-bezier(.34,1.56,.64,1)}
-@keyframes md-modal-in{from{opacity:0;transform:translateY(18px) scale(.97)}to{opacity:1;transform:translateY(0) scale(1)}}
-.md-modal-fx-enter-active,.md-modal-fx-leave-active{transition:opacity .18s}
-.md-modal-fx-enter-from,.md-modal-fx-leave-to{opacity:0}
-.md-modal-icon{width:68px;height:68px;border-radius:50%;display:flex;align-items:center;justify-content:center;margin:0 auto 22px}
-.md-modal-icon--red{background:rgba(239,68,68,.12);color:var(--md-red);border:1.5px solid rgba(239,68,68,.3)}
-.md-modal-icon--orange{background:rgba(245,158,11,.12);color:#d97706;border:1.5px solid rgba(245,158,11,.35)}
-.md-modal-title{font-family:'Space Grotesk',sans-serif;font-size:21px;font-weight:700;color:var(--md-ink);margin-bottom:12px;line-height:1.3}
-.md-modal-body{font-size:14px;color:var(--md-ink-m);line-height:1.65;margin-bottom:28px;font-weight:500}
-.md-modal-body code{font-family:'Space Grotesk',monospace;font-size:12px;background:var(--md-surf2);padding:2px 6px;border-radius:4px;color:var(--md-blue-dk)}
-.md-modal-actions{display:flex;gap:10px;justify-content:center}
-.md-modal-btn{flex:1;max-width:190px;padding:12px 20px;border-radius:10px;font-family:'Manrope',sans-serif;font-size:14px;font-weight:700;cursor:pointer;transition:all .15s;display:flex;align-items:center;justify-content:center;gap:7px}
-.md-modal-btn--ghost{background:transparent;border:1.5px solid var(--md-border);color:var(--md-ink-m)}
-.md-modal-btn--ghost:hover:not(:disabled){border-color:var(--md-ink-m);color:var(--md-ink)}
-.md-modal-btn--danger{background:var(--md-red);border:none;color:var(--md-white);box-shadow:0 2px 12px rgba(239,68,68,.3)}
-.md-modal-btn--danger:hover:not(:disabled){background:#dc2626}
-.md-modal-btn--orange{background:var(--md-orange);border:none;color:var(--md-white);box-shadow:0 2px 12px rgba(245,158,11,.3)}
-.md-modal-btn--orange:hover:not(:disabled){background:#d97706}
-.md-modal-btn:disabled{opacity:.55;cursor:not-allowed}
-.md-modal-spinner{display:inline-block;width:14px;height:14px;border:2px solid rgba(255,255,255,.3);border-top-color:#fff;border-radius:50%;animation:md-spin .65s linear infinite}
+.md-amber-btn {
+  display:inline-flex; align-items:center; gap:8px;
+  padding:10px 20px; background:var(--md-amber); color:#000;
+  border:none; border-radius:var(--md-r);
+  font-family:'DM Sans',sans-serif; font-size:13px; font-weight:600;
+  cursor:pointer; transition:all .15s;
+}
+.md-amber-btn:disabled { opacity:.55; cursor:not-allowed; }
+
+.md-btn-spinner {
+  display:inline-block; width:13px; height:13px;
+  border:2px solid rgba(255,255,255,.3); border-top-color:#fff;
+  border-radius:50%; animation:md-spin .65s linear infinite;
+}
+@keyframes md-spin { to { transform:rotate(360deg); } }
+
+/* ── State screens ───────────────────────────────────────── */
+.md-state-screen { flex:1; display:flex; align-items:center; justify-content:center; padding:48px; }
+.md-state-loader { display:flex; flex-direction:column; align-items:center; gap:16px; }
+.md-loader-ring { width:48px; height:48px; border-radius:50%; border:3px solid rgba(59,142,234,.15); border-top-color:var(--md-blue); animation:md-spin .8s linear infinite; }
+.md-state-msg { font-size:14px; color:var(--md-t2); font-weight:500; }
+.md-state-box { display:flex; flex-direction:column; align-items:center; gap:14px; padding:48px; border-radius:20px; text-align:center; }
+.md-state-box--error { background:rgba(239,68,68,.05); border:1px solid rgba(239,68,68,.15); }
+.md-state-icon { width:56px; height:56px; border-radius:50%; background:rgba(239,68,68,.1); border:1px solid rgba(239,68,68,.2); display:flex; align-items:center; justify-content:center; color:#f87171; }
+
+/* ── Content ─────────────────────────────────────────────── */
+.md-content { flex:1; padding:24px 28px; display:flex; flex-direction:column; gap:20px; }
+
+/* KPI strip */
+.md-kpi-strip { display:grid; grid-template-columns:repeat(4,1fr); gap:12px; }
+.md-kpi {
+  display:flex; align-items:center; gap:14px;
+  padding:16px 18px; background:var(--md-surf); border:1px solid var(--md-bd2);
+  border-radius:14px; transition:all .15s; box-shadow:0 2px 8px rgba(0,0,0,.2);
+}
+.md-kpi:hover { border-color:rgba(59,142,234,.2); transform:translateY(-1px); }
+.md-kpi--live { border-color:rgba(239,68,68,.2); }
+.md-kpi-icon {
+  width:42px; height:42px; border-radius:11px; flex-shrink:0;
+  display:flex; align-items:center; justify-content:center; position:relative;
+}
+.md-kpi-icon--blue   { background:rgba(59,142,234,.12); color:var(--md-blue); }
+.md-kpi-icon--red    { background:rgba(239,68,68,.12);  color:var(--md-red);  }
+.md-kpi-icon--purple { background:rgba(139,92,246,.12); color:var(--md-purple);}
+.md-kpi-icon--amber  { background:rgba(245,158,11,.12); color:var(--md-amber); }
+.md-kpi-pulse { position:absolute; inset:-4px; border-radius:50%; border:2px solid rgba(239,68,68,.3); animation:md-ring 2s ease-out infinite; }
+@keyframes md-ring { 0%{opacity:.8;transform:scale(1)} 100%{opacity:0;transform:scale(1.5)} }
+.md-kpi-body { display:flex; flex-direction:column; gap:2px; }
+.md-kpi-num { font-family:'Syne',sans-serif; font-size:26px; font-weight:700; color:var(--md-text); line-height:1; }
+.md-kpi-lbl { font-size:11px; color:var(--md-t2); font-weight:500; text-transform:uppercase; letter-spacing:.3px; }
+
+/* Live banner */
+.md-live-banner { background:rgba(239,68,68,.04); border:1px solid rgba(239,68,68,.15); border-radius:14px; overflow:hidden; }
+.md-live-banner-hdr { display:flex; align-items:center; gap:10px; padding:14px 18px; border-bottom:1px solid rgba(239,68,68,.1); }
+.md-live-dot-wrap { width:20px; height:20px; border-radius:50%; background:rgba(239,68,68,.1); display:flex; align-items:center; justify-content:center; }
+.md-live-dot { width:7px; height:7px; border-radius:50%; background:var(--md-red); animation:md-blink 2s ease-in-out infinite; }
+@keyframes md-blink { 0%,100%{opacity:1} 50%{opacity:.3} }
+.md-live-banner-title { font-family:'Syne',sans-serif; font-size:14px; font-weight:700; color:var(--md-text); }
+.md-live-list { display:flex; flex-direction:column; }
+.md-live-row { display:flex; align-items:center; gap:14px; padding:12px 18px; border-bottom:1px solid var(--md-bd); }
+.md-live-row:last-child { border-bottom:none; }
+.md-live-pulse { width:8px; height:8px; border-radius:50%; background:var(--md-red); flex-shrink:0; animation:md-blink 1.5s ease-in-out infinite; }
+.md-live-info { flex:1; }
+.md-live-name { font-size:14px; font-weight:600; color:var(--md-text); display:block; }
+.md-live-meta { font-size:11px; color:var(--md-t2); }
+.md-live-actions { display:flex; gap:6px; }
+.md-live-join-btn {
+  display:flex; align-items:center; gap:5px; padding:6px 12px;
+  background:var(--md-blue); color:#fff; border:none; border-radius:7px;
+  font-family:'DM Sans',sans-serif; font-size:12px; font-weight:600; cursor:pointer; transition:all .15s;
+}
+.md-live-join-btn:hover { background:#2464c4; }
+.md-live-end-btn {
+  display:flex; align-items:center; gap:5px; padding:6px 10px;
+  background:rgba(239,68,68,.08); color:#f87171; border:1px solid rgba(239,68,68,.25); border-radius:7px;
+  font-family:'DM Sans',sans-serif; font-size:12px; font-weight:600; cursor:pointer; transition:all .15s;
+}
+.md-live-end-btn:hover { background:var(--md-red); color:#fff; border-color:var(--md-red); }
+
+/* Toolbar */
+.md-toolbar { display:flex; align-items:center; justify-content:space-between; gap:14px; flex-wrap:wrap; }
+.md-tab-group { display:flex; gap:2px; background:var(--md-surf); border:1px solid var(--md-bd2); border-radius:10px; padding:3px; }
+.md-tab {
+  display:flex; align-items:center; gap:7px; padding:7px 14px;
+  border:none; background:transparent; border-radius:7px;
+  color:var(--md-t2); font-family:'DM Sans',sans-serif; font-size:13px; font-weight:500; cursor:pointer; transition:all .15s;
+}
+.md-tab:hover { color:var(--md-text); background:var(--md-surf2); }
+.md-tab--active { background:rgba(59,142,234,.12); color:var(--md-blue); font-weight:600; border:1px solid rgba(59,142,234,.2); }
+.md-tab-count {
+  min-width:18px; height:18px; padding:0 5px; border-radius:9px;
+  font-size:10px; font-weight:700; display:flex; align-items:center; justify-content:center;
+  background:var(--md-surf2); color:var(--md-t2);
+}
+.md-tab-count--active { background:rgba(59,142,234,.15); color:var(--md-blue); }
+.md-toolbar-right { display:flex; align-items:center; gap:8px; }
+.md-search-wrap { position:relative; }
+.md-search-icon { position:absolute; left:11px; top:50%; transform:translateY(-50%); color:var(--md-t3); pointer-events:none; }
+.md-search-input {
+  padding:8px 11px 8px 32px; background:var(--md-surf); border:1px solid var(--md-bd2);
+  border-radius:var(--md-r); color:var(--md-text); font-family:'DM Sans',sans-serif; font-size:13px;
+  width:200px; transition:all .15s;
+}
+.md-search-input::placeholder { color:var(--md-t3); }
+.md-search-input:focus { outline:none; border-color:var(--md-blue); width:240px; }
+.md-refresh-btn {
+  width:34px; height:34px; border-radius:var(--md-r);
+  background:var(--md-surf); border:1px solid var(--md-bd2);
+  display:flex; align-items:center; justify-content:center; color:var(--md-t2);
+  cursor:pointer; transition:all .15s;
+}
+.md-refresh-btn:hover { border-color:var(--md-blue); color:var(--md-blue); }
+.md-refresh-btn--spin svg { animation:md-spin .8s linear infinite; }
+
+/* Empty */
+.md-empty {
+  display:flex; flex-direction:column; align-items:center; gap:12px;
+  padding:64px 20px; text-align:center;
+}
+.md-empty-icon { width:64px; height:64px; border-radius:50%; background:var(--md-surf); border:1px solid var(--md-bd2); display:flex; align-items:center; justify-content:center; color:var(--md-t2); }
+.md-empty-title { font-family:'Syne',sans-serif; font-size:18px; font-weight:700; color:var(--md-text); }
+.md-empty-sub { font-size:14px; color:var(--md-t2); }
+
+/* Room grid */
+.md-room-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(300px,1fr)); gap:12px; }
+.md-room-card {
+  background:var(--md-surf); border:1px solid var(--md-bd2); border-radius:14px;
+  display:flex; flex-direction:column; overflow:hidden;
+  transition:all .18s; box-shadow:0 2px 8px rgba(0,0,0,.2);
+}
+.md-room-card:hover { border-color:rgba(59,142,234,.25); transform:translateY(-2px); box-shadow:0 8px 24px rgba(0,0,0,.3); }
+.md-room-card--live { border-color:rgba(239,68,68,.2); }
+.md-room-card-top { padding:18px 18px 14px; flex:1; display:flex; flex-direction:column; gap:10px; }
+.md-room-status-row { display:flex; align-items:center; justify-content:space-between; }
+.md-status-pill {
+  display:inline-flex; align-items:center; gap:5px;
+  padding:3px 9px; border-radius:20px;
+  font-size:10px; font-weight:700; letter-spacing:.5px; text-transform:uppercase;
+}
+.md-status-pill--live    { background:rgba(239,68,68,.1);  border:1px solid rgba(239,68,68,.2);  color:#f87171; }
+.md-status-pill--public  { background:rgba(34,197,94,.08); border:1px solid rgba(34,197,94,.2);  color:#4ade80; }
+.md-status-pill--private { background:rgba(139,92,246,.1); border:1px solid rgba(139,92,246,.2); color:#c4b5fd; }
+.md-status-blink { width:5px; height:5px; border-radius:50%; background:var(--md-red); animation:md-blink 2s ease-in-out infinite; }
+.md-room-time { font-size:11px; color:var(--md-t3); }
+.md-room-title { font-family:'Syne',sans-serif; font-size:16px; font-weight:700; color:var(--md-text); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.md-room-code-row {
+  display:inline-flex; align-items:center; gap:7px; align-self:flex-start;
+  padding:6px 10px; background:var(--md-surf2); border:1px solid var(--md-bd2);
+  border-radius:7px; cursor:pointer; transition:all .15s;
+}
+.md-room-code-row:hover { border-color:var(--md-blue); }
+.md-room-code { font-family:'DM Mono','Courier New',monospace; font-size:12px; color:#8ab4f8; font-weight:500; letter-spacing:.5px; }
+.md-room-card-foot { display:flex; align-items:center; gap:6px; padding:12px 14px; border-top:1px solid var(--md-bd); background:rgba(0,0,0,.15); }
+.md-card-join-btn {
+  display:flex; align-items:center; gap:5px; padding:7px 14px;
+  background:var(--md-blue); color:#fff; border:none; border-radius:7px;
+  font-family:'DM Sans',sans-serif; font-size:12px; font-weight:600; cursor:pointer; transition:all .15s;
+  box-shadow:0 2px 10px var(--md-blg);
+}
+.md-card-join-btn:hover { background:#2464c4; }
+.md-card-icon-btn {
+  width:30px; height:30px; border-radius:7px; display:flex; align-items:center; justify-content:center;
+  border:1px solid; cursor:pointer; transition:all .15s;
+}
+.md-card-icon-btn--amber { background:rgba(245,158,11,.08); border-color:rgba(245,158,11,.25); color:#fbbf24; }
+.md-card-icon-btn--amber:hover { background:rgba(245,158,11,.18); }
+.md-card-icon-btn--red { background:rgba(239,68,68,.08); border-color:rgba(239,68,68,.25); color:#f87171; }
+.md-card-icon-btn--red:hover { background:var(--md-red); color:#fff; border-color:var(--md-red); }
+
+/* Modal */
+.md-modal-overlay { position:fixed; inset:0; z-index:5000; background:rgba(0,0,0,.8); backdrop-filter:blur(8px); display:flex; align-items:center; justify-content:center; padding:20px; }
+.md-modal { background:var(--md-surf); border:1px solid var(--md-bd2); border-radius:20px; padding:36px; max-width:400px; width:100%; text-align:center; box-shadow:0 40px 100px rgba(0,0,0,.7); }
+.md-modal-icon { width:56px; height:56px; border-radius:50%; display:flex; align-items:center; justify-content:center; margin:0 auto 20px; }
+.md-modal-icon--red   { background:rgba(239,68,68,.12); border:1.5px solid rgba(239,68,68,.25); color:#f87171; }
+.md-modal-icon--amber { background:rgba(245,158,11,.12); border:1.5px solid rgba(245,158,11,.25); color:#fbbf24; }
+.md-modal-title { font-family:'Syne',sans-serif; font-size:19px; font-weight:700; color:var(--md-text); margin-bottom:10px; }
+.md-modal-body { font-size:14px; color:var(--md-t2); line-height:1.65; margin-bottom:24px; }
+.md-modal-actions { display:flex; gap:10px; justify-content:center; }
+.md-modal-enter-active { animation:md-pop .2s cubic-bezier(.34,1.56,.64,1); }
+.md-modal-leave-active { animation:md-pop .15s reverse ease-in; }
+@keyframes md-pop { from{opacity:0;transform:scale(.9)} to{opacity:1;transform:scale(1)} }
 
 /* Toast */
-.md-toast{position:fixed;bottom:28px;right:28px;z-index:6000;display:flex;align-items:center;gap:10px;padding:12px 20px;border-radius:12px;font-size:13px;font-weight:700;box-shadow:var(--md-shadow-lg);pointer-events:none}
-.md-toast--success{background:rgba(16,185,129,.12);border:1px solid rgba(16,185,129,.3);color:var(--md-green)}
-.md-toast--error{background:rgba(239,68,68,.10);border:1px solid rgba(239,68,68,.25);color:var(--md-red)}
-.md-toast-fx-enter-active,.md-toast-fx-leave-active{transition:opacity .2s,transform .2s}
-.md-toast-fx-enter-from{opacity:0;transform:translateY(14px)}
-.md-toast-fx-leave-to{opacity:0;transform:translateY(14px)}
+.md-toast { position:fixed; bottom:24px; right:24px; z-index:9000; display:flex; align-items:center; gap:9px; padding:11px 18px; border-radius:12px; font-size:13px; font-weight:600; box-shadow:0 8px 32px rgba(0,0,0,.4); pointer-events:none; }
+.md-toast--success { background:rgba(34,197,94,.1); border:1px solid rgba(34,197,94,.2); color:#4ade80; }
+.md-toast--error   { background:rgba(239,68,68,.1);  border:1px solid rgba(239,68,68,.2);  color:#f87171; }
+.md-toast-enter-active, .md-toast-leave-active { transition:opacity .2s, transform .2s; }
+.md-toast-enter-from { opacity:0; transform:translateY(10px); }
+.md-toast-leave-to { opacity:0; }
 
 /* Responsive */
-@media(max-width:1280px){.md-body-grid{grid-template-columns:1fr 280px}}
-@media(max-width:1024px){.md-body-grid{grid-template-columns:1fr}.md-sidebar{position:static}.md-stats-row{grid-template-columns:repeat(2,1fr)}.md-card-grid{grid-template-columns:1fr}}
-@media(max-width:640px){
-  .md-nav-inner{padding:0 16px}
-  .md-page-meta{display:none}
-  .md-main{padding:16px}
-  .md-stats-row{grid-template-columns:1fr 1fr;gap:10px}
-  .md-stat-val{font-size:24px}
-  .md-active-actions{width:100%;justify-content:flex-end}
-  .md-modal{padding:30px 20px 24px}
-  .md-modal-actions{flex-direction:column}
-  .md-modal-btn{max-width:100%}
-}
-@media(max-width:480px){.md-stats-row{grid-template-columns:1fr}}
+@media (max-width:1024px) { .md-shell { grid-template-columns:1fr; } .md-sidebar { display:none; } }
+@media (max-width:768px) { .md-kpi-strip { grid-template-columns:repeat(2,1fr); } .md-content { padding:16px; } .md-header { padding:16px; } }
+@media (max-width:480px) { .md-kpi-strip { grid-template-columns:1fr; } }
 </style>
