@@ -1,16 +1,4 @@
-<!-- Meeting.vue — SCREEN SHARE FIXED (FIX F) -->
-<!--
-  FIXES IN THIS VERSION:
-  ✅ FIX A: peerStreams uses object spread to stay reactive
-  ✅ FIX B: bindPeerVideo retries up to 20× waiting for DOM element
-  ✅ FIX C: NAME_SYNC — both sides always know each other's username
-  ✅ FIX D: PARTICIPANT_LIST peers handled as objects or bare strings
-  ✅ FIX E: JOIN echo from server (fromPeerId=null) ignored cleanly
-  ✅ FIX F: Screen share correctly shown (not the camera).
-            Uses peerCameraStreamIds map: first stream.id per peer = camera,
-            any new stream.id = screen share. Eliminates the old race-condition
-            heuristic that checked peerStreams[peerId] existence.
--->
+<!-- Meeting.vue — SCREEN SHARE FIXED + USERNAMES FIXED -->
 <template>
   <div class="nv-root">
 
@@ -401,8 +389,6 @@ export default {
       peers: {},
       peerStreams: {},          // peerId → camera MediaStream (for peerVideo_ tile)
       peerScreenStreams: {},    // peerId → screen MediaStream (for peerScreen_ tile)
-      // ✅ FIX F: Track each peer's camera stream.id so we can identify screen tracks
-      // by stream.id comparison instead of an existence check (which had a race condition).
       peerCameraStreamIds: {},  // peerId → camera stream.id string
       peerNames: {},
       peerMuted: {},
@@ -420,13 +406,21 @@ export default {
       showEndModal: false, showRestartModal: false,
       ending: false, restarting: false,
 
-      userName: 'Guest', userInitials: 'G',
-      videoOn: true, audioOn: true,
+      userName: 'Guest', 
+      userInitials: 'G',
+      videoOn: true, 
+      audioOn: true,
       activePresenterId: null,
 
-      chatOpen: false, chatMessage: '', messages: [], unreadCount: 0,
-      toastVisible: false, toastMessage: '', toastType: 'success',
-      currentTime: '', clockInterval: null,
+      chatOpen: false, 
+      chatMessage: '', 
+      messages: [], 
+      unreadCount: 0,
+      toastVisible: false, 
+      toastMessage: '', 
+      toastType: 'success',
+      currentTime: '', 
+      clockInterval: null,
     };
   },
 
@@ -454,9 +448,14 @@ export default {
 
   methods: {
     getPeerName(peerId) {
-      if (this.peerNames[peerId]) return this.peerNames[peerId];
+      // Return actual username if available, otherwise generate a friendly name
+      if (this.peerNames[peerId]) {
+        return this.peerNames[peerId];
+      }
+      
+      // Generate a friendly fallback name based on peerId
       const adjectives = ['Happy', 'Clever', 'Swift', 'Brave', 'Calm', 'Bold', 'Kind', 'Wise', 'Cool', 'Bright', 'Sharp', 'Neat'];
-      const animals    = ['Panda', 'Falcon', 'Otter', 'Tiger', 'Koala', 'Eagle', 'Fox', 'Wolf', 'Lynx', 'Hawk', 'Bear', 'Deer'];
+      const animals = ['Panda', 'Falcon', 'Otter', 'Tiger', 'Koala', 'Eagle', 'Fox', 'Wolf', 'Lynx', 'Hawk', 'Bear', 'Deer'];
       let seed = 0;
       for (let i = 0; i < peerId.length; i++) seed += peerId.charCodeAt(i);
       return `${adjectives[seed % adjectives.length]} ${animals[Math.floor(seed / adjectives.length) % animals.length]}`;
@@ -474,7 +473,10 @@ export default {
       }
       const el = this.resolveRef(`peerVideo_${peerId}`);
       if (el) {
-        if (el.srcObject !== stream) { el.srcObject = stream; el.play().catch(() => {}); }
+        if (el.srcObject !== stream) { 
+          el.srcObject = stream; 
+          el.play().catch(() => {}); 
+        }
         console.log(`✅ Bound peerVideo_${peerId} (attempt ${attempt})`);
       } else if (attempt < 20) {
         setTimeout(() => this.bindPeerVideoWithRetry(peerId, attempt + 1), 100);
@@ -486,11 +488,13 @@ export default {
     bindPeerScreenWithRetry(peerId, attempt = 0) {
       const stream = this.peerScreenStreams[peerId];
       if (!stream) return;
-      // If activePresenterId isn't set yet, the peerScreen_ element won't exist in DOM.
-      // Keep retrying — SCREEN_SHARE_START will also call us again once it's set.
+      
       const el = this.resolveRef(`peerScreen_${peerId}`);
       if (el) {
-        if (el.srcObject !== stream) { el.srcObject = stream; el.play().catch(() => {}); }
+        if (el.srcObject !== stream) { 
+          el.srcObject = stream; 
+          el.play().catch(() => {}); 
+        }
         console.log(`🖥️ Bound peerScreen_${peerId} (attempt ${attempt})`);
       } else if (attempt < 40) {
         setTimeout(() => this.bindPeerScreenWithRetry(peerId, attempt + 1), 100);
@@ -574,6 +578,7 @@ export default {
       const user = JSON.parse(sessionStorage.getItem('nova_user') || '{}');
       this.userName = user.name || user.username || user.displayName || user.firstName || '';
 
+      // If no username in session, try to fetch from API
       if (!this.userName && this.token) {
         try {
           const res = await fetch(`${API}/auth/me`, {
@@ -583,11 +588,14 @@ export default {
             const data = await res.json();
             const u = data?.data || data?.user || data || {};
             this.userName = u.name || u.username || u.displayName || u.firstName || u.email?.split('@')[0] || '';
-            if (this.userName) sessionStorage.setItem('nova_user', JSON.stringify({ ...user, name: this.userName }));
+            if (this.userName) {
+              sessionStorage.setItem('nova_user', JSON.stringify({ ...user, name: this.userName }));
+            }
           }
         } catch (_) {}
       }
 
+      // Final fallback
       if (!this.userName) this.userName = 'Guest';
       this.userInitials = this.userName.charAt(0).toUpperCase();
 
@@ -621,7 +629,15 @@ export default {
 
       this.ws.onopen = () => {
         console.log('✅ WS open');
-        this.sendWs({ type: 'JOIN', data: { name: this.userName, peerId: this.myPeerId } });
+        // Send JOIN with username
+        this.sendWs({ 
+          type: 'JOIN', 
+          data: { 
+            name: this.userName, 
+            peerId: this.myPeerId,
+            username: this.userName // Send username explicitly
+          } 
+        });
       };
 
       this.ws.onmessage = async (e) => {
@@ -644,12 +660,19 @@ export default {
     },
 
     sendNameSync(toPeerId) {
-      this.sendWs({ type: 'NAME_SYNC', toPeerId, data: { name: this.userName } });
+      this.sendWs({ 
+        type: 'NAME_SYNC', 
+        toPeerId, 
+        data: { 
+          name: this.userName,
+          username: this.userName // Send username explicitly
+        } 
+      });
     },
 
     async handleWsMsg(msg) {
       const fromId = msg.fromPeerId;
-      console.log('📨 WS message:', msg.type, '| from:', fromId);
+      console.log('📨 WS message:', msg.type, '| from:', fromId, '| data:', msg.data);
 
       switch (msg.type) {
 
@@ -657,11 +680,19 @@ export default {
           const raw = Array.isArray(msg.data) ? msg.data
             : Array.isArray(msg.data?.peers) ? msg.data.peers : [];
           const peerList = raw
-            .map(p => (typeof p === 'string' ? { id: p, name: null } : { id: p.peerId || p.id, name: p.name || null }))
+            .map(p => (typeof p === 'string' ? { id: p, name: null } : { 
+              id: p.peerId || p.id, 
+              name: p.name || p.username || p.displayName || null 
+            }))
             .filter(p => p.id && p.id !== this.myPeerId);
+          
           this.participantCount = peerList.length + 1;
+          
           for (const { id, name } of peerList) {
-            if (name) this.peerNames = { ...this.peerNames, [id]: name };
+            if (name) {
+              console.log(`Setting peer name for ${id}: ${name}`);
+              this.peerNames = { ...this.peerNames, [id]: name };
+            }
             await this.createPC(id, true);
             this.sendNameSync(id);
           }
@@ -671,16 +702,26 @@ export default {
         case 'JOIN': {
           if (!fromId) break;
           this.participantCount++;
-          const joinName = msg.data?.name || msg.data?.userName || msg.data?.displayName || null;
-          if (joinName) this.peerNames = { ...this.peerNames, [fromId]: joinName };
+          
+          // Try multiple possible name fields
+          const joinName = msg.data?.name || msg.data?.username || msg.data?.displayName || msg.data?.userName || null;
+          
+          if (joinName) {
+            console.log(`Peer joined with name: ${joinName}`);
+            this.peerNames = { ...this.peerNames, [fromId]: joinName };
+          }
+          
           await this.createPC(fromId, true);
           this.sendNameSync(fromId);
           break;
         }
 
         case 'NAME_SYNC': {
-          const syncName = msg.data?.name;
-          if (fromId && syncName) this.peerNames = { ...this.peerNames, [fromId]: syncName };
+          const syncName = msg.data?.name || msg.data?.username || null;
+          if (fromId && syncName) {
+            console.log(`NAME_SYNC received: ${syncName} for ${fromId}`);
+            this.peerNames = { ...this.peerNames, [fromId]: syncName };
+          }
           break;
         }
 
@@ -702,7 +743,7 @@ export default {
           break;
 
         case 'CHAT_MESSAGE':
-          this.addMsg(msg.data?.senderName || this.peerNames[fromId] || 'Participant', msg.data?.message || '', false);
+          this.addMsg(msg.data?.senderName || msg.data?.username || this.peerNames[fromId] || 'Participant', msg.data?.message || '', false);
           if (!this.chatOpen) this.unreadCount++;
           break;
 
@@ -715,12 +756,11 @@ export default {
           break;
 
         case 'SCREEN_SHARE_START':
+          console.log(`📺 Screen share started by ${fromId}`);
           this.activePresenterId = fromId;
-          await this.$nextTick(); await this.$nextTick();
-          // ✅ FIX G: The screen stream may have already arrived via ontrack BEFORE
-          // this WS signal (WebRTC negotiation is often faster than WS signaling).
-          // Re-trigger bindPeerScreenWithRetry now that the peerScreen_ DOM element
-          // exists (activePresenterId just set → v-else-if branch rendered).
+          await this.$nextTick(); 
+          await this.$nextTick();
+          
           if (this.peerScreenStreams[fromId]) {
             this.bindPeerScreenWithRetry(fromId);
           }
@@ -728,10 +768,14 @@ export default {
           break;
 
         case 'SCREEN_SHARE_STOP':
+          console.log(`📺 Screen share stopped by ${fromId}`);
           if (this.activePresenterId === fromId) {
             this.activePresenterId = null;
-            const ss = { ...this.peerScreenStreams }; delete ss[fromId]; this.peerScreenStreams = ss;
-            await this.$nextTick(); await this.$nextTick();
+            const ss = { ...this.peerScreenStreams }; 
+            delete ss[fromId]; 
+            this.peerScreenStreams = ss;
+            await this.$nextTick(); 
+            await this.$nextTick();
             this.bindAllVideos();
           }
           break;
@@ -760,42 +804,22 @@ export default {
 
       const pc = new RTCPeerConnection(ICE_SERVERS);
 
+      // Add local tracks if available
       if (this.localStream) {
-        // Camera + audio tracks are added together in localStream
-        this.localStream.getTracks().forEach(track => pc.addTrack(track, this.localStream));
+        this.localStream.getTracks().forEach(track => {
+          pc.addTrack(track, this.localStream);
+        });
       }
 
-      // ─────────────────────────────────────────────────────────────────
-      // ✅ FIX F — Correct camera vs screen track identification
-      //
-      // THE BUG (old code):
-      //   Used `if (!this.peerStreams[peerId])` to decide camera vs screen.
-      //   This was unreliable because Vue reactivity doesn't update synchronously,
-      //   so the second track could arrive before the first track's reactive update
-      //   was committed — both tracks would be treated as "camera".
-      //
-      // THE FIX:
-      //   On the SENDER side, we add the screen track in a brand-new MediaStream
-      //   (`screenOnlyStream = new MediaStream([screenTrack])`), giving it a unique
-      //   stream.id different from `localStream.id`.
-      //
-      //   On the RECEIVER side, we remember the FIRST stream.id we see per peer
-      //   as `peerCameraStreamIds[peerId]`. Any track that arrives in a stream with
-      //   a DIFFERENT id is unambiguously the screen share track.
-      //
-      //   This is a deterministic check — no races, no timing dependencies.
-      // ─────────────────────────────────────────────────────────────────
       pc.ontrack = (event) => {
         const track = event.track;
         const incomingStream = event.streams[0];
 
-        // Audio is routed automatically; skip it here.
         if (track.kind === 'audio') return;
 
         console.log(`🎥 ontrack from ${peerId}: kind=${track.kind}, streamId=${incomingStream?.id}`);
 
         if (!incomingStream) {
-          // Orphan track (no stream) — wrap it and treat as camera fallback
           if (!this.peerCameraStreamIds[peerId]) {
             const s = new MediaStream([track]);
             this.peerCameraStreamIds = { ...this.peerCameraStreamIds, [peerId]: s.id };
@@ -808,20 +832,24 @@ export default {
         const knownCamId = this.peerCameraStreamIds[peerId];
 
         if (!knownCamId) {
-          // ── First video track → CAMERA ──
+          // First video track → CAMERA
           this.peerCameraStreamIds = { ...this.peerCameraStreamIds, [peerId]: incomingStream.id };
           this.setPeerStream(peerId, incomingStream);
           this.$nextTick(() => this.bindPeerVideoWithRetry(peerId));
           console.log(`📷 Camera stream set for ${peerId}: ${incomingStream.id}`);
 
         } else if (incomingStream.id !== knownCamId) {
-          // ── Different stream.id → SCREEN SHARE ──
+          // Different stream.id → SCREEN SHARE
+          console.log(`🖥️ Screen stream detected for ${peerId}: ${incomingStream.id}`);
           this.peerScreenStreams = { ...this.peerScreenStreams, [peerId]: incomingStream };
-          this.$nextTick(() => this.bindPeerScreenWithRetry(peerId));
-          console.log(`🖥️ Screen stream set for ${peerId}: ${incomingStream.id}`);
+          
+          // If this peer is the active presenter, bind the screen
+          if (this.activePresenterId === peerId) {
+            this.$nextTick(() => this.bindPeerScreenWithRetry(peerId));
+          }
 
         } else {
-          // ── Same stream.id as camera → re-negotiation / update of camera ──
+          // Same stream.id → camera update
           this.setPeerStream(peerId, incomingStream);
           this.$nextTick(() => this.bindPeerVideoWithRetry(peerId));
           console.log(`🔄 Camera stream updated for ${peerId}: ${incomingStream.id}`);
@@ -830,7 +858,11 @@ export default {
 
       pc.onicecandidate = (event) => {
         if (event.candidate) {
-          this.sendWs({ type: 'ICE_CANDIDATE', toPeerId: peerId, data: event.candidate.toJSON() });
+          this.sendWs({ 
+            type: 'ICE_CANDIDATE', 
+            toPeerId: peerId, 
+            data: event.candidate.toJSON() 
+          });
         }
       };
 
@@ -839,7 +871,9 @@ export default {
         if (pc.connectionState === 'failed') pc.restartIce();
         if (pc.connectionState === 'disconnected') {
           setTimeout(() => {
-            if (['disconnected', 'failed', 'closed'].includes(pc.connectionState)) this.peerLeave(peerId);
+            if (['disconnected', 'failed', 'closed'].includes(pc.connectionState)) {
+              this.peerLeave(peerId);
+            }
           }, 5000);
         }
       };
@@ -849,9 +883,17 @@ export default {
 
       if (sendOffer) {
         try {
-          const offer = await pc.createOffer({ offerToReceiveAudio: true, offerToReceiveVideo: true });
+          const offer = await pc.createOffer({ 
+            offerToReceiveAudio: true, 
+            offerToReceiveVideo: true 
+          });
           await pc.setLocalDescription(offer);
-          this.sendWs({ type: 'OFFER', toPeerId: peerId, data: pc.localDescription, senderName: this.userName });
+          this.sendWs({ 
+            type: 'OFFER', 
+            toPeerId: peerId, 
+            data: pc.localDescription, 
+            senderName: this.userName 
+          });
           console.log(`📤 Offer → ${peerId}`);
         } catch (err) {
           console.error('createOffer failed:', err);
@@ -866,20 +908,35 @@ export default {
       if (!peerId || peerId === this.myPeerId) return;
       console.log(`📥 Offer ← ${peerId}`);
 
-      const offererName = msg.senderName || msg.data?.senderName || null;
-      if (offererName) this.peerNames = { ...this.peerNames, [peerId]: offererName };
+      const offererName = msg.senderName || msg.data?.senderName || msg.data?.name || null;
+      if (offererName) {
+        this.peerNames = { ...this.peerNames, [peerId]: offererName };
+      }
 
       const pc = this.peers[peerId] || await this.createPC(peerId, false);
 
       try {
         await pc.setRemoteDescription(new RTCSessionDescription(msg.data));
+        
         const queued = this.pendingCandidates[peerId] || [];
-        for (const c of queued) { try { await pc.addIceCandidate(c); } catch (e) { console.warn('ICE drain:', e); } }
+        for (const c of queued) { 
+          try { 
+            await pc.addIceCandidate(c); 
+          } catch (e) { 
+            console.warn('ICE drain:', e); 
+          } 
+        }
         this.pendingCandidates[peerId] = [];
 
         const answer = await pc.createAnswer();
         await pc.setLocalDescription(answer);
-        this.sendWs({ type: 'ANSWER', toPeerId: peerId, data: pc.localDescription, senderName: this.userName });
+        
+        this.sendWs({ 
+          type: 'ANSWER', 
+          toPeerId: peerId, 
+          data: pc.localDescription, 
+          senderName: this.userName 
+        });
         console.log(`📤 Answer → ${peerId}`);
       } catch (err) {
         console.error('handleOffer error:', err);
@@ -891,15 +948,24 @@ export default {
       const pc = this.peers[peerId];
       if (!pc) return;
 
-      const answererName = msg.senderName || msg.data?.senderName || null;
-      if (answererName) this.peerNames = { ...this.peerNames, [peerId]: answererName };
+      const answererName = msg.senderName || msg.data?.senderName || msg.data?.name || null;
+      if (answererName) {
+        this.peerNames = { ...this.peerNames, [peerId]: answererName };
+      }
 
       try {
         if (pc.signalingState === 'have-local-offer') {
           await pc.setRemoteDescription(new RTCSessionDescription(msg.data));
           console.log(`✅ Answer set for ${peerId}`);
+          
           const queued = this.pendingCandidates[peerId] || [];
-          for (const c of queued) { try { await pc.addIceCandidate(c); } catch (e) { console.warn('ICE drain:', e); } }
+          for (const c of queued) { 
+            try { 
+              await pc.addIceCandidate(c); 
+            } catch (e) { 
+              console.warn('ICE drain:', e); 
+            } 
+          }
           this.pendingCandidates[peerId] = [];
         }
       } catch (err) {
@@ -918,8 +984,11 @@ export default {
         this.pendingCandidates[peerId].push(candidate);
         return;
       }
-      try { await pc.addIceCandidate(candidate); }
-      catch (e) { console.warn('addIceCandidate error:', e); }
+      try { 
+        await pc.addIceCandidate(candidate); 
+      } catch (e) { 
+        console.warn('addIceCandidate error:', e); 
+      }
     },
 
     resolveRef(key) {
@@ -932,14 +1001,18 @@ export default {
       if (localEl && this.localStream && localEl.srcObject !== this.localStream) {
         localEl.srcObject = this.localStream;
       }
+      
       const screenEl = this.$refs.screenVideo;
       if (screenEl && this.screenStream && screenEl.srcObject !== this.screenStream) {
         screenEl.srcObject = this.screenStream;
         screenEl.play().catch(() => {});
       }
+      
       this.peerIds.forEach(pid => {
         this.bindPeerVideoWithRetry(pid);
-        if (this.peerScreenStreams[pid]) this.bindPeerScreenWithRetry(pid);
+        if (this.peerScreenStreams[pid]) {
+          this.bindPeerScreenWithRetry(pid);
+        }
       });
     },
 
@@ -960,11 +1033,16 @@ export default {
 
     cleanupPeers() {
       Object.values(this.peers).forEach(pc => { try { pc.close(); } catch (_) {} });
-      this.peers = {}; this.peerStreams = {}; this.peerScreenStreams = {};
+      this.peers = {}; 
+      this.peerStreams = {}; 
+      this.peerScreenStreams = {};
       this.peerCameraStreamIds = {};
-      this.peerNames = {}; this.peerMuted = {}; this.peerVideoOff = {};
+      this.peerNames = {}; 
+      this.peerMuted = {}; 
+      this.peerVideoOff = {};
       this.pendingCandidates = {};
-      this.activePresenterId = null; this.participantCount = 1;
+      this.activePresenterId = null; 
+      this.participantCount = 1;
     },
 
     toggleAudio() {
@@ -983,7 +1061,8 @@ export default {
 
     async toggleScreen() {
       if (this.screenStream) {
-        // ── STOP sharing ──
+        // STOP sharing
+        console.log('🛑 Stopping screen share');
         this.screenStream.getTracks().forEach(t => t.stop());
         this.screenStream = null;
 
@@ -991,9 +1070,11 @@ export default {
         for (const pc of Object.values(this.peers)) {
           const senders = pc.getSenders();
           for (const sender of senders) {
+            // Remove video tracks that are NOT the camera track
             if (sender.track?.kind === 'video' && sender.track !== this.localStream?.getVideoTracks()[0]) {
               try {
                 pc.removeTrack(sender);
+                console.log('Removed screen track from peer connection');
               } catch (e) {
                 console.warn('Failed to remove screen track:', e);
               }
@@ -1002,39 +1083,50 @@ export default {
         }
 
         this.sendWs({ type: 'SCREEN_SHARE_STOP' });
-        await this.$nextTick(); await this.$nextTick();
+        await this.$nextTick();
+        await this.$nextTick();
         this.bindAllVideos();
+        
       } else {
-        // ── START sharing ──
+        // START sharing
         try {
+          console.log('📺 Starting screen share');
           this.screenStream = await navigator.mediaDevices.getDisplayMedia({ 
-            video: { cursor: 'always' }, 
+            video: { 
+              cursor: 'always',
+              displaySurface: 'monitor' 
+            }, 
             audio: false 
           });
           
           const screenTrack = this.screenStream.getVideoTracks()[0];
+          console.log('Screen track obtained:', screenTrack);
 
           // Handle when user stops sharing via browser UI
           screenTrack.onended = () => {
+            console.log('Screen share ended by browser UI');
             this.toggleScreen(); // This will trigger the stop sharing flow
           };
 
-          // Add the screen track to each peer connection with its OWN stream
+          // Add the screen track to each peer connection
           for (const pc of Object.values(this.peers)) {
             try {
-              // IMPORTANT: Create a NEW stream for EACH peer connection
-              // This ensures each peer gets their own stream with a unique ID
+              // Create a NEW stream for EACH peer connection with a unique ID
               const streamForPeer = new MediaStream([screenTrack]);
-              pc.addTrack(screenTrack, streamForPeer);
+              const sender = pc.addTrack(screenTrack, streamForPeer);
+              console.log(`Added screen track to peer connection, sender:`, sender);
             } catch (e) { 
               console.warn('addTrack screen failed:', e); 
             }
           }
 
           this.sendWs({ type: 'SCREEN_SHARE_START' });
-          await this.$nextTick(); await this.$nextTick();
+          await this.$nextTick();
+          await this.$nextTick();
           this.bindAllVideos();
+          
         } catch (err) {
+          console.error('Screen share error:', err);
           if (err.name !== 'NotAllowedError' && err.name !== 'AbortError') {
             this.showToast('Screen share failed: ' + err.message, 'error');
           }
@@ -1096,7 +1188,15 @@ export default {
     sendMessage() {
       const text = this.chatMessage.trim(); if (!text) return;
       this.addMsg(this.userName, text, true);
-      this.sendWs({ type: 'CHAT_MESSAGE', data: { message: text, senderName: this.userName, timestamp: Date.now() } });
+      this.sendWs({ 
+        type: 'CHAT_MESSAGE', 
+        data: { 
+          message: text, 
+          senderName: this.userName,
+          username: this.userName,
+          timestamp: Date.now() 
+        } 
+      });
       this.chatMessage = '';
     },
 
