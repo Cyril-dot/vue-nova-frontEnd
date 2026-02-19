@@ -205,26 +205,6 @@ const routes = [
     meta: { requiresAuth: true, title: 'Team Workspace Members | NovaSpace' }
   },
   {
-    path: '/meeting',
-    name: 'Meeting',
-    component: () => import('../views/Meeting.vue'),
-    meta: { requiresAuth: true, title: 'Meeting | NovaSpace' }
-  },
-  { path: '/meeting/:code', component: Meeting, props: true },
-{ path: '/meeting/create', component: Meeting, query: { create: 'true' } },
-  {
-    path: '/join-meeting',
-    name: 'JoinMeeting',
-    component: () => import('../views/JoinMeeting.vue'),
-    meta: { requiresAuth: true, title: 'Join Meeting | NovaSpace' }
-  },
-  {
-    path: '/meeting-dashboard',
-    name: 'MeetingDashboard',
-    component: () => import('../views/meetingDashboard.vue'),
-    meta: { requiresAuth: true, title: 'Meeting Dashboard | NovaSpace' }
-  },
-  {
     path: '/chat',
     name: 'Chat',
     component: () => import('../views/ChatPage.vue'),
