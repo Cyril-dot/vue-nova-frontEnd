@@ -189,14 +189,15 @@
             </div>
 
             <div v-for="pid in peerIds" :key="`sidebar-${pid}`" class="nv-tile">
-              <video :ref="`peerVideo_${pid}`" autoplay playsinline style="width:100%;height:100%;object-fit:cover;display:block;"></video>
+              <!-- Sidebar always shows CAMERA (face), never the screen share -->
+              <video :ref="`peerCam_${pid}`" autoplay playsinline style="width:100%;height:100%;object-fit:cover;display:block;"></video>
               <div class="nv-tilebar">
                 <div class="nv-tilemeta">{{ getPeerName(pid) }}</div>
                 <div class="nv-tilebadges">
                   <span v-if="peerMuted[pid]" class="nv-badge nv-badge--red"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="1" y1="1" x2="23" y2="23"/></svg></span>
                 </div>
               </div>
-              <div v-if="!peerStreams[pid]" class="nv-nocam">
+              <div v-if="!peerCameraStreams[pid]" class="nv-nocam">
                 <div class="nv-avatar nv-avatar--sm">{{ getPeerName(pid).charAt(0).toUpperCase() }}</div>
               </div>
             </div>
@@ -226,7 +227,7 @@
                 <span v-if="peerVideoOff[pid]" class="nv-badge nv-badge--red"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="1" y1="1" x2="23" y2="23"/></svg></span>
               </div>
             </div>
-            <div v-if="!peerStreams[pid]" class="nv-nocam">
+            <div v-if="!peerCameraStreams[pid]" class="nv-nocam">
               <div class="nv-avatar nv-avatar--sm">{{ getPeerName(pid).charAt(0).toUpperCase() }}</div>
             </div>
           </div>
@@ -398,7 +399,8 @@ export default {
       ws: null,
 
       peers: {},
-      peerStreams: {},
+      peerStreams: {},       // peerId → current video stream (screen OR camera — drives the main/screen tile)
+      peerCameraStreams: {}, // peerId → original camera stream ALWAYS (drives sidebar tile)
       peerNames: {},
       peerMuted: {},
       peerVideoOff: {},
@@ -473,28 +475,35 @@ export default {
 
     // ✅ FIX B: Retry binding up to 20 times (2 seconds total) waiting for DOM element
     bindPeerVideoWithRetry(peerId, attempt = 0) {
-      const stream = this.peerStreams[peerId];
-      if (!stream) return;
+      const camStream    = this.peerCameraStreams[peerId];
+      const screenStream = this.peerStreams[peerId];
 
-      const el = this.resolveRef(`peerVideo_${peerId}`);
-      if (el) {
-        if (el.srcObject !== stream) {
-          el.srcObject = stream;
-          el.play().catch(() => {});
-          console.log(`✅ Bound peerVideo_${peerId} (attempt ${attempt})`);
-        }
-        // Also bind remote presenter screen view (same stream — it contains screen track)
-        if (this.activePresenterId === peerId) {
-          const screenEl = this.resolveRef(`peerScreen_${peerId}`);
-          if (screenEl && screenEl.srcObject !== stream) {
-            screenEl.srcObject = stream;
-            screenEl.play().catch(() => {});
+      // Bind camera stream → sidebar/grid face tile (peerCam_)
+      if (camStream) {
+        const camEl = this.resolveRef(`peerCam_${peerId}`);
+        if (camEl) {
+          if (camEl.srcObject !== camStream) {
+            camEl.srcObject = camStream;
+            camEl.play().catch(() => {});
+            console.log(`✅ Bound peerCam_${peerId} (attempt ${attempt})`);
           }
+        } else if (attempt < 20) {
+          setTimeout(() => this.bindPeerVideoWithRetry(peerId, attempt + 1), 100);
+          return;
         }
-      } else if (attempt < 20) {
+      }
+
+      // Bind screen stream → screen share big view (peerScreen_) when this peer is presenting
+      if (this.activePresenterId === peerId && screenStream) {
+        const screenEl = this.resolveRef(`peerScreen_${peerId}`);
+        if (screenEl && screenEl.srcObject !== screenStream) {
+          screenEl.srcObject = screenStream;
+          screenEl.play().catch(() => {});
+        }
+      }
+
+      if (!camStream && attempt < 20) {
         setTimeout(() => this.bindPeerVideoWithRetry(peerId, attempt + 1), 100);
-      } else {
-        console.warn(`⚠️ Could not find video element for ${peerId} after ${attempt} attempts`);
       }
     },
 
@@ -783,12 +792,25 @@ export default {
         this.localStream.getTracks().forEach(track => pc.addTrack(track, this.localStream));
       }
 
-      // ✅ FIX A+B: Use setPeerStream for reactivity, then retry DOM binding
+      // Save the incoming stream permanently as the camera stream
+      // When screen sharing starts, replaceTrack changes what's in the EXISTING stream object
+      // So we clone the stream for camera purposes to preserve the original tracks reference
       pc.ontrack = (event) => {
         console.log(`🎥 ontrack from ${peerId}:`, event.track.kind, '| streams:', event.streams.length);
         const stream = event.streams[0] || new MediaStream([event.track]);
+
+        if (event.track.kind === 'video') {
+          // Camera stream: only store if we don't have one yet, preserving face even during screen share
+          if (!this.peerCameraStreams[peerId]) {
+            // Create a dedicated camera-only stream that won't be affected by replaceTrack
+            const cameraStream = new MediaStream();
+            stream.getTracks().forEach(t => cameraStream.addTrack(t));
+            this.peerCameraStreams = { ...this.peerCameraStreams, [peerId]: cameraStream };
+          }
+        }
+
+        // peerStreams always tracks the "current" stream (may become screen during share)
         this.setPeerStream(peerId, stream);
-        // Wait for Vue to re-render tile (peerStreams changed → v-if hides nocam, shows video)
         this.$nextTick(() => this.bindPeerVideoWithRetry(peerId));
       };
 
@@ -815,7 +837,8 @@ export default {
         try {
           const offer = await pc.createOffer({ offerToReceiveAudio: true, offerToReceiveVideo: true });
           await pc.setLocalDescription(offer);
-          this.sendWs({ type: 'OFFER', toPeerId: peerId, data: pc.localDescription });
+          // ✅ Embed our name directly in OFFER so recipient always knows who we are
+          this.sendWs({ type: 'OFFER', toPeerId: peerId, data: pc.localDescription, senderName: this.userName });
           console.log(`📤 Offer → ${peerId}`);
         } catch (err) {
           console.error('createOffer failed:', err);
@@ -830,6 +853,10 @@ export default {
       if (!peerId || peerId === this.myPeerId) return;
       console.log(`📥 Offer ← ${peerId}`);
 
+      // ✅ Extract name embedded directly in the OFFER message
+      const offererName = msg.senderName || msg.data?.senderName || null;
+      if (offererName) this.peerNames = { ...this.peerNames, [peerId]: offererName };
+
       const pc = this.peers[peerId] || await this.createPC(peerId, false);
 
       try {
@@ -843,7 +870,8 @@ export default {
 
         const answer = await pc.createAnswer();
         await pc.setLocalDescription(answer);
-        this.sendWs({ type: 'ANSWER', toPeerId: peerId, data: pc.localDescription });
+        // ✅ Embed our name in the ANSWER so the offerer knows who answered
+        this.sendWs({ type: 'ANSWER', toPeerId: peerId, data: pc.localDescription, senderName: this.userName });
         console.log(`📤 Answer → ${peerId}`);
       } catch (err) {
         console.error('handleOffer error:', err);
@@ -854,6 +882,10 @@ export default {
       const peerId = msg.fromPeerId;
       const pc = this.peers[peerId];
       if (!pc) return;
+
+      // ✅ Extract name embedded in ANSWER
+      const answererName = msg.senderName || msg.data?.senderName || null;
+      if (answererName) this.peerNames = { ...this.peerNames, [peerId]: answererName };
 
       try {
         if (pc.signalingState === 'have-local-offer') {
@@ -897,20 +929,16 @@ export default {
     },
 
     bindAllVideos() {
-      // Local camera (normal tile or sidebar)
       const localEl = this.$refs.localVideo;
       if (localEl && this.localStream && localEl.srcObject !== this.localStream) {
         localEl.srcObject = this.localStream;
       }
-
-      // Local screen share (big view)
       const screenEl = this.$refs.screenVideo;
       if (screenEl && this.screenStream && screenEl.srcObject !== this.screenStream) {
         screenEl.srcObject = this.screenStream;
         screenEl.play().catch(() => {});
       }
-
-      // All remote peers
+      // Rebind all peer camera tiles and screen tiles
       this.peerIds.forEach(pid => this.bindPeerVideoWithRetry(pid));
     },
 
@@ -921,6 +949,7 @@ export default {
       try { this.peers[peerId]?.close(); } catch (_) {}
       const p = { ...this.peers }; delete p[peerId]; this.peers = p;
       const s = { ...this.peerStreams }; delete s[peerId]; this.peerStreams = s;
+      const cs = { ...this.peerCameraStreams }; delete cs[peerId]; this.peerCameraStreams = cs;
       const n = { ...this.peerNames }; delete n[peerId]; this.peerNames = n;
       const m = { ...this.peerMuted }; delete m[peerId]; this.peerMuted = m;
       const v = { ...this.peerVideoOff }; delete v[peerId]; this.peerVideoOff = v;
@@ -932,8 +961,9 @@ export default {
 
     cleanupPeers() {
       Object.values(this.peers).forEach(pc => { try { pc.close(); } catch (_) {} });
-      this.peers = {}; this.peerStreams = {}; this.peerNames = {};
-      this.peerMuted = {}; this.peerVideoOff = {}; this.pendingCandidates = {};
+      this.peers = {}; this.peerStreams = {}; this.peerCameraStreams = {};
+      this.peerNames = {}; this.peerMuted = {}; this.peerVideoOff = {};
+      this.pendingCandidates = {};
       this.activePresenterId = null; this.participantCount = 1;
     },
 
