@@ -440,7 +440,13 @@ export default {
       this.updateClock();
       this.clockInterval = setInterval(this.updateClock, 10_000);
       await this.loadDailySDK();
-      await this.joinDailyRoom(tokenData?.token || MeetingSession.getDailyToken());
+
+      // ✅ FIX: always extract the plain string token — never pass the whole tokenData object
+      const rawToken = typeof tokenData?.token === 'string'
+        ? tokenData.token
+        : (MeetingSession.getDailyToken() || null);
+
+      await this.joinDailyRoom(rawToken);
     },
 
     loadDailySDK() {
@@ -454,12 +460,27 @@ export default {
       });
     },
 
+    // ═══════════════════════════════════════════════════════
+    //  JOIN DAILY ROOM
+    //  FIX: joinOpts must contain only plain serializable values.
+    //  Passing an object (or anything non-cloneable) as `token`
+    //  causes the "postMessage could not be cloned" error.
+    // ═══════════════════════════════════════════════════════
+
     async joinDailyRoom(token = null) {
       try {
         this.dailyLoading = true;
+
+        // If no token was supplied, fetch a fresh one and extract the string
         if (!token) {
           const fresh = await this.fetchDailyToken(this.meetingCode);
-          token = fresh?.token || null;
+          token = typeof fresh?.token === 'string' ? fresh.token : null;
+        }
+
+        // Belt-and-suspenders: coerce to string or drop it entirely
+        if (token !== null && typeof token !== 'string') {
+          console.warn('⚠️ [Meeting] token was not a string — discarding to avoid postMessage error:', typeof token);
+          token = null;
         }
 
         this.callFrame = window.DailyIframe.createFrame(this.$refs.dailyContainer);
@@ -481,8 +502,26 @@ export default {
           .on('error',               this.onDailyError)
           .on('camera-error',        this.onCameraError);
 
-        const joinOpts = { url: this.dailyRoomUrl, userName: this.userName, startVideoOff: false, startAudioOff: false };
-        if (token) joinOpts.token = token;
+        // ✅ Build joinOpts with ONLY plain primitive / boolean values.
+        //    Do NOT spread or pass complex objects — Daily's iframe uses
+        //    postMessage internally and will throw if anything is non-cloneable.
+        const joinOpts = {
+          url:           String(this.dailyRoomUrl),
+          userName:      String(this.userName),
+          startVideoOff: false,
+          startAudioOff: false,
+        };
+
+        // Only attach token when it's a non-empty string
+        if (token && token.trim().length > 0) {
+          joinOpts.token = token;
+        }
+
+        console.log('🚀 [Meeting] Joining Daily room with opts:', {
+          url:      joinOpts.url,
+          userName: joinOpts.userName,
+          hasToken: !!joinOpts.token,
+        });
 
         await this.callFrame.join(joinOpts);
         console.log('✅ [Meeting] Joined Daily room');
@@ -615,12 +654,10 @@ export default {
     async confirmEndMeeting() {
       this.ending = true;
       try {
-        // Notify in-call participants before deleting the room
         if (this.callFrame) {
           try { this.callFrame.sendAppMessage({ type: 'meeting-ended', endedBy: this.userName }, '*'); } catch (_) {}
           await new Promise(r => setTimeout(r, 600));
         }
-        // DELETE /api/meetings/{code}
         await MeetingSession.endMeeting(this.meetingCode);
         this.showEndModal = false;
         this.cleanupAndNavigate();
@@ -635,19 +672,16 @@ export default {
     async confirmRestartMeeting() {
       this.restarting = true;
       try {
-        // Notify participants
         if (this.callFrame) {
           try { this.callFrame.sendAppMessage({ type: 'meeting-restarted', by: this.userName }, '*'); } catch (_) {}
           await new Promise(r => setTimeout(r, 600));
         }
-        // DELETE + POST /api/meetings/create (same name)
         await MeetingSession.restartMeeting(this.meetingCode);
         this.showRestartModal = false;
         this.showToast('Meeting restarted!');
         this.messages    = [];
         this.unreadCount = 0;
 
-        // Destroy and rejoin with fresh token
         if (this.callFrame) { try { this.callFrame.destroy(); } catch (_) {} this.callFrame = null; }
         this.dailyLoading = true;
         await new Promise(r => setTimeout(r, 1000));
@@ -679,8 +713,6 @@ export default {
 
     // ═══════════════════════════════════════════════════════
     //  CHAT
-    //  Sends via Daily app-message (real-time) AND optionally
-    //  via POST /api/meetings/{code}/message for server log.
     // ═══════════════════════════════════════════════════════
 
     toggleChat() {
@@ -693,17 +725,15 @@ export default {
       if (!text) return;
       this.addMsg(this.userName, text, true);
 
-      // Broadcast via Daily real-time app-message
       if (this.callFrame) {
         try { this.callFrame.sendAppMessage({ type: 'chat', sender: this.userName, text }, '*'); } catch (e) {
           console.warn('sendAppMessage failed:', e);
         }
       }
 
-      // Also log via backend: POST /api/meetings/{code}/message
       if (this.isAuthenticated && this.meetingCode) {
         MeetingSession.sendMessage(this.meetingCode, { type: 'chat', sender: this.userName, text })
-          .catch(() => {}); // fire-and-forget, don't block UI
+          .catch(() => {});
       }
 
       this.chatMessage = '';
