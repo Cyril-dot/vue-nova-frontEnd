@@ -159,7 +159,7 @@
                 </div>
               </div>
             </div>
-            <!-- REMOTE screen share big view -->
+            <!-- REMOTE screen share big view — screen track goes here -->
             <div v-else-if="activePresenterId" class="nv-tile nv-tile--screen">
               <video
                 :ref="`peerScreen_${activePresenterId}`"
@@ -398,7 +398,8 @@ export default {
       ws: null,
 
       peers: {},
-      peerStreams: {},       // peerId → current video stream (screen OR camera — drives the main/screen tile)
+      peerStreams: {},       // peerId → camera stream
+      peerScreenStreams: {}, // peerId → screen share stream (only during presentation)
       peerCameraStreams: {}, // peerId → original camera stream ALWAYS (drives sidebar tile)
       peerNames: {},
       peerMuted: {},
@@ -502,9 +503,18 @@ export default {
       }
     },
 
-    // ═══════════════════════════════════════════════════════
-    //  CREATE
-    // ═══════════════════════════════════════════════════════
+    // Bind a remote peer's SCREEN stream to the peerScreen_ element
+    bindPeerScreenWithRetry(peerId, attempt = 0) {
+      const stream = this.peerScreenStreams[peerId];
+      if (!stream) return;
+      const el = this.resolveRef(`peerScreen_${peerId}`);
+      if (el) {
+        if (el.srcObject !== stream) { el.srcObject = stream; el.play().catch(() => {}); }
+        console.log(`🖥️ Bound peerScreen_${peerId} (attempt ${attempt})`);
+      } else if (attempt < 20) {
+        setTimeout(() => this.bindPeerScreenWithRetry(peerId, attempt + 1), 100);
+      }
+    },
     goToDashboard() {
       if (window.history.length > 1) this.$router.go(-1);
       else this.$router.push(this.isAuthenticated ? '/meeting-dashboard' : '/join-meeting');
@@ -788,10 +798,27 @@ export default {
       }
 
       pc.ontrack = (event) => {
-        console.log(`🎥 ontrack from ${peerId}:`, event.track.kind, '| streams:', event.streams.length);
-        const stream = event.streams[0] || new MediaStream([event.track]);
-        this.setPeerStream(peerId, stream);
-        this.$nextTick(() => this.bindPeerVideoWithRetry(peerId));
+        const track = event.track;
+        console.log(`🎥 ontrack from ${peerId}: kind=${track.kind} streams=${event.streams.length} label=${track.label}`);
+
+        if (track.kind === 'audio') return; // audio handled automatically
+
+        // The presenter sends TWO video tracks:
+        //   stream[0] = camera stream (added first in createPC)
+        //   stream[1] = screen stream (added via addTrack in toggleScreen)
+        // We identify them by checking if a camera stream already exists for this peer.
+
+        if (!this.peerStreams[peerId]) {
+          // First video track received → this is the CAMERA
+          const stream = event.streams[0] || new MediaStream([track]);
+          this.setPeerStream(peerId, stream);
+          this.$nextTick(() => this.bindPeerVideoWithRetry(peerId));
+        } else {
+          // Second video track received → this is the SCREEN
+          const screenStream = event.streams[0] || new MediaStream([track]);
+          this.peerScreenStreams = { ...this.peerScreenStreams, [peerId]: screenStream };
+          this.$nextTick(() => this.bindPeerScreenWithRetry(peerId));
+        }
       };
 
       pc.onicecandidate = (event) => {
@@ -918,8 +945,10 @@ export default {
         screenEl.srcObject = this.screenStream;
         screenEl.play().catch(() => {});
       }
-      // Rebind all peer camera tiles and screen tiles
-      this.peerIds.forEach(pid => this.bindPeerVideoWithRetry(pid));
+      this.peerIds.forEach(pid => {
+        this.bindPeerVideoWithRetry(pid);
+        if (this.peerScreenStreams[pid]) this.bindPeerScreenWithRetry(pid);
+      });
     },
 
     // ═══════════════════════════════════════════════════════
@@ -929,6 +958,7 @@ export default {
       try { this.peers[peerId]?.close(); } catch (_) {}
       const p = { ...this.peers }; delete p[peerId]; this.peers = p;
       const s = { ...this.peerStreams }; delete s[peerId]; this.peerStreams = s;
+      const ss = { ...this.peerScreenStreams }; delete ss[peerId]; this.peerScreenStreams = ss;
       const n = { ...this.peerNames }; delete n[peerId]; this.peerNames = n;
       const m = { ...this.peerMuted }; delete m[peerId]; this.peerMuted = m;
       const v = { ...this.peerVideoOff }; delete v[peerId]; this.peerVideoOff = v;
@@ -940,9 +970,9 @@ export default {
 
     cleanupPeers() {
       Object.values(this.peers).forEach(pc => { try { pc.close(); } catch (_) {} });
-      this.peers = {}; this.peerStreams = {}; this.peerCameraStreams = {};
+      this.peers = {}; this.peerStreams = {}; this.peerScreenStreams = {};
       this.peerNames = {}; this.peerMuted = {}; this.peerVideoOff = {};
-      this.pendingCandidates = {};
+      this.pendingCandidates = {}; this._screenSenders = [];
       this.activePresenterId = null; this.participantCount = 1;
     },
 
@@ -965,28 +995,37 @@ export default {
 
     async toggleScreen() {
       if (this.screenStream) {
+        // ── STOP sharing ──
         this.screenStream.getTracks().forEach(t => t.stop());
         this.screenStream = null;
 
-        const cameraTrack = this.localStream?.getVideoTracks()[0];
-        if (cameraTrack) {
-          for (const pc of Object.values(this.peers)) {
-            const sender = pc.getSenders().find(s => s.track?.kind === 'video');
-            if (sender) { try { await sender.replaceTrack(cameraTrack); } catch (e) { console.warn(e); } }
-          }
+        // Remove the screen track sender from every peer connection
+        for (const pc of Object.values(this.peers)) {
+          const screenSender = pc.getSenders().find(s => s.track && this._screenSenders && this._screenSenders.includes(s));
+          if (screenSender) { try { pc.removeTrack(screenSender); } catch (e) { console.warn(e); } }
         }
+        this._screenSenders = [];
+        // Clear remote screen streams so peerScreen_ tiles hide
+        this.peerScreenStreams = {};
 
         this.sendWs({ type: 'SCREEN_SHARE_STOP' });
         await this.$nextTick(); await this.$nextTick();
         this.bindAllVideos();
       } else {
+        // ── START sharing ──
         try {
           this.screenStream = await navigator.mediaDevices.getDisplayMedia({ video: { cursor: 'always' }, audio: false });
           const screenTrack = this.screenStream.getVideoTracks()[0];
 
+          // Add the screen track as a SECOND video track — camera track stays untouched
+          this._screenSenders = [];
           for (const pc of Object.values(this.peers)) {
-            const sender = pc.getSenders().find(s => s.track?.kind === 'video');
-            if (sender) { try { await sender.replaceTrack(screenTrack); } catch (e) { console.warn(e); } }
+            try {
+              // Use a dedicated MediaStream for the screen so receiver can identify it
+              const screenOnlyStream = new MediaStream([screenTrack]);
+              const sender = pc.addTrack(screenTrack, screenOnlyStream);
+              this._screenSenders.push(sender);
+            } catch (e) { console.warn('addTrack screen failed:', e); }
           }
 
           screenTrack.onended = () => this.toggleScreen();
