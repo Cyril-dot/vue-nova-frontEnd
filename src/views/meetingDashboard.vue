@@ -409,6 +409,8 @@
   </div>
 </template>
 
+<!-- MeetingsDashboard.vue — Jitsi aligned -->
+<!-- Only the <script> section changes significantly; template & styles are identical to your original -->
 <script>
 import { TokenService, apiRequest } from '@/utils/apiService';
 import { MeetingSession } from '@/utils/meetingSession';
@@ -450,10 +452,8 @@ export default {
 
     filteredMeetings() {
       let list = [...this.allMeetings];
-
       if (this.activeFilter === 'private') list = list.filter(m => m.privacy === 'private');
       else if (this.activeFilter === 'public') list = list.filter(m => m.privacy !== 'private');
-
       list.sort((a, b) => {
         switch (this.currentSort.value) {
           case 'recent':   return new Date(b.created_at || 0) - new Date(a.created_at || 0);
@@ -476,12 +476,6 @@ export default {
 
   methods: {
 
-    // ═══════════════════════════════════════════════════════
-    //  FETCH MEETINGS
-    //  GET /api/meetings?limit=100
-    //  Daily room shape: { id, name, url, privacy, created_at, config }
-    // ═══════════════════════════════════════════════════════
-
     async fetchMeetingsData() {
       this.loading = true;
       this.error   = null;
@@ -493,15 +487,14 @@ export default {
 
         const body = await res.json();
 
-        // Daily room list shape can vary: array at root, data.rooms, data, etc.
+        // Handle both array and wrapped responses
         let raw = [];
-        if (Array.isArray(body))           raw = body;
-        else if (Array.isArray(body.data)) raw = body.data;
-        else if (Array.isArray(body.rooms))raw = body.rooms;
-        else if (body.data?.rooms)         raw = body.data.rooms;
+        if (Array.isArray(body))            raw = body;
+        else if (Array.isArray(body.data))  raw = body.data;
+        else if (Array.isArray(body.rooms)) raw = body.rooms;
 
         this.allMeetings    = raw;
-        this.activeMeetings = raw.filter(m => this.isRoomActive(m));
+        this.activeMeetings = raw.filter(m => m.active === true);
         this.updateFilterCounts();
         this.generateActivityData();
 
@@ -536,50 +529,30 @@ export default {
       }));
     },
 
-    // ── Room helpers ──────────────────────────────────────────────────────────
-
-    isRoomActive(m) {
-      // Daily rooms don't have a "status" field — we treat rooms with recent
-      // access as active. Best proxy is checking if created_at is very recent
-      // or if the backend returns any indicator.
-      return m.status === 'ACTIVE' || m.active === true;
-    },
-
-    getRoomStatusClass(m) {
-      if (this.isRoomActive(m)) return 'md-status--live';
-      return m.privacy === 'private' ? 'md-status--private' : 'md-status--public';
-    },
-
-    getRoomStatusLabel(m) {
-      if (this.isRoomActive(m)) return 'Live';
-      return m.privacy === 'private' ? 'Private' : 'Public';
-    },
-
-    formatRoomTime(m) {
-      if (!m.created_at) return 'Unknown date';
-      return `Created ${this.getRelativeTime(m.created_at)}`;
-    },
-
-    // ── UI ───────────────────────────────────────────────────────────────────
+    isRoomActive(m)       { return m.active === true; },
+    getRoomStatusClass(m) { return this.isRoomActive(m) ? 'md-status--live' : m.privacy === 'private' ? 'md-status--private' : 'md-status--public'; },
+    getRoomStatusLabel(m) { return this.isRoomActive(m) ? 'Live' : m.privacy === 'private' ? 'Private' : 'Public'; },
+    formatRoomTime(m)     { return m.created_at ? `Created ${this.getRelativeTime(m.created_at)}` : 'Unknown date'; },
 
     setFilter(v)       { this.activeFilter = v; },
     toggleSortMenu()   { this.showSortMenu = !this.showSortMenu; },
     setSortOption(opt) { this.currentSort = opt; this.showSortMenu = false; },
     getFilterTitle()   { return (this.filterTabs.find(t => t.value === this.activeFilter) || {}).label || 'Meetings'; },
-
     getEmptyStateMessage() {
       const map = { private: 'No private rooms.', public: 'No public rooms.' };
       return map[this.activeFilter] || 'No meetings yet. Create your first!';
     },
 
-    // ── Navigation ──────────────────────────────────────────────────────────
-
     createMeeting() {
       sessionStorage.removeItem('nova_meeting_code');
       this.$router.push({ path: '/meeting', query: { create: 'true' } });
     },
-    joinMeeting()            { this.$router.push({ path: '/join-meeting' }); },
-    joinMeetingWithCode(code){ MeetingSession.setMeetingCode(code); this.$router.push({ path: '/meeting' }); },
+    joinMeeting()             { this.$router.push({ path: '/join-meeting' }); },
+    joinMeetingWithCode(code) {
+      MeetingSession.setMeetingCode(code);
+      MeetingSession.setIsHost(false);
+      this.$router.push({ path: '/meeting' });
+    },
 
     copyCode(code) {
       navigator.clipboard.writeText(code)
@@ -587,13 +560,8 @@ export default {
         .catch(() => this.showToast('Failed to copy', 'error'));
     },
 
-    // ═══════════════════════════════════════════════════════
-    //  END MEETING
-    //  DELETE /api/meetings/{code}
-    // ═══════════════════════════════════════════════════════
-
-    promptEnd(meeting)    { this.modal = { show: true, type: 'end',     meeting, loading: false }; },
-    promptRestart(meeting){ this.modal = { show: true, type: 'restart', meeting, loading: false }; },
+    promptEnd(meeting)     { this.modal = { show: true, type: 'end',     meeting, loading: false }; },
+    promptRestart(meeting) { this.modal = { show: true, type: 'restart', meeting, loading: false }; },
 
     async confirmEnd() {
       this.modal.loading = true;
@@ -609,7 +577,6 @@ export default {
         this.updateFilterCounts();
         this.showToast(`"${code}" deleted.`, 'success');
       } catch (err) {
-        console.error('End meeting error:', err);
         this.showToast('Failed to delete: ' + err.message, 'error');
       } finally {
         this.modal.loading = false;
@@ -617,29 +584,19 @@ export default {
       }
     },
 
-    // ═══════════════════════════════════════════════════════
-    //  RESTART MEETING
-    //  DELETE /api/meetings/{code}  then  POST /api/meetings/create
-    // ═══════════════════════════════════════════════════════
-
     async confirmRestart() {
       this.modal.loading = true;
       const m    = this.modal.meeting;
       const name = m.name;
       try {
-        // 1. Delete existing room
         await apiRequest(`/meetings/${encodeURIComponent(name)}`, { method: 'DELETE' }).catch(() => {});
-
-        // 2. Recreate with same name
         await apiRequest('/meetings/create', {
           method: 'POST',
           body: JSON.stringify({ roomName: name, private: m.privacy === 'private' }),
         });
-
-        this.showToast(`"${name}" restarted! Participants can rejoin.`, 'success');
+        this.showToast(`"${name}" restarted!`, 'success');
         setTimeout(() => this.fetchMeetingsData(), 800);
       } catch (err) {
-        console.error('Restart error:', err);
         this.showToast('Failed to restart: ' + err.message, 'error');
       } finally {
         this.modal.loading = false;
@@ -648,8 +605,6 @@ export default {
     },
 
     closeModal() { this.modal = { show: false, type: null, meeting: null, loading: false }; },
-
-    // ── Helpers ──────────────────────────────────────────────────────────────
 
     getRelativeTime(ds) {
       if (!ds) return '';
