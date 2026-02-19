@@ -422,7 +422,7 @@ export default {
 
       ws: null,
 
-      // ✅ All peer state stored reactively via $set/$delete
+      // ✅ All peer state stored reactively (Vue 3 — direct assignment, no $set needed)
       peers: {},           // peerId → RTCPeerConnection
       peerStreams: {},      // peerId → MediaStream (drives video elements)
       peerNames: {},       // peerId → display name
@@ -633,7 +633,7 @@ export default {
         // New peer joined → send them an offer so they see us
         case 'JOIN': {
           this.participantCount++;
-          if (msg.data?.name) this.$set(this.peerNames, msg.fromPeerId, msg.data.name);
+          if (msg.data?.name) this.peerNames[msg.fromPeerId] = msg.data.name;
           await this.createPC(msg.fromPeerId, true);
           break;
         }
@@ -660,11 +660,11 @@ export default {
           break;
 
         case 'TOGGLE_AUDIO':
-          this.$set(this.peerMuted, msg.fromPeerId, !msg.data?.enabled);
+          this.peerMuted[msg.fromPeerId] = !msg.data?.enabled;
           break;
 
         case 'TOGGLE_VIDEO':
-          this.$set(this.peerVideoOff, msg.fromPeerId, !msg.data?.enabled);
+          this.peerVideoOff[msg.fromPeerId] = !msg.data?.enabled;
           break;
 
         case 'SCREEN_SHARE_START':
@@ -722,7 +722,7 @@ export default {
         console.log(`🎥 ontrack from ${peerId}:`, event.track.kind);
         const stream = event.streams[0];
         if (stream) {
-          this.$set(this.peerStreams, peerId, stream);
+          this.peerStreams[peerId] = stream;
           // Bind to video element after Vue updates the DOM
           this.$nextTick(() => this.bindPeerVideo(peerId));
         }
@@ -754,8 +754,8 @@ export default {
       };
 
       // ✅ Store reactively so v-for tile renders
-      this.$set(this.peers, peerId, pc);
-      this.$set(this.pendingCandidates, peerId, []);
+      this.peers[peerId] = pc;
+      this.pendingCandidates[peerId] = [];
 
       if (sendOffer) {
         try {
@@ -789,7 +789,7 @@ export default {
         for (const c of queued) {
           try { await pc.addIceCandidate(c); } catch (e) { console.warn('ICE drain:', e); }
         }
-        this.$set(this.pendingCandidates, peerId, []);
+        this.pendingCandidates[peerId] = [];
 
         const answer = await pc.createAnswer();
         await pc.setLocalDescription(answer);
@@ -815,7 +815,7 @@ export default {
           for (const c of queued) {
             try { await pc.addIceCandidate(c); } catch (e) { console.warn('ICE drain:', e); }
           }
-          this.$set(this.pendingCandidates, peerId, []);
+          this.pendingCandidates[peerId] = [];
         }
       } catch (err) {
         console.error('handleAnswer error:', err);
@@ -833,9 +833,8 @@ export default {
       // Without this, addIceCandidate throws and connection fails
       if (!pc.remoteDescription || !pc.remoteDescription.type) {
         console.log(`⏳ Queuing ICE for ${peerId}`);
-        const q = this.pendingCandidates[peerId] || [];
-        q.push(candidate);
-        this.$set(this.pendingCandidates, peerId, q);
+        if (!this.pendingCandidates[peerId]) this.pendingCandidates[peerId] = [];
+        this.pendingCandidates[peerId].push(candidate);
         return;
       }
 
@@ -905,12 +904,12 @@ export default {
 
     peerLeave(peerId) {
       try { this.peers[peerId]?.close(); } catch (_) {}
-      this.$delete(this.peers, peerId);
-      this.$delete(this.peerStreams, peerId);
-      this.$delete(this.peerNames, peerId);
-      this.$delete(this.peerMuted, peerId);
-      this.$delete(this.peerVideoOff, peerId);
-      this.$delete(this.pendingCandidates, peerId);
+      delete this.peers[peerId];
+      delete this.peerStreams[peerId];
+      delete this.peerNames[peerId];
+      delete this.peerMuted[peerId];
+      delete this.peerVideoOff[peerId];
+      delete this.pendingCandidates[peerId];
       if (this.activePresenterId === peerId) this.activePresenterId = null;
       this.participantCount = Math.max(1, this.participantCount - 1);
       console.log(`👋 ${peerId} left`);
