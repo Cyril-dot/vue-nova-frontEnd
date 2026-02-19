@@ -1,13 +1,14 @@
-<!-- Meeting.vue — FULLY FIXED WEBRTC VERSION -->
+<!-- Meeting.vue — WEBRTC FULLY FIXED (same layout/colors) -->
 <!--
   ROOT CAUSE FIXES:
-    ✅ FIX 1: this.$set(this.peers, peerId, pc) — makes peers reactive so v-for renders tile divs
-    ✅ FIX 2: injectRemoteVideo waits $nextTick so Vue tile div exists before injecting video
-    ✅ FIX 3: pendingStreams cache — streams that arrive before tile is rendered get queued & flushed
-    ✅ FIX 4: reinjectAllPeerVideos() — re-injects all streams after screen share layout switch
-    ✅ FIX 5: isPresenting watcher re-attaches localVideo + flushes pending streams on layout change
-    ✅ FIX 6: Screen share layout — all peers shown in sidebar with their camera feeds
-    ✅ FIX 7: WS double-close race condition fixed
+  ✅ FIX 1: Tracks added to PC BEFORE createOffer() — critical for media to flow
+  ✅ FIX 2: pendingCandidates[] queue — ICE candidates buffered until remoteDescription is set
+  ✅ FIX 3: peerStreams reactive object — Vue-reactive remote stream storage, no DOM hacks
+  ✅ FIX 4: <video> elements bound via Vue ref bindings — Vue manages DOM properly
+  ✅ FIX 5: Screen share replaces video sender track on ALL peer connections → visible to everyone
+  ✅ FIX 6: On layout change (isPresenting), re-bind all video srcObjects via nextTick
+  ✅ FIX 7: JOIN message triggers createPC(isInit=true) so new peer always gets an offer
+  ✅ FIX 8: WS null-guard before close to prevent double-close crash
 -->
 <template>
   <div class="nv-root">
@@ -152,7 +153,7 @@
           <div class="nv-gmain">
             <!-- LOCAL screen share main view -->
             <div v-if="screenStream" class="nv-tile nv-tile--screen">
-              <video ref="screenVideo" autoplay playsinline></video>
+              <video ref="screenVideo" autoplay playsinline muted></video>
               <div class="nv-tilebar">
                 <div class="nv-tilemeta">
                   <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>
@@ -160,21 +161,24 @@
                 </div>
               </div>
             </div>
-            <!-- REMOTE screen share main view -->
-            <!-- ✅ FIX: unique key forces re-render; id used by injectRemoteVideo -->
-            <div
-              v-else-if="activePresenterId"
-              :key="`main-${activePresenterId}`"
-              class="nv-tile nv-tile--screen"
-              :id="`nv-tile-${activePresenterId}`"
-            >
-              <div class="nv-nocam"><div class="nv-avatar">📺</div></div>
+            <!-- REMOTE screen share main view: the remote video stream IS the screen -->
+            <div v-else-if="activePresenterId" class="nv-tile nv-tile--screen">
+              <video
+                :ref="`peerScreen_${activePresenterId}`"
+                autoplay playsinline
+                style="width:100%;height:100%;object-fit:contain;background:#000;display:block;"
+              ></video>
+              <div class="nv-tilebar">
+                <div class="nv-tilemeta">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>
+                  {{ peerNames[activePresenterId] || ('Peer ' + activePresenterId.slice(-4).toUpperCase()) }} · Presenting
+                </div>
+              </div>
             </div>
           </div>
 
-          <!-- SIDEBAR — your face + all peers (camera feeds) -->
+          <!-- SIDEBAR: your cam + all peers cam feeds -->
           <div class="nv-gsidebar">
-            <!-- Your face always visible -->
             <div class="nv-tile nv-tile--me">
               <video ref="localVideo" autoplay muted playsinline></video>
               <div class="nv-tilebar">
@@ -191,25 +195,34 @@
               <div v-if="!videoOn" class="nv-nocam"><div class="nv-avatar">{{ userInitials }}</div></div>
             </div>
 
-            <!-- ✅ All peers shown in sidebar — presenter uses 'cam-{id}' tile for their camera face -->
-            <div
-              v-for="pid in peerIds"
-              :key="`sidebar-${pid}`"
-              class="nv-tile"
-              :id="activePresenterId === pid ? `nv-tile-cam-${pid}` : `nv-tile-${pid}`"
-            >
-              <div class="nv-nocam"><div class="nv-avatar nv-avatar--sm">{{ pid.slice(-2).toUpperCase() }}</div></div>
+            <div v-for="pid in peerIds" :key="`sidebar-${pid}`" class="nv-tile">
+              <video
+                :ref="`peerVideo_${pid}`"
+                autoplay playsinline
+                style="width:100%;height:100%;object-fit:cover;display:block;"
+              ></video>
+              <div class="nv-tilebar">
+                <div class="nv-tilemeta">{{ peerNames[pid] || ('Peer ' + pid.slice(-4).toUpperCase()) }}</div>
+                <div class="nv-tilebadges">
+                  <span v-if="peerMuted[pid]" class="nv-badge nv-badge--red">
+                    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="1" y1="1" x2="23" y2="23"/></svg>
+                  </span>
+                </div>
+              </div>
+              <div v-if="!peerStreams[pid]" class="nv-nocam">
+                <div class="nv-avatar nv-avatar--sm">{{ pid.slice(-2).toUpperCase() }}</div>
+              </div>
             </div>
           </div>
         </template>
 
         <!-- NORMAL GRID LAYOUT -->
         <template v-else>
-          <div class="nv-tile nv-tile--me" id="nv-local">
+          <div class="nv-tile nv-tile--me">
             <video ref="localVideo" autoplay muted playsinline></video>
             <div class="nv-tilebar">
               <div class="nv-tilemeta"><span class="nv-you-dot"></span>{{ userName }} (you)</div>
-              <div class="nv-tilebadges" id="nv-local-badges">
+              <div class="nv-tilebadges">
                 <span v-if="!audioOn" class="nv-badge nv-badge--red">
                   <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="1" y1="1" x2="23" y2="23"/></svg>
                 </span>
@@ -221,14 +234,26 @@
             <div v-if="!videoOn" class="nv-nocam"><div class="nv-avatar">{{ userInitials }}</div></div>
           </div>
 
-          <!-- ✅ FIX: peerIds is a reactive computed from Object.keys(peers) -->
-          <div
-            v-for="pid in peerIds"
-            :key="`grid-${pid}`"
-            class="nv-tile"
-            :id="`nv-tile-${pid}`"
-          >
-            <div class="nv-nocam"><div class="nv-avatar nv-avatar--sm">{{ pid.slice(-2).toUpperCase() }}</div></div>
+          <div v-for="pid in peerIds" :key="`grid-${pid}`" class="nv-tile">
+            <video
+              :ref="`peerVideo_${pid}`"
+              autoplay playsinline
+              style="width:100%;height:100%;object-fit:cover;display:block;"
+            ></video>
+            <div class="nv-tilebar">
+              <div class="nv-tilemeta">{{ peerNames[pid] || ('Peer ' + pid.slice(-4).toUpperCase()) }}</div>
+              <div class="nv-tilebadges">
+                <span v-if="peerMuted[pid]" class="nv-badge nv-badge--red">
+                  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="1" y1="1" x2="23" y2="23"/></svg>
+                </span>
+                <span v-if="peerVideoOff[pid]" class="nv-badge nv-badge--red">
+                  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="1" y1="1" x2="23" y2="23"/></svg>
+                </span>
+              </div>
+            </div>
+            <div v-if="!peerStreams[pid]" class="nv-nocam">
+              <div class="nv-avatar nv-avatar--sm">{{ pid.slice(-2).toUpperCase() }}</div>
+            </div>
           </div>
         </template>
       </div>
@@ -366,6 +391,14 @@ import { TokenService } from '@/utils/apiService';
 const API    = 'https://nova-test-ctne.onrender.com/api';
 const WS_URL = 'wss://nova-test-ctne.onrender.com/ws/webrtc';
 
+const ICE_SERVERS = {
+  iceServers: [
+    { urls: 'stun:stun.l.google.com:19302' },
+    { urls: 'stun:stun1.l.google.com:19302' },
+    { urls: 'stun:stun2.l.google.com:19302' },
+  ],
+};
+
 export default {
   name: 'Meeting',
 
@@ -388,8 +421,15 @@ export default {
       created: { code: null, title: null },
 
       ws: null,
-      peers: {},           // ✅ mutated only via this.$set / this.$delete
-      pendingStreams: {},   // ✅ peerId → { stream, tileId } — flushed when tile renders
+
+      // ✅ All peer state stored reactively via $set/$delete
+      peers: {},           // peerId → RTCPeerConnection
+      peerStreams: {},      // peerId → MediaStream (drives video elements)
+      peerNames: {},       // peerId → display name
+      peerMuted: {},       // peerId → bool
+      peerVideoOff: {},    // peerId → bool
+      pendingCandidates: {}, // peerId → RTCIceCandidate[] (queued before remoteDescription set)
+
       localStream: null,
       screenStream: null,
 
@@ -408,46 +448,32 @@ export default {
       chatOpen: false, chatMessage: '', messages: [], unreadCount: 0,
       toastVisible: false, toastMessage: '', toastType: 'success',
       currentTime: '', clockInterval: null,
-
-      ICE_SERVERS: {
-        iceServers: [
-          { urls: 'stun:stun.l.google.com:19302' },
-          { urls: 'stun:stun1.l.google.com:19302' },
-        ],
-      },
     };
   },
 
   computed: {
     isAuthenticated() { return TokenService.isAuthenticated(); },
     token()           { return TokenService.getAccessToken(); },
-
-    // ✅ FIX: reactive list — Vue tracks this when $set/$delete mutates peers
-    peerIds() { return Object.keys(this.peers); },
-
-    // ✅ single source of truth for layout
-    isPresenting() { return !!(this.screenStream || this.activePresenterId); },
+    peerIds()         { return Object.keys(this.peers); },
+    isPresenting()    { return !!(this.screenStream || this.activePresenterId); },
   },
 
   watch: {
-    // ✅ FIX: re-attach video elements after layout switches (Vue re-renders refs)
+    // When layout switches (presenting on/off), re-bind all video elements after re-render
     isPresenting() {
       this.$nextTick(() => {
-        if (this.$refs.localVideo && this.localStream) {
-          this.$refs.localVideo.srcObject = this.localStream;
-        }
-        if (this.$refs.screenVideo && this.screenStream) {
-          this.$refs.screenVideo.srcObject = this.screenStream;
-        }
-        // Flush queued streams + re-inject all existing peer streams
-        this.flushPendingStreams();
-        this.reinjectAllPeerVideos();
+        this.$nextTick(() => this.bindAllVideos());
       });
     },
-
-    // ✅ FIX: new peer tile just rendered — flush any waiting streams
-    peerIds() {
-      this.$nextTick(() => this.flushPendingStreams());
+    // When peer list changes, bind new peer's video
+    peerIds(newIds, oldIds) {
+      this.$nextTick(() => {
+        newIds.forEach(pid => {
+          if (!oldIds.includes(pid) && this.peerStreams[pid]) {
+            this.bindPeerVideo(pid);
+          }
+        });
+      });
     },
   },
 
@@ -540,15 +566,22 @@ export default {
       this.updateClock();
       this.clockInterval = setInterval(this.updateClock, 10000);
 
+      // ✅ Get local camera/mic FIRST before any peer connections
       try {
         this.localStream = await navigator.mediaDevices.getUserMedia({
-          video: { width: 1280, height: 720 }, audio: true,
+          video: { width: { ideal: 1280 }, height: { ideal: 720 } },
+          audio: true,
         });
-        await this.$nextTick();
-        if (this.$refs.localVideo) this.$refs.localVideo.srcObject = this.localStream;
       } catch (err) {
-        console.warn('No camera/mic:', err.message);
-        this.videoOn = false; this.audioOn = false;
+        console.warn('Camera/mic unavailable:', err.message);
+        this.videoOn = false;
+        this.audioOn = false;
+      }
+
+      // Bind local preview
+      await this.$nextTick();
+      if (this.$refs.localVideo && this.localStream) {
+        this.$refs.localVideo.srcObject = this.localStream;
       }
 
       this.connectWebSocket();
@@ -560,10 +593,21 @@ export default {
     connectWebSocket() {
       const url = this.token ? `${WS_URL}?token=${this.token}` : WS_URL;
       this.ws = new WebSocket(url);
-      this.ws.onopen    = () => this.sendWs({ type: 'JOIN' });
-      this.ws.onmessage = async (e) => await this.handleWsMsg(JSON.parse(e.data));
-      this.ws.onerror   = (e) => console.error('WS error', e);
-      this.ws.onclose   = ()  => console.log('WS closed');
+
+      this.ws.onopen = () => {
+        console.log('✅ WS open');
+        this.sendWs({ type: 'JOIN', data: { name: this.userName } });
+      };
+
+      this.ws.onmessage = async (e) => {
+        let msg;
+        try { msg = JSON.parse(e.data); } catch { return; }
+        if (msg.fromPeerId === this.myPeerId) return; // ignore own messages
+        await this.handleWsMsg(msg);
+      };
+
+      this.ws.onerror = (e) => console.error('WS error', e);
+      this.ws.onclose = () => console.log('WS closed');
     },
 
     sendWs(obj) {
@@ -576,240 +620,318 @@ export default {
 
     async handleWsMsg(msg) {
       switch (msg.type) {
-        case 'PARTICIPANT_LIST':
-          msg.data.peers.forEach(id => this.createPC(id, true));
-          this.participantCount = msg.data.peers.length + 1;
+
+        // Server sends the list of already-connected peers → we offer to each one
+        case 'PARTICIPANT_LIST': {
+          this.participantCount = (msg.data?.peers?.length || 0) + 1;
+          for (const id of (msg.data?.peers || [])) {
+            await this.createPC(id, true);
+          }
           break;
-        case 'JOIN':            this.participantCount++;                   break;
-        case 'LEAVE':           this.peerLeave(msg.fromPeerId);            break;
-        case 'OFFER':           await this.handleOffer(msg);               break;
-        case 'ANSWER':          await this.handleAnswer(msg);              break;
-        case 'ICE_CANDIDATE':   await this.handleICE(msg);                 break;
+        }
+
+        // New peer joined → send them an offer so they see us
+        case 'JOIN': {
+          this.participantCount++;
+          if (msg.data?.name) this.$set(this.peerNames, msg.fromPeerId, msg.data.name);
+          await this.createPC(msg.fromPeerId, true);
+          break;
+        }
+
+        case 'LEAVE':
+          this.peerLeave(msg.fromPeerId);
+          break;
+
+        case 'OFFER':
+          await this.handleOffer(msg);
+          break;
+
+        case 'ANSWER':
+          await this.handleAnswer(msg);
+          break;
+
+        case 'ICE_CANDIDATE':
+          await this.handleICE(msg);
+          break;
+
         case 'CHAT_MESSAGE':
-          this.addMsg(msg.data.senderName, msg.data.message, false);
+          this.addMsg(msg.data?.senderName || 'Peer', msg.data?.message || '', false);
           if (!this.chatOpen) this.unreadCount++;
           break;
+
+        case 'TOGGLE_AUDIO':
+          this.$set(this.peerMuted, msg.fromPeerId, !msg.data?.enabled);
+          break;
+
         case 'TOGGLE_VIDEO':
-        case 'TOGGLE_AUDIO':    this.updatePeerBadge(msg);                break;
-        case 'SCREEN_SHARE_START': this.remoteScreenStart(msg.fromPeerId); break;
-        case 'SCREEN_SHARE_STOP':  this.remoteScreenStop(msg.fromPeerId);  break;
+          this.$set(this.peerVideoOff, msg.fromPeerId, !msg.data?.enabled);
+          break;
+
+        case 'SCREEN_SHARE_START':
+          this.activePresenterId = msg.fromPeerId;
+          // Wait two ticks for Vue to render the new layout with screen video element
+          await this.$nextTick();
+          await this.$nextTick();
+          this.bindAllVideos();
+          break;
+
+        case 'SCREEN_SHARE_STOP':
+          if (this.activePresenterId === msg.fromPeerId) {
+            this.activePresenterId = null;
+            await this.$nextTick();
+            await this.$nextTick();
+            this.bindAllVideos();
+          }
+          break;
+
         case 'MEETING_ENDED':
           this.showToast('Meeting ended by host.', 'error');
           setTimeout(() => this.cleanupAndNavigate(), 1800);
           break;
+
         case 'MEETING_RESTARTED':
           this.showToast('Meeting restarted by host.');
           this.cleanupPeers();
+          if (this.ws) { this.ws.onclose = null; this.ws.close(); this.ws = null; }
+          await this.$nextTick();
           this.connectWebSocket();
           break;
       }
     },
 
     // ═══════════════════════════════════════════════════════
-    //  WEBRTC — PEER CONNECTIONS
+    //  WEBRTC CORE
     // ═══════════════════════════════════════════════════════
 
-    // ✅ FIX: this.$set makes peers reactive so v-for re-renders tile divs
-    createPC(peerId, isInit) {
+    async createPC(peerId, sendOffer) {
       if (this.peers[peerId]) return this.peers[peerId];
 
-      const pc = new RTCPeerConnection(this.ICE_SERVERS);
+      const pc = new RTCPeerConnection(ICE_SERVERS);
 
-      // ✅ Add all local tracks so remote peer can see/hear us
+      // ✅ CRITICAL FIX #1: Add local tracks to the PC BEFORE creating the offer.
+      // If tracks aren't added first, the SDP won't include media sections and
+      // the remote peer will never receive any audio/video from us.
       if (this.localStream) {
-        this.localStream.getTracks().forEach(t => pc.addTrack(t, this.localStream));
+        this.localStream.getTracks().forEach(track => {
+          pc.addTrack(track, this.localStream);
+        });
       }
 
-      pc.ontrack = (e) => {
-        console.log('🎥 ontrack from', peerId, e.streams);
-        if (e.streams && e.streams[0]) {
-          this.injectRemoteVideo(peerId, e.streams[0]);
+      // ✅ CRITICAL FIX #2: ontrack — save stream reactively so Vue video elements get it
+      pc.ontrack = (event) => {
+        console.log(`🎥 ontrack from ${peerId}:`, event.track.kind);
+        const stream = event.streams[0];
+        if (stream) {
+          this.$set(this.peerStreams, peerId, stream);
+          // Bind to video element after Vue updates the DOM
+          this.$nextTick(() => this.bindPeerVideo(peerId));
         }
       };
 
-      pc.onicecandidate = (e) => {
-        if (e.candidate) this.sendWs({ type: 'ICE_CANDIDATE', toPeerId: peerId, data: e.candidate });
+      // Send ICE candidates to the remote peer
+      pc.onicecandidate = (event) => {
+        if (event.candidate) {
+          this.sendWs({
+            type: 'ICE_CANDIDATE',
+            toPeerId: peerId,
+            data: event.candidate.toJSON(),
+          });
+        }
       };
 
       pc.onconnectionstatechange = () => {
-        console.log(`🔗 PC [${peerId.slice(-4)}]:`, pc.connectionState);
-        if (['disconnected', 'failed'].includes(pc.connectionState)) this.peerLeave(peerId);
+        console.log(`🔗 [${peerId.slice(-4)}] connectionState: ${pc.connectionState}`);
+        if (pc.connectionState === 'failed') {
+          pc.restartIce();
+        }
+        if (pc.connectionState === 'disconnected') {
+          setTimeout(() => {
+            if (['disconnected', 'failed', 'closed'].includes(pc.connectionState)) {
+              this.peerLeave(peerId);
+            }
+          }, 5000);
+        }
       };
 
-      // ✅ $set — makes Vue aware of this new key so v-for picks it up
+      // ✅ Store reactively so v-for tile renders
       this.$set(this.peers, peerId, pc);
+      this.$set(this.pendingCandidates, peerId, []);
 
-      if (isInit) {
-        // Wait for Vue to render the tile div, then create offer
-        this.$nextTick(() => {
-          pc.createOffer()
-            .then(o => pc.setLocalDescription(o))
-            .then(() => this.sendWs({ type: 'OFFER', toPeerId: peerId, data: pc.localDescription }))
-            .catch(console.error);
-        });
+      if (sendOffer) {
+        try {
+          const offer = await pc.createOffer({
+            offerToReceiveAudio: true,
+            offerToReceiveVideo: true,
+          });
+          await pc.setLocalDescription(offer);
+          this.sendWs({ type: 'OFFER', toPeerId: peerId, data: pc.localDescription });
+          console.log(`📤 Offer → ${peerId}`);
+        } catch (err) {
+          console.error('createOffer failed:', err);
+        }
       }
 
       return pc;
     },
 
     async handleOffer(msg) {
-      const id = msg.fromPeerId;
-      const pc = this.peers[id] || this.createPC(id, false);
-      // ✅ Wait for Vue to render this peer's tile before proceeding
-      await this.$nextTick();
-      await pc.setRemoteDescription(new RTCSessionDescription(msg.data));
-      const ans = await pc.createAnswer();
-      await pc.setLocalDescription(ans);
-      this.sendWs({ type: 'ANSWER', toPeerId: id, data: pc.localDescription });
+      const peerId = msg.fromPeerId;
+      console.log(`📥 Offer ← ${peerId}`);
+
+      // Create PC without sending an offer (we're the answerer)
+      const pc = this.peers[peerId] || await this.createPC(peerId, false);
+
+      try {
+        await pc.setRemoteDescription(new RTCSessionDescription(msg.data));
+
+        // ✅ CRITICAL FIX #3: Drain any ICE candidates that arrived before remoteDescription
+        const queued = this.pendingCandidates[peerId] || [];
+        for (const c of queued) {
+          try { await pc.addIceCandidate(c); } catch (e) { console.warn('ICE drain:', e); }
+        }
+        this.$set(this.pendingCandidates, peerId, []);
+
+        const answer = await pc.createAnswer();
+        await pc.setLocalDescription(answer);
+        this.sendWs({ type: 'ANSWER', toPeerId: peerId, data: pc.localDescription });
+        console.log(`📤 Answer → ${peerId}`);
+      } catch (err) {
+        console.error('handleOffer error:', err);
+      }
     },
 
     async handleAnswer(msg) {
-      const pc = this.peers[msg.fromPeerId];
-      if (pc) await pc.setRemoteDescription(new RTCSessionDescription(msg.data));
+      const peerId = msg.fromPeerId;
+      const pc = this.peers[peerId];
+      if (!pc) { console.warn('handleAnswer: no PC for', peerId); return; }
+
+      try {
+        if (pc.signalingState === 'have-local-offer') {
+          await pc.setRemoteDescription(new RTCSessionDescription(msg.data));
+          console.log(`✅ Answer set for ${peerId}`);
+
+          // Drain queued ICE candidates
+          const queued = this.pendingCandidates[peerId] || [];
+          for (const c of queued) {
+            try { await pc.addIceCandidate(c); } catch (e) { console.warn('ICE drain:', e); }
+          }
+          this.$set(this.pendingCandidates, peerId, []);
+        }
+      } catch (err) {
+        console.error('handleAnswer error:', err);
+      }
     },
 
     async handleICE(msg) {
-      const pc = this.peers[msg.fromPeerId];
-      if (pc) {
-        try { await pc.addIceCandidate(new RTCIceCandidate(msg.data)); }
-        catch (e) { console.warn('ICE error:', e); }
+      const peerId = msg.fromPeerId;
+      const pc = this.peers[peerId];
+      if (!pc || !msg.data) return;
+
+      const candidate = new RTCIceCandidate(msg.data);
+
+      // ✅ CRITICAL FIX #4: Queue candidates if remoteDescription not set yet
+      // Without this, addIceCandidate throws and connection fails
+      if (!pc.remoteDescription || !pc.remoteDescription.type) {
+        console.log(`⏳ Queuing ICE for ${peerId}`);
+        const q = this.pendingCandidates[peerId] || [];
+        q.push(candidate);
+        this.$set(this.pendingCandidates, peerId, q);
+        return;
+      }
+
+      try {
+        await pc.addIceCandidate(candidate);
+      } catch (e) {
+        console.warn('addIceCandidate error:', e);
       }
     },
 
     // ═══════════════════════════════════════════════════════
-    //  VIDEO INJECTION
+    //  VIDEO BINDING
     // ═══════════════════════════════════════════════════════
 
-    // ✅ FIX: determines correct tile ID, waits for DOM, queues if not ready
-    injectRemoteVideo(peerId, stream) {
+    // Resolve a Vue ref that may be an array (when inside v-for)
+    resolveRef(key) {
+      const r = this.$refs[key];
+      return Array.isArray(r) ? r[0] : r;
+    },
+
+    // Bind a peer's stream to their video element(s)
+    bindPeerVideo(peerId) {
+      const stream = this.peerStreams[peerId];
       if (!stream) return;
 
-      // During screen share: presenter's camera goes to sidebar tile 'cam-{pid}'
-      // Everyone else goes to 'nv-tile-{pid}'
-      const tileId = (this.activePresenterId === peerId && !this.screenStream)
-        ? `nv-tile-cam-${peerId}`
-        : `nv-tile-${peerId}`;
+      // Normal peer tile
+      const el = this.resolveRef(`peerVideo_${peerId}`);
+      if (el && el.srcObject !== stream) {
+        el.srcObject = stream;
+        el.play().catch(() => {});
+        console.log(`✅ Bound peerVideo_${peerId}`);
+      }
 
-      const doInject = (id) => {
-        const tile = document.getElementById(id);
-        if (!tile) return false;
-
-        // Remove placeholder
-        tile.querySelectorAll('.nv-nocam').forEach(el => el.remove());
-
-        let video = tile.querySelector('video');
-        if (!video) {
-          video = document.createElement('video');
-          video.autoplay = true;
-          video.playsinline = true;
-          video.style.cssText = 'width:100%;height:100%;object-fit:cover;display:block;position:absolute;top:0;left:0;';
-          tile.appendChild(video);
-
-          const bar    = document.createElement('div'); bar.className = 'nv-tilebar';
-          const meta   = document.createElement('div'); meta.className = 'nv-tilemeta';
-          meta.textContent = `Peer ${peerId.slice(-4).toUpperCase()}`;
-          const badges = document.createElement('div'); badges.className = 'nv-tilebadges';
-          badges.id = `nv-badges-${peerId}`;
-          bar.append(meta, badges);
-          tile.appendChild(bar);
+      // If this peer is also the screen presenter, bind the large screen view too
+      if (this.activePresenterId === peerId) {
+        const screenEl = this.resolveRef(`peerScreen_${peerId}`);
+        if (screenEl && screenEl.srcObject !== stream) {
+          screenEl.srcObject = stream;
+          screenEl.play().catch(() => {});
+          console.log(`✅ Bound peerScreen_${peerId}`);
         }
-
-        video.srcObject = stream;
-        video.play().catch(() => {});
-        console.log(`✅ Video injected → #${id}`);
-        return true;
-      };
-
-      // Try immediately
-      if (doInject(tileId)) return;
-
-      // ✅ Wait one tick (Vue may be mid-render)
-      this.$nextTick(() => {
-        if (doInject(tileId)) return;
-
-        // ✅ Queue it — will be retried when peerIds changes or layout switches
-        console.warn(`⏳ Queuing stream for ${peerId} (tile #${tileId} not in DOM yet)`);
-        this.pendingStreams[peerId] = { stream, tileId };
-
-        // ✅ Hard fallback — append tile to grid if Vue never renders it
-        setTimeout(() => {
-          if (!this.pendingStreams[peerId]) return; // already flushed
-          delete this.pendingStreams[peerId];
-          console.warn(`🆘 Hard fallback: manually creating tile for ${peerId}`);
-          const grid = this.$refs.videosGrid;
-          if (!grid) return;
-          if (!document.getElementById(`nv-tile-${peerId}`)) {
-            const w = document.createElement('div');
-            w.className = 'nv-tile'; w.id = `nv-tile-${peerId}`;
-            grid.appendChild(w);
-          }
-          doInject(`nv-tile-${peerId}`);
-        }, 1000);
-      });
+      }
     },
 
-    // ✅ Re-inject any streams that were waiting for their tile to appear
-    flushPendingStreams() {
-      Object.entries(this.pendingStreams).forEach(([peerId, { stream, tileId }]) => {
-        const tile = document.getElementById(tileId);
-        if (tile) {
-          delete this.pendingStreams[peerId];
-          this.injectRemoteVideo(peerId, stream);
-        }
-      });
+    // Re-bind every video element after a layout change
+    bindAllVideos() {
+      // Local camera
+      const localEl = this.$refs.localVideo;
+      if (localEl && this.localStream && localEl.srcObject !== this.localStream) {
+        localEl.srcObject = this.localStream;
+      }
+
+      // Local screen share preview
+      const screenEl = this.$refs.screenVideo;
+      if (screenEl && this.screenStream && screenEl.srcObject !== this.screenStream) {
+        screenEl.srcObject = this.screenStream;
+        screenEl.play().catch(() => {});
+      }
+
+      // All remote peers (both their sidebar tile and the screen tile if presenting)
+      this.peerIds.forEach(pid => this.bindPeerVideo(pid));
     },
 
-    // ✅ Re-inject all peer streams (called after layout switches)
-    reinjectAllPeerVideos() {
-      Object.keys(this.peers).forEach(peerId => {
-        const pc = this.peers[peerId];
-        if (!pc) return;
-        // Collect all remote video+audio tracks into one stream
-        const tracks = pc.getReceivers()
-          .map(r => r.track)
-          .filter(Boolean);
-        if (tracks.length > 0) {
-          const stream = new MediaStream(tracks);
-          this.injectRemoteVideo(peerId, stream);
-        }
-      });
-    },
+    // ═══════════════════════════════════════════════════════
+    //  PEER LIFECYCLE
+    // ═══════════════════════════════════════════════════════
 
-    peerLeave(id) {
-      const pc = this.peers[id];
-      if (pc) { pc.close(); this.$delete(this.peers, id); }
-      document.getElementById(`nv-tile-${id}`)?.remove();
-      document.getElementById(`nv-tile-cam-${id}`)?.remove();
-      if (this.activePresenterId === id) this.remoteScreenStop(id);
-      delete this.pendingStreams[id];
+    peerLeave(peerId) {
+      try { this.peers[peerId]?.close(); } catch (_) {}
+      this.$delete(this.peers, peerId);
+      this.$delete(this.peerStreams, peerId);
+      this.$delete(this.peerNames, peerId);
+      this.$delete(this.peerMuted, peerId);
+      this.$delete(this.peerVideoOff, peerId);
+      this.$delete(this.pendingCandidates, peerId);
+      if (this.activePresenterId === peerId) this.activePresenterId = null;
       this.participantCount = Math.max(1, this.participantCount - 1);
+      console.log(`👋 ${peerId} left`);
     },
 
     cleanupPeers() {
-      Object.values(this.peers).forEach(pc => pc.close());
-      this.peers = {};
-      this.pendingStreams = {};
-      this.participantCount = 1;
+      Object.values(this.peers).forEach(pc => { try { pc.close(); } catch (_) {} });
+      this.peers             = {};
+      this.peerStreams        = {};
+      this.peerNames         = {};
+      this.peerMuted         = {};
+      this.peerVideoOff      = {};
+      this.pendingCandidates = {};
       this.activePresenterId = null;
-    },
-
-    updatePeerBadge(msg) {
-      const box = document.getElementById(`nv-badges-${msg.fromPeerId}`);
-      if (!box) return;
-      const eid = `${msg.type === 'TOGGLE_AUDIO' ? 'nv-ai' : 'nv-vi'}-${msg.fromPeerId}`;
-      let el = document.getElementById(eid);
-      if (!msg.data.enabled) {
-        if (!el) {
-          el = document.createElement('span'); el.id = eid; el.className = 'nv-badge nv-badge--red';
-          el.innerHTML = `<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="1" y1="1" x2="23" y2="23"/></svg>`;
-          box.appendChild(el);
-        }
-      } else { el?.remove(); }
+      this.participantCount  = 1;
     },
 
     // ═══════════════════════════════════════════════════════
     //  MEDIA CONTROLS
     // ═══════════════════════════════════════════════════════
+
     toggleAudio() {
       if (!this.localStream) return;
       this.audioOn = !this.audioOn;
@@ -826,71 +948,66 @@ export default {
 
     async toggleScreen() {
       if (this.screenStream) {
-        // ─── STOP screen share ───
+        // ── STOP sharing ──
         this.screenStream.getTracks().forEach(t => t.stop());
         this.screenStream = null;
 
-        // Restore camera track to all peers
-        if (this.localStream) {
-          const vt = this.localStream.getVideoTracks()[0];
-          Object.values(this.peers).forEach(pc => {
+        // ✅ Restore camera track on every peer connection
+        const cameraTrack = this.localStream?.getVideoTracks()[0];
+        if (cameraTrack) {
+          for (const pc of Object.values(this.peers)) {
             const sender = pc.getSenders().find(s => s.track?.kind === 'video');
-            if (sender && vt) sender.replaceTrack(vt);
-          });
+            if (sender) {
+              try { await sender.replaceTrack(cameraTrack); }
+              catch (e) { console.warn('replaceTrack (restore cam):', e); }
+            }
+          }
         }
+
         this.sendWs({ type: 'SCREEN_SHARE_STOP' });
 
-        // Re-attach local cam after grid layout reverts
         await this.$nextTick();
-        if (this.$refs.localVideo && this.localStream) {
-          this.$refs.localVideo.srcObject = this.localStream;
-        }
-        // Re-inject peer videos back into grid tiles
-        this.reinjectAllPeerVideos();
+        await this.$nextTick();
+        this.bindAllVideos();
 
       } else {
-        // ─── START screen share ───
+        // ── START sharing ──
         try {
-          this.screenStream = await navigator.mediaDevices.getDisplayMedia({ video: true });
-          const st = this.screenStream.getVideoTracks()[0];
-
-          // Replace camera track with screen track for all peers
-          Object.values(this.peers).forEach(pc => {
-            const sender = pc.getSenders().find(s => s.track?.kind === 'video');
-            if (sender) sender.replaceTrack(st);
+          this.screenStream = await navigator.mediaDevices.getDisplayMedia({
+            video: { cursor: 'always' },
+            audio: false,
           });
 
-          // Attach to local preview elements after layout switches
-          await this.$nextTick();
-          if (this.$refs.screenVideo) this.$refs.screenVideo.srcObject = this.screenStream;
-          if (this.$refs.localVideo && this.localStream) this.$refs.localVideo.srcObject = this.localStream;
+          const screenTrack = this.screenStream.getVideoTracks()[0];
 
-          // Re-inject peer cameras into sidebar tiles
-          this.reinjectAllPeerVideos();
+          // ✅ CRITICAL: Replace the video sender track on ALL peer connections.
+          // This is what makes every participant see your screen instead of camera.
+          for (const pc of Object.values(this.peers)) {
+            const sender = pc.getSenders().find(s => s.track?.kind === 'video');
+            if (sender) {
+              try { await sender.replaceTrack(screenTrack); }
+              catch (e) { console.warn('replaceTrack (screen):', e); }
+            }
+          }
 
-          st.onended = () => this.toggleScreen();
+          // If user stops sharing via the browser's native "Stop sharing" button
+          screenTrack.onended = () => this.toggleScreen();
+
           this.sendWs({ type: 'SCREEN_SHARE_START' });
+
+          // Bind local screen preview after layout re-renders
+          await this.$nextTick();
+          await this.$nextTick();
+          this.bindAllVideos();
+
         } catch (err) {
-          console.error('Screen share error:', err);
+          if (err.name !== 'NotAllowedError') {
+            console.error('getDisplayMedia error:', err);
+            this.showToast('Screen share failed.', 'error');
+          }
+          this.screenStream = null;
         }
       }
-    },
-
-    remoteScreenStart(peerId) {
-      this.activePresenterId = peerId;
-      // Layout switches — after re-render, inject streams into new tile positions
-      this.$nextTick(() => {
-        this.reinjectAllPeerVideos();
-        this.flushPendingStreams();
-      });
-    },
-
-    remoteScreenStop(peerId) {
-      if (this.activePresenterId === peerId) this.activePresenterId = null;
-      // Layout reverts to grid — re-inject into grid tiles
-      this.$nextTick(() => {
-        this.reinjectAllPeerVideos();
-      });
     },
 
     // ═══════════════════════════════════════════════════════
@@ -959,7 +1076,10 @@ export default {
 
     addMsg(sender, text, isSelf) {
       this.messages.push({ id: Date.now() + Math.random(), sender, text, isSelf });
-      this.$nextTick(() => { const c = this.$refs.messagesContainer; if (c) c.scrollTop = c.scrollHeight; });
+      this.$nextTick(() => {
+        const c = this.$refs.messagesContainer;
+        if (c) c.scrollTop = c.scrollHeight;
+      });
     },
 
     // ═══════════════════════════════════════════════════════
@@ -982,9 +1102,13 @@ export default {
     cleanupAndNavigate() {
       this.localStream?.getTracks().forEach(t => t.stop());
       this.screenStream?.getTracks().forEach(t => t.stop());
-      Object.values(this.peers).forEach(pc => pc.close());
-      this.peers = {}; this.pendingStreams = {};
-      if (this.ws) { this.sendWs({ type: 'LEAVE' }); this.ws.close(); this.ws = null; }
+      this.cleanupPeers();
+      if (this.ws) {
+        this.ws.onclose = null;
+        try { this.sendWs({ type: 'LEAVE' }); } catch (_) {}
+        this.ws.close();
+        this.ws = null;
+      }
       sessionStorage.removeItem('nova_meeting_code');
       sessionStorage.removeItem('nova_is_host');
       clearInterval(this.clockInterval);
@@ -1017,19 +1141,22 @@ export default {
       }
     }
 
-    window.addEventListener('keydown', (e) => {
+    this._keyHandler = (e) => {
       if (this.view !== 'meeting') return;
+      if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
       if (e.key === 'd') this.toggleVideo();
       if (e.key === 'a') this.toggleAudio();
-    });
+    };
+    window.addEventListener('keydown', this._keyHandler);
   },
 
   beforeUnmount() {
+    window.removeEventListener('keydown', this._keyHandler);
     clearInterval(this.clockInterval);
     this.localStream?.getTracks().forEach(t => t.stop());
     this.screenStream?.getTracks().forEach(t => t.stop());
-    Object.values(this.peers).forEach(pc => pc.close());
-    if (this.ws) { this.ws.close(); this.ws = null; }
+    this.cleanupPeers();
+    if (this.ws) { this.ws.onclose = null; this.ws.close(); this.ws = null; }
   },
 };
 </script>
@@ -1066,7 +1193,7 @@ export default {
 .nv-field { margin-bottom:16px; }
 .nv-flabel { display:block; font-size:13px; font-weight:500; color:var(--c-text2); margin-bottom:7px; }
 .nv-req { color:var(--c-red); } .nv-opt { color:#5f6368; font-weight:400; }
-.nv-finput { width:100%; padding:11px 14px; background:var(--c-surf2); border:1px solid var(--c-line); border-radius:var(--c-r); color:var(--c-text); font-family:inherit; font-size:14px; transition:border-color .15s,box-shadow .15s; }
+.nv-finput { width:100%; padding:11px 14px; background:var(--c-surf2); border:1px solid var(--c-line); border-radius:var(--c-r); color:var(--c-text); font-family:inherit; font-size:14px; transition:border-color .15s,box-shadow .15s; box-sizing:border-box; }
 .nv-finput::placeholder { color:#5f6368; }
 .nv-finput:focus { outline:none; border-color:var(--c-blue); box-shadow:0 0 0 3px rgba(26,115,232,.18); }
 .nv-ftextarea { resize:vertical; min-height:70px; line-height:1.5; }
@@ -1145,14 +1272,14 @@ export default {
 .nv-tile--screen { width:100%; height:100%; aspect-ratio:unset; border:2px solid var(--c-blue); box-shadow:0 0 0 1px rgba(26,115,232,.25); }
 .nv-tile video { width:100%; height:100%; object-fit:cover; display:block; }
 .nv-tile--screen video { object-fit:contain; background:#000; }
-.nv-tilebar { position:absolute; bottom:0; left:0; right:0; padding:22px 10px 9px; background:linear-gradient(to top,rgba(0,0,0,.72) 0%,transparent 100%); display:flex; align-items:flex-end; justify-content:space-between; pointer-events:none; }
+.nv-tilebar { position:absolute; bottom:0; left:0; right:0; padding:22px 10px 9px; background:linear-gradient(to top,rgba(0,0,0,.72) 0%,transparent 100%); display:flex; align-items:flex-end; justify-content:space-between; pointer-events:none; z-index:2; }
 .nv-tilemeta { display:flex; align-items:center; gap:6px; font-size:13px; font-weight:500; color:#fff; text-shadow:0 1px 3px rgba(0,0,0,.5); }
 .nv-tilebadges { display:flex; gap:4px; }
 .nv-you-dot { width:6px; height:6px; border-radius:50%; background:var(--c-green); flex-shrink:0; }
 .nv-badge { width:22px; height:22px; border-radius:5px; display:flex; align-items:center; justify-content:center; backdrop-filter:blur(8px); }
 .nv-badge--red  { background:rgba(234,67,53,.88); }
 .nv-badge--blue { background:rgba(26,115,232,.88); }
-.nv-nocam { position:absolute; inset:0; display:flex; align-items:center; justify-content:center; background:var(--c-surf); }
+.nv-nocam { position:absolute; inset:0; display:flex; align-items:center; justify-content:center; background:var(--c-surf); z-index:1; }
 .nv-avatar { width:64px; height:64px; border-radius:50%; background:linear-gradient(135deg,#1a73e8,#0d47a1); display:flex; align-items:center; justify-content:center; font-size:24px; font-weight:600; color:#fff; box-shadow:0 4px 16px rgba(26,115,232,.35); }
 .nv-avatar--sm { width:40px; height:40px; font-size:14px; }
 
