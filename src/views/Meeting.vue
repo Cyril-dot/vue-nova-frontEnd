@@ -758,6 +758,8 @@ export default {
           await this.$nextTick();
           await this.$nextTick();
           this.bindAllVideos();
+          // Also bind the screen stream if we already received it
+          if (this.peerScreenStreams[fromId]) this.bindPeerScreenWithRetry(fromId);
           break;
 
         case 'SCREEN_SHARE_STOP':
@@ -793,31 +795,48 @@ export default {
 
       const pc = new RTCPeerConnection(ICE_SERVERS);
 
+      // ── CAMERA stream: add all local tracks (audio + video) tagged with localStream ──
+      const cameraStream = this.localStream || new MediaStream();
       if (this.localStream) {
-        this.localStream.getTracks().forEach(track => pc.addTrack(track, this.localStream));
+        this.localStream.getTracks().forEach(track => pc.addTrack(track, cameraStream));
       }
 
+      // ── SCREEN sender: add a silent black video track upfront so it's negotiated
+      //    from the start. We replace it with the real screen track later via replaceTrack.
+      //    This avoids needing renegotiation when screen share starts.
+      const blankCanvas = Object.assign(document.createElement('canvas'), { width: 2, height: 2 });
+      blankCanvas.getContext('2d').fillRect(0, 0, 2, 2);
+      const screenPlaceholderTrack = blankCanvas.captureStream(1).getVideoTracks()[0];
+      const screenStream = new MediaStream([screenPlaceholderTrack]);
+      const screenSender = pc.addTrack(screenPlaceholderTrack, screenStream);
+
+      // Store screen sender so toggleScreen can call replaceTrack on it
+      if (!this._screenSenderMap) this._screenSenderMap = {};
+      this._screenSenderMap[peerId] = screenSender;
+
+      // ── ontrack: identify camera vs screen by which stream they belong to ──
       pc.ontrack = (event) => {
         const track = event.track;
-        console.log(`🎥 ontrack from ${peerId}: kind=${track.kind} streams=${event.streams.length} label=${track.label}`);
+        console.log(`🎥 ontrack from ${peerId}: kind=${track.kind} streams=${event.streams.length}`);
+        if (track.kind === 'audio') return;
 
-        if (track.kind === 'audio') return; // audio handled automatically
+        const incomingStream = event.streams[0];
+        if (!incomingStream) return;
 
-        // The presenter sends TWO video tracks:
-        //   stream[0] = camera stream (added first in createPC)
-        //   stream[1] = screen stream (added via addTrack in toggleScreen)
-        // We identify them by checking if a camera stream already exists for this peer.
-
+        // We know the sender sends two video streams:
+        //   - camera stream (first one negotiated, contains audio+video)
+        //   - screen stream (second one, video only, starts as black blank)
+        // The camera stream will have MORE tracks (audio+video), screen has only video.
+        // Safer: first video ontrack = camera, second = screen.
         if (!this.peerStreams[peerId]) {
-          // First video track received → this is the CAMERA
-          const stream = event.streams[0] || new MediaStream([track]);
-          this.setPeerStream(peerId, stream);
+          this.setPeerStream(peerId, incomingStream);
           this.$nextTick(() => this.bindPeerVideoWithRetry(peerId));
-        } else {
-          // Second video track received → this is the SCREEN
-          const screenStream = event.streams[0] || new MediaStream([track]);
-          this.peerScreenStreams = { ...this.peerScreenStreams, [peerId]: screenStream };
-          this.$nextTick(() => this.bindPeerScreenWithRetry(peerId));
+        } else if (incomingStream.id !== (this.peerStreams[peerId] && this.peerStreams[peerId].id)) {
+          // Different stream = screen share stream
+          this.peerScreenStreams = { ...this.peerScreenStreams, [peerId]: incomingStream };
+          if (this.activePresenterId === peerId) {
+            this.$nextTick(() => this.bindPeerScreenWithRetry(peerId));
+          }
         }
       };
 
@@ -972,7 +991,7 @@ export default {
       Object.values(this.peers).forEach(pc => { try { pc.close(); } catch (_) {} });
       this.peers = {}; this.peerStreams = {}; this.peerScreenStreams = {};
       this.peerNames = {}; this.peerMuted = {}; this.peerVideoOff = {};
-      this.pendingCandidates = {}; this._screenSenders = [];
+      this.pendingCandidates = {}; this._screenSenderMap = {};
       this.activePresenterId = null; this.participantCount = 1;
     },
 
@@ -995,43 +1014,39 @@ export default {
 
     async toggleScreen() {
       if (this.screenStream) {
-        // ── STOP sharing ──
+        // ── STOP sharing: replace screen sender back to blank black track ──
         this.screenStream.getTracks().forEach(t => t.stop());
         this.screenStream = null;
 
-        // Remove the screen track sender from every peer connection
-        for (const pc of Object.values(this.peers)) {
-          const screenSender = pc.getSenders().find(s => s.track && this._screenSenders && this._screenSenders.includes(s));
-          if (screenSender) { try { pc.removeTrack(screenSender); } catch (e) { console.warn(e); } }
+        // Put a blank track back in the screen sender so it goes dark (not closed)
+        const blankCanvas = Object.assign(document.createElement('canvas'), { width: 2, height: 2 });
+        blankCanvas.getContext('2d').fillRect(0, 0, 2, 2);
+        const blankTrack = blankCanvas.captureStream(1).getVideoTracks()[0];
+
+        for (const [pid, sender] of Object.entries(this._screenSenderMap || {})) {
+          try { await sender.replaceTrack(blankTrack); } catch (e) { console.warn('replaceTrack blank:', e); }
         }
-        this._screenSenders = [];
-        // Clear remote screen streams so peerScreen_ tiles hide
-        this.peerScreenStreams = {};
 
         this.sendWs({ type: 'SCREEN_SHARE_STOP' });
         await this.$nextTick(); await this.$nextTick();
         this.bindAllVideos();
+
       } else {
-        // ── START sharing ──
+        // ── START sharing: replace screen sender with real screen track ──
         try {
           this.screenStream = await navigator.mediaDevices.getDisplayMedia({ video: { cursor: 'always' }, audio: false });
           const screenTrack = this.screenStream.getVideoTracks()[0];
 
-          // Add the screen track as a SECOND video track — camera track stays untouched
-          this._screenSenders = [];
-          for (const pc of Object.values(this.peers)) {
-            try {
-              // Use a dedicated MediaStream for the screen so receiver can identify it
-              const screenOnlyStream = new MediaStream([screenTrack]);
-              const sender = pc.addTrack(screenTrack, screenOnlyStream);
-              this._screenSenders.push(sender);
-            } catch (e) { console.warn('addTrack screen failed:', e); }
+          // replaceTrack on the pre-negotiated screen sender — no renegotiation needed
+          for (const [pid, sender] of Object.entries(this._screenSenderMap || {})) {
+            try { await sender.replaceTrack(screenTrack); } catch (e) { console.warn('replaceTrack screen:', e); }
           }
 
           screenTrack.onended = () => this.toggleScreen();
           this.sendWs({ type: 'SCREEN_SHARE_START' });
           await this.$nextTick(); await this.$nextTick();
           this.bindAllVideos();
+
         } catch (err) {
           if (err.name !== 'NotAllowedError') this.showToast('Screen share failed.', 'error');
           this.screenStream = null;
