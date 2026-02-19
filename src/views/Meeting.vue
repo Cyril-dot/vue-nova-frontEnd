@@ -290,10 +290,6 @@
 import { TokenService, apiRequest } from '@/utils/apiService';
 import { MeetingSession } from '@/utils/meetingSession';
 
-// ─── Config ──────────────────────────────────────────────────────────────────
-// NOTE: No Daily API key here — all Daily API calls go through the backend.
-// The backend endpoints /api/meetings/daily-token and /api/meetings/daily-token/guest
-// handle room creation and token generation server-side so the key is never exposed.
 const BACKEND_API = 'https://nova-test-ctne.onrender.com/api';
 
 export default {
@@ -307,7 +303,6 @@ export default {
     return {
       view: 'create',
 
-      // ── Create form ──────────────────────────────────────────
       form: {
         title: '', description: '', maxParticipants: 50, password: '',
         allowGuests: true, videoEnabled: true, audioEnabled: true,
@@ -324,7 +319,6 @@ export default {
       createError: '',
       created: { code: null, title: null },
 
-      // ── Meeting / Daily state ────────────────────────────────
       meetingCode:   '',
       dailyRoomUrl:  '',
       dailyRoomName: '',
@@ -340,7 +334,6 @@ export default {
       userName:     'Guest',
       userInitials: 'G',
 
-      // Guest info (stored for token requests)
       guestName:  null,
       guestEmail: null,
 
@@ -370,23 +363,9 @@ export default {
 
   methods: {
 
-    // ═══════════════════════════════════════════════════════════
-    //  BACKEND TOKEN HELPERS
-    //  All Daily.co API calls now go through YOUR backend.
-    //  The frontend never touches api.daily.co directly.
-    // ═══════════════════════════════════════════════════════════
-
-    /**
-     * Fetch a Daily meeting token + room URL from the backend.
-     * Calls POST /api/meetings/daily-token (authenticated users)
-     * or   POST /api/meetings/daily-token/guest (guests)
-     *
-     * Returns: { token, roomUrl, roomName, meetingCode, isOwner }
-     */
     async fetchDailyToken(meetingCode) {
       try {
         if (this.isAuthenticated) {
-          // ── Authenticated user ──────────────────────────────
           const res  = await apiRequest('/meetings/daily-token', {
             method: 'POST',
             body:   JSON.stringify({ meetingCode }),
@@ -398,15 +377,14 @@ export default {
             return null;
           }
           console.log('✅ Daily token received from backend (authenticated)');
-          return body.data; // { token, roomUrl, roomName, meetingCode, isOwner }
+          return body.data;
 
         } else {
-          // ── Guest ───────────────────────────────────────────
           const guestName = this.guestName || MeetingSession.getUserDisplayName();
           const res = await fetch(`${BACKEND_API}/meetings/daily-token/guest`, {
             method:  'POST',
             headers: {
-              'Content-Type':             'application/json',
+              'Content-Type':               'application/json',
               'ngrok-skip-browser-warning': 'true',
             },
             body: JSON.stringify({
@@ -429,12 +407,6 @@ export default {
         return null;
       }
     },
-
-    // ═══════════════════════════════════════════════════════════
-    //  CREATE MEETING
-    //  Backend creates the meeting record AND the Daily room.
-    //  We then fetch the Daily token to join.
-    // ═══════════════════════════════════════════════════════════
 
     async createMeeting() {
       if (!this.form.title.trim()) { this.createError = 'Please enter a meeting title.'; return; }
@@ -470,7 +442,6 @@ export default {
         const meetingCode = meetingData?.meetingCode || meetingData?.meeting_code;
         if (!meetingCode) throw new Error('Backend did not return a meeting code.');
 
-        // Store the Daily room info the backend already created
         const roomUrl  = meetingData?.dailyRoomUrl  || null;
         const roomName = meetingData?.dailyRoomName || null;
 
@@ -482,7 +453,6 @@ export default {
         this.created = { code: meetingCode, title: this.form.title.trim() };
         MeetingSession.saveRecentMeeting(meetingCode, this.form.title.trim());
 
-        // Also kick off /start so the meeting is ACTIVE
         apiRequest(`/meetings/start/${meetingCode}`, { method: 'POST' }).catch(() => {});
 
         console.log('✅ Meeting created:', meetingCode, '→ Daily room:', roomUrl);
@@ -509,10 +479,6 @@ export default {
       this.$nextTick(() => this.initMeeting());
     },
 
-    // ═══════════════════════════════════════════════════════════
-    //  JOIN / INIT MEETING
-    // ═══════════════════════════════════════════════════════════
-
     async initMeeting() {
       if (!this.meetingCode) {
         this.meetingCode = this.code
@@ -521,33 +487,27 @@ export default {
       }
       if (!this.meetingCode) { this.$router.push('/meetings/join'); return; }
 
-      // Resolve display name
-      this.userName    = MeetingSession.getUserDisplayName();
+      this.userName     = MeetingSession.getUserDisplayName();
       this.userInitials = this.userName.charAt(0).toUpperCase();
-      this.isHost      = this.isHost || sessionStorage.getItem('nova_is_host') === 'true';
+      this.isHost       = this.isHost || sessionStorage.getItem('nova_is_host') === 'true';
 
-      // Restore guest info if present
       const guestUser = MeetingSession.getUser();
       if (guestUser?.isGuest) {
         this.guestName  = guestUser.name;
         this.guestEmail = guestUser.email;
       }
 
-      // Fetch Daily token + room URL from backend
       const tokenData = await this.fetchDailyToken(this.meetingCode);
 
       if (tokenData) {
-        // Backend returned everything we need
         this.dailyRoomUrl  = tokenData.roomUrl;
         this.dailyRoomName = tokenData.roomName;
         this.isHost        = this.isHost || tokenData.isOwner;
 
-        // Cache for reconnect
         sessionStorage.setItem('nova_daily_room', tokenData.roomUrl);
         sessionStorage.setItem('nova_daily_name', tokenData.roomName);
         sessionStorage.setItem('nova_daily_token', tokenData.token || '');
       } else {
-        // Fallback: try cached room URL from sessionStorage
         const cachedUrl  = sessionStorage.getItem('nova_daily_room');
         const cachedName = sessionStorage.getItem('nova_daily_name');
 
@@ -572,9 +532,9 @@ export default {
     loadDailySDK() {
       return new Promise((resolve, reject) => {
         if (window.DailyIframe) { resolve(); return; }
-        const s  = document.createElement('script');
-        s.src    = 'https://unpkg.com/@daily-co/daily-js';
-        s.onload = resolve;
+        const s   = document.createElement('script');
+        s.src     = 'https://unpkg.com/@daily-co/daily-js';
+        s.onload  = resolve;
         s.onerror = () => reject(new Error('Failed to load Daily.co SDK'));
         document.head.appendChild(s);
       });
@@ -585,33 +545,23 @@ export default {
         this.dailyLoading = true;
         console.log('🎥 Joining Daily room:', this.dailyRoomUrl);
 
-        // If we don't have a token yet (e.g. reconnect), try fetching one
         if (!token) {
           const freshData = await this.fetchDailyToken(this.meetingCode);
           token = freshData?.token || null;
         }
 
+        // ✅ FIX: theme block removed — caused DataCloneError via postMessage
         this.callFrame = window.DailyIframe.createFrame(this.$refs.dailyContainer, {
           iframeStyle: {
-            width: '100%', height: '100%', border: 'none', background: '#202124',
+            width:      '100%',
+            height:     '100%',
+            border:     'none',
+            background: '#202124',
           },
           showLeaveButton:      false,
           showFullscreenButton: true,
           showParticipantsBar:  true,
           showLocalVideo:       true,
-          theme: {
-            colors: {
-              accent:           '#1a73e8',
-              accentText:       '#ffffff',
-              background:       '#202124',
-              backgroundAccent: '#292b2f',
-              baseText:         '#e8eaed',
-              border:           '#3c4043',
-              mainAreaBg:       '#202124',
-              mainAreaBgAccent: '#292b2f',
-              supportiveText:   '#9aa0a6',
-            },
-          },
         });
 
         this.callFrame
@@ -641,10 +591,6 @@ export default {
       }
     },
 
-    // ═══════════════════════════════════════════════════════════
-    //  DAILY EVENT HANDLERS
-    // ═══════════════════════════════════════════════════════════
-
     onJoinedMeeting(event) {
       console.log('✅ Joined Daily meeting');
       this.dailyLoading = false;
@@ -656,7 +602,7 @@ export default {
       this.syncParticipantCount();
     },
 
-    onLeftMeeting()  { console.log('👋 Left Daily meeting'); },
+    onLeftMeeting() { console.log('👋 Left Daily meeting'); },
 
     onParticipantJoined(event) {
       const name = event?.participant?.user_name;
@@ -723,10 +669,6 @@ export default {
       this.showToast('Camera/mic error — please check permissions.', 'error');
     },
 
-    // ═══════════════════════════════════════════════════════════
-    //  MEDIA CONTROLS
-    // ═══════════════════════════════════════════════════════════
-
     toggleAudio() { if (this.callFrame) this.callFrame.setLocalAudio(!this.audioOn); },
     toggleVideo() { if (this.callFrame) this.callFrame.setLocalVideo(!this.videoOn); },
 
@@ -742,24 +684,18 @@ export default {
       }
     },
 
-    // ═══════════════════════════════════════════════════════════
-    //  MEETING LIFECYCLE
-    // ═══════════════════════════════════════════════════════════
-
     endMeeting()     { this.showEndModal     = true; },
     restartMeeting() { this.showRestartModal = true; },
 
     async confirmEndMeeting() {
       this.ending = true;
       try {
-        // 1. Tell backend to end the meeting + delete Daily room
         if (this.token && this.meetingCode) {
           apiRequest(`/meetings/end/${this.meetingCode}`, {
             method: 'POST',
           }).catch(e => console.warn('Backend end failed:', e));
         }
 
-        // 2. Broadcast to all Daily participants via app-message
         if (this.callFrame) {
           try { this.callFrame.sendAppMessage({ type: 'meeting-ended', endedBy: this.userName }, '*'); } catch (_) {}
         }
@@ -797,7 +733,6 @@ export default {
             this.callFrame = null;
           }
           this.dailyLoading = true;
-          // Fetch fresh token for rejoined room
           await this.joinDailyRoom();
         }, 1200);
       } catch (err) {
@@ -832,10 +767,6 @@ export default {
       else this.$router.push(this.isAuthenticated ? '/meeting-dashboard' : '/meetings/join');
     },
 
-    // ═══════════════════════════════════════════════════════════
-    //  CHAT
-    // ═══════════════════════════════════════════════════════════
-
     toggleChat() {
       this.chatOpen = !this.chatOpen;
       if (this.chatOpen) this.unreadCount = 0;
@@ -860,10 +791,6 @@ export default {
         if (c) c.scrollTop = c.scrollHeight;
       });
     },
-
-    // ═══════════════════════════════════════════════════════════
-    //  UTILITIES
-    // ═══════════════════════════════════════════════════════════
 
     copyMeetingCode() {
       navigator.clipboard.writeText(this.meetingCode)
@@ -906,7 +833,6 @@ export default {
         this.meetingCode = resolvedCode;
         this.isHost      = sessionStorage.getItem('nova_is_host') === 'true';
 
-        // Restore guest info for token request
         const guestUser = MeetingSession.getUser();
         if (guestUser?.isGuest) {
           this.guestName  = guestUser.name;
@@ -938,7 +864,6 @@ export default {
 };
 </script>
 
-<!-- Styles are identical to the original — no visual changes needed -->
 <style scoped>
 @import url('https://fonts.googleapis.com/css2?family=Google+Sans:wght@400;500;600&family=Google+Sans+Mono&display=swap');
 
