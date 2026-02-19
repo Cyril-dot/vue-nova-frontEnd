@@ -1,5 +1,4 @@
 <!-- Meeting.vue — Powered by Daily.co SDK (Backend Token Edition) -->
-<!-- Daily.co API key is now server-side only. Frontend calls /api/meetings/daily-token -->
 <template>
   <div class="nv-root">
 
@@ -27,7 +26,6 @@
         </div>
         <div class="nv-card">
 
-          <!-- Success banner -->
           <div v-if="created.code" class="nv-success-banner">
             <div class="nv-success-check">
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="20 6 9 17 4 12"/></svg>
@@ -42,7 +40,6 @@
             </div>
           </div>
 
-          <!-- Form -->
           <div v-if="!created.code" class="nv-form-body">
             <div class="nv-section-label">Meeting details</div>
             <div class="nv-field">
@@ -86,7 +83,6 @@
             </div>
           </div>
 
-          <!-- Post-create actions -->
           <div v-if="created.code" class="nv-postcreate">
             <button class="nv-btn-primary nv-btn-go" @click="enterMeeting">
               <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"/></svg>
@@ -101,7 +97,6 @@
     <!-- ════════════════════ MEETING ════════════════════ -->
     <div v-if="view === 'meeting'" class="nv-meet">
 
-      <!-- Header -->
       <header class="nv-header">
         <div class="nv-hleft">
           <div class="nv-brand">
@@ -140,7 +135,6 @@
         </div>
       </header>
 
-      <!-- Daily.co embedded iframe -->
       <div class="nv-daily-wrap" :class="{ 'nv-daily--chat-open': chatOpen }">
         <div v-if="dailyLoading" class="nv-daily-loading">
           <div class="nv-loading-inner">
@@ -151,7 +145,6 @@
         <div ref="dailyContainer" class="nv-daily-frame"></div>
       </div>
 
-      <!-- Controls bar -->
       <div class="nv-controls">
         <div class="nv-ctrl-row">
           <div class="nv-cslot">
@@ -180,7 +173,6 @@
 
           <div class="nv-cdivider"></div>
 
-          <!-- Host-only controls -->
           <template v-if="isHost">
             <div class="nv-cslot">
               <button class="nv-ctrl nv-ctrl--restart" @click="restartMeeting" :disabled="restarting">
@@ -208,7 +200,6 @@
         </div>
       </div>
 
-      <!-- Chat panel -->
       <div class="nv-chat" :class="{ 'nv-chat--open': chatOpen }">
         <div class="nv-chdr">
           <div class="nv-chdr-title">
@@ -237,7 +228,6 @@
         </div>
       </div>
 
-      <!-- End Meeting Modal -->
       <div v-if="showEndModal" class="nv-modal-overlay" @click.self="showEndModal = false">
         <div class="nv-modal">
           <div class="nv-modal-icon nv-modal-icon--red">
@@ -255,7 +245,6 @@
         </div>
       </div>
 
-      <!-- Restart Meeting Modal -->
       <div v-if="showRestartModal" class="nv-modal-overlay" @click.self="showRestartModal = false">
         <div class="nv-modal">
           <div class="nv-modal-icon nv-modal-icon--blue">
@@ -273,7 +262,6 @@
         </div>
       </div>
 
-      <!-- Toast -->
       <transition name="nv-toast-fx">
         <div v-if="toastVisible" class="nv-toast" :class="toastType === 'error' ? 'nv-toast--error' : ''">
           <svg v-if="toastType !== 'error'" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="20 6 9 17 4 12"/></svg>
@@ -319,40 +307,40 @@ export default {
       createError: '',
       created: { code: null, title: null },
 
-      meetingCode:   '',
-      dailyRoomUrl:  '',
-      dailyRoomName: '',
-      callFrame:     null,
-      dailyLoading:  true,
+      meetingCode:      '',
+      dailyRoomUrl:     '',
+      dailyRoomName:    '',
+      callFrame:        null,
+      dailyLoading:     true,
 
-      audioOn:       true,
-      videoOn:       true,
-      screenSharing: false,
+      audioOn:          true,
+      videoOn:          true,
+      screenSharing:    false,
       participantCount: 1,
-      isHost:        false,
+      isHost:           false,
 
-      userName:     'Guest',
-      userInitials: 'G',
+      userName:         'Guest',
+      userInitials:     'G',
 
-      guestName:  null,
-      guestEmail: null,
+      guestName:        null,
+      guestEmail:       null,
 
       showEndModal:     false,
       showRestartModal: false,
       ending:           false,
       restarting:       false,
 
-      chatOpen:    false,
-      chatMessage: '',
-      messages:    [],
-      unreadCount: 0,
+      chatOpen:         false,
+      chatMessage:      '',
+      messages:         [],
+      unreadCount:      0,
 
-      toastVisible: false,
-      toastMessage: '',
-      toastType:    'success',
+      toastVisible:     false,
+      toastMessage:     '',
+      toastType:        'success',
 
-      currentTime:   '',
-      clockInterval: null,
+      currentTime:      '',
+      clockInterval:    null,
     };
   },
 
@@ -363,24 +351,32 @@ export default {
 
   methods: {
 
+    // ═══════════════════════════════════════════════════════════
+    //  BACKEND TOKEN FETCH
+    // ═══════════════════════════════════════════════════════════
+
     async fetchDailyToken(meetingCode) {
+      console.log('🔑 [fetchDailyToken] Starting — code:', meetingCode, '| auth:', this.isAuthenticated);
       try {
         if (this.isAuthenticated) {
+          console.log('🔑 [fetchDailyToken] Calling authenticated endpoint...');
           const res  = await apiRequest('/meetings/daily-token', {
             method: 'POST',
             body:   JSON.stringify({ meetingCode }),
           });
           const body = await res.json();
+          console.log('🔑 [fetchDailyToken] Auth response status:', res.status, '| body:', JSON.stringify(body));
 
           if (!res.ok || body.success === false) {
-            console.warn('Daily token fetch failed:', body.message);
+            console.warn('⚠️ [fetchDailyToken] Auth token fetch failed:', body.message);
             return null;
           }
-          console.log('✅ Daily token received from backend (authenticated)');
+          console.log('✅ [fetchDailyToken] Auth token data keys:', Object.keys(body.data || {}));
           return body.data;
 
         } else {
           const guestName = this.guestName || MeetingSession.getUserDisplayName();
+          console.log('🔑 [fetchDailyToken] Calling guest endpoint — guestName:', guestName);
           const res = await fetch(`${BACKEND_API}/meetings/daily-token/guest`, {
             method:  'POST',
             headers: {
@@ -394,19 +390,24 @@ export default {
             }),
           });
           const body = await res.json();
+          console.log('🔑 [fetchDailyToken] Guest response status:', res.status, '| body:', JSON.stringify(body));
 
           if (!res.ok || body.success === false) {
-            console.warn('Daily guest token fetch failed:', body.message);
+            console.warn('⚠️ [fetchDailyToken] Guest token fetch failed:', body.message);
             return null;
           }
-          console.log('✅ Daily token received from backend (guest)');
+          console.log('✅ [fetchDailyToken] Guest token data keys:', Object.keys(body.data || {}));
           return body.data;
         }
       } catch (err) {
-        console.warn('Could not fetch Daily token from backend:', err.message);
+        console.error('❌ [fetchDailyToken] Exception:', err.name, err.message, err.stack);
         return null;
       }
     },
+
+    // ═══════════════════════════════════════════════════════════
+    //  CREATE MEETING
+    // ═══════════════════════════════════════════════════════════
 
     async createMeeting() {
       if (!this.form.title.trim()) { this.createError = 'Please enter a meeting title.'; return; }
@@ -479,43 +480,66 @@ export default {
       this.$nextTick(() => this.initMeeting());
     },
 
+    // ═══════════════════════════════════════════════════════════
+    //  INIT MEETING
+    // ═══════════════════════════════════════════════════════════
+
     async initMeeting() {
+      console.log('🚀 [initMeeting] Starting...');
+
       if (!this.meetingCode) {
         this.meetingCode = this.code
           || this.$route?.params?.code
           || MeetingSession.getMeetingCode();
       }
-      if (!this.meetingCode) { this.$router.push('/meetings/join'); return; }
+
+      console.log('🚀 [initMeeting] meetingCode resolved:', this.meetingCode);
+
+      if (!this.meetingCode) {
+        console.warn('⚠️ [initMeeting] No meeting code — redirecting to join');
+        this.$router.push('/meetings/join');
+        return;
+      }
 
       this.userName     = MeetingSession.getUserDisplayName();
       this.userInitials = this.userName.charAt(0).toUpperCase();
       this.isHost       = this.isHost || sessionStorage.getItem('nova_is_host') === 'true';
 
+      console.log('🚀 [initMeeting] userName:', this.userName, '| isHost:', this.isHost);
+
       const guestUser = MeetingSession.getUser();
       if (guestUser?.isGuest) {
         this.guestName  = guestUser.name;
         this.guestEmail = guestUser.email;
+        console.log('🚀 [initMeeting] Guest user detected:', this.guestName);
       }
 
+      console.log('🚀 [initMeeting] Fetching Daily token...');
       const tokenData = await this.fetchDailyToken(this.meetingCode);
+      console.log('🚀 [initMeeting] tokenData received:', tokenData ? JSON.stringify(tokenData) : 'null');
 
       if (tokenData) {
         this.dailyRoomUrl  = tokenData.roomUrl;
         this.dailyRoomName = tokenData.roomName;
         this.isHost        = this.isHost || tokenData.isOwner;
 
-        sessionStorage.setItem('nova_daily_room', tokenData.roomUrl);
-        sessionStorage.setItem('nova_daily_name', tokenData.roomName);
+        console.log('🚀 [initMeeting] dailyRoomUrl:', this.dailyRoomUrl);
+        console.log('🚀 [initMeeting] dailyRoomName:', this.dailyRoomName);
+        console.log('🚀 [initMeeting] token present:', !!tokenData.token, '| token type:', typeof tokenData.token);
+
+        sessionStorage.setItem('nova_daily_room',  tokenData.roomUrl);
+        sessionStorage.setItem('nova_daily_name',  tokenData.roomName);
         sessionStorage.setItem('nova_daily_token', tokenData.token || '');
       } else {
         const cachedUrl  = sessionStorage.getItem('nova_daily_room');
         const cachedName = sessionStorage.getItem('nova_daily_name');
+        console.warn('⚠️ [initMeeting] No tokenData — trying cache. cachedUrl:', cachedUrl);
 
         if (cachedUrl && cachedName) {
-          console.warn('Using cached Daily room URL (no fresh token available)');
           this.dailyRoomUrl  = cachedUrl;
           this.dailyRoomName = cachedName;
         } else {
+          console.error('❌ [initMeeting] No room data available at all — aborting');
           this.showToast('Could not connect to meeting room — no room data available.', 'error');
           this.dailyLoading = false;
           return;
@@ -525,43 +549,62 @@ export default {
       this.updateClock();
       this.clockInterval = setInterval(this.updateClock, 10_000);
 
+      console.log('🚀 [initMeeting] Loading Daily SDK...');
       await this.loadDailySDK();
+      console.log('🚀 [initMeeting] Daily SDK loaded. Joining room...');
       await this.joinDailyRoom(tokenData?.token || null);
     },
 
     loadDailySDK() {
       return new Promise((resolve, reject) => {
-        if (window.DailyIframe) { resolve(); return; }
+        if (window.DailyIframe) {
+          console.log('✅ [loadDailySDK] Already loaded');
+          resolve();
+          return;
+        }
+        console.log('📦 [loadDailySDK] Injecting Daily script...');
         const s   = document.createElement('script');
         s.src     = 'https://unpkg.com/@daily-co/daily-js';
-        s.onload  = resolve;
-        s.onerror = () => reject(new Error('Failed to load Daily.co SDK'));
+        s.onload  = () => { console.log('✅ [loadDailySDK] Script loaded'); resolve(); };
+        s.onerror = () => { console.error('❌ [loadDailySDK] Script failed to load'); reject(new Error('Failed to load Daily.co SDK')); };
         document.head.appendChild(s);
       });
     },
 
+    // ═══════════════════════════════════════════════════════════
+    //  JOIN DAILY ROOM  — createFrame with NO options to avoid
+    //  DataCloneError when Daily serialises config via postMessage
+    // ═══════════════════════════════════════════════════════════
+
     async joinDailyRoom(token = null) {
       try {
         this.dailyLoading = true;
-        console.log('🎥 Joining Daily room:', this.dailyRoomUrl);
+        console.log('🎥 [joinDailyRoom] roomUrl:', this.dailyRoomUrl);
+        console.log('🎥 [joinDailyRoom] token present:', !!token, '| type:', typeof token);
+        console.log('🎥 [joinDailyRoom] dailyContainer ref present:', !!this.$refs.dailyContainer);
 
         if (!token) {
+          console.log('🎥 [joinDailyRoom] No token — fetching fresh one...');
           const freshData = await this.fetchDailyToken(this.meetingCode);
           token = freshData?.token || null;
+          console.log('🎥 [joinDailyRoom] Fresh token present:', !!token);
         }
 
-        // ✅ FIX: theme block removed — caused DataCloneError via postMessage
-        this.callFrame = window.DailyIframe.createFrame(this.$refs.dailyContainer, {
-          iframeStyle: {
-            width:      '100%',
-            height:     '100%',
-            border:     'none',
-            background: '#202124',
-          },
-          showLeaveButton:      false,
-          showFullscreenButton: true,
-          showParticipantsBar:  true,
-          showLocalVideo:       true,
+        // ✅ createFrame with NO options object — fixes DataCloneError
+        console.log('🎥 [joinDailyRoom] Calling DailyIframe.createFrame (no options)...');
+        this.callFrame = window.DailyIframe.createFrame(this.$refs.dailyContainer);
+        console.log('🎥 [joinDailyRoom] callFrame created:', !!this.callFrame);
+
+        // Style the iframe via DOM after creation
+        this.$nextTick(() => {
+          const iframe = this.$refs.dailyContainer?.querySelector('iframe');
+          console.log('🎥 [joinDailyRoom] iframe element found:', !!iframe);
+          if (iframe) {
+            iframe.style.width      = '100%';
+            iframe.style.height     = '100%';
+            iframe.style.border     = 'none';
+            iframe.style.background = '#202124';
+          }
         });
 
         this.callFrame
@@ -574,6 +617,9 @@ export default {
           .on('error',               this.onDailyError)
           .on('camera-error',        this.onCameraError);
 
+        console.log('🎥 [joinDailyRoom] Event listeners attached');
+
+        // Build join options — only plain serialisable primitives
         const joinOpts = {
           url:           this.dailyRoomUrl,
           userName:      this.userName,
@@ -582,17 +628,28 @@ export default {
         };
         if (token) joinOpts.token = token;
 
+        console.log('🎥 [joinDailyRoom] joinOpts:', JSON.stringify(joinOpts));
+        console.log('🎥 [joinDailyRoom] Calling callFrame.join()...');
+
         await this.callFrame.join(joinOpts);
 
+        console.log('✅ [joinDailyRoom] join() resolved successfully');
+
       } catch (err) {
-        console.error('Daily join error:', err);
+        console.error('❌ [joinDailyRoom] Error name:', err.name);
+        console.error('❌ [joinDailyRoom] Error message:', err.message);
+        console.error('❌ [joinDailyRoom] Stack:', err.stack);
         this.dailyLoading = false;
         this.showToast('Failed to join: ' + err.message, 'error');
       }
     },
 
+    // ═══════════════════════════════════════════════════════════
+    //  DAILY EVENT HANDLERS
+    // ═══════════════════════════════════════════════════════════
+
     onJoinedMeeting(event) {
-      console.log('✅ Joined Daily meeting');
+      console.log('✅ [Daily] joined-meeting event:', JSON.stringify(event?.participants?.local || {}));
       this.dailyLoading = false;
       const local = event?.participants?.local;
       if (local) {
@@ -602,11 +659,11 @@ export default {
       this.syncParticipantCount();
     },
 
-    onLeftMeeting() { console.log('👋 Left Daily meeting'); },
+    onLeftMeeting() { console.log('👋 [Daily] left-meeting'); },
 
     onParticipantJoined(event) {
       const name = event?.participant?.user_name;
-      console.log('👥 Participant joined:', name);
+      console.log('👥 [Daily] participant-joined:', name);
       this.syncParticipantCount();
       if (name && name !== this.userName) this.showToast(`${name} joined`);
     },
@@ -623,7 +680,7 @@ export default {
     },
 
     onParticipantLeft(event) {
-      console.log('👋 Participant left:', event?.participant?.user_name);
+      console.log('👋 [Daily] participant-left:', event?.participant?.user_name);
       this.syncParticipantCount();
     },
 
@@ -660,17 +717,27 @@ export default {
     },
 
     onDailyError(event) {
-      console.error('Daily error:', event);
+      console.error('❌ [Daily] error event:', JSON.stringify(event));
       this.showToast('Connection error: ' + (event?.errorMsg || 'Unknown error'), 'error');
     },
 
     onCameraError(event) {
-      console.warn('Camera error:', event);
+      console.warn('⚠️ [Daily] camera-error event:', JSON.stringify(event));
       this.showToast('Camera/mic error — please check permissions.', 'error');
     },
 
-    toggleAudio() { if (this.callFrame) this.callFrame.setLocalAudio(!this.audioOn); },
-    toggleVideo() { if (this.callFrame) this.callFrame.setLocalVideo(!this.videoOn); },
+    // ═══════════════════════════════════════════════════════════
+    //  MEDIA CONTROLS
+    // ═══════════════════════════════════════════════════════════
+
+    toggleAudio() {
+      console.log('🎙️ [toggleAudio] audioOn was:', this.audioOn);
+      if (this.callFrame) this.callFrame.setLocalAudio(!this.audioOn);
+    },
+    toggleVideo() {
+      console.log('📷 [toggleVideo] videoOn was:', this.videoOn);
+      if (this.callFrame) this.callFrame.setLocalVideo(!this.videoOn);
+    },
 
     async toggleScreen() {
       if (!this.callFrame) return;
@@ -684,6 +751,10 @@ export default {
       }
     },
 
+    // ═══════════════════════════════════════════════════════════
+    //  MEETING LIFECYCLE
+    // ═══════════════════════════════════════════════════════════
+
     endMeeting()     { this.showEndModal     = true; },
     restartMeeting() { this.showRestartModal = true; },
 
@@ -691,15 +762,12 @@ export default {
       this.ending = true;
       try {
         if (this.token && this.meetingCode) {
-          apiRequest(`/meetings/end/${this.meetingCode}`, {
-            method: 'POST',
-          }).catch(e => console.warn('Backend end failed:', e));
+          apiRequest(`/meetings/end/${this.meetingCode}`, { method: 'POST' })
+            .catch(e => console.warn('Backend end failed:', e));
         }
-
         if (this.callFrame) {
           try { this.callFrame.sendAppMessage({ type: 'meeting-ended', endedBy: this.userName }, '*'); } catch (_) {}
         }
-
         this.showEndModal = false;
         this.cleanupAndNavigate();
       } catch (err) {
@@ -717,16 +785,13 @@ export default {
           await apiRequest(`/meetings/end/${this.meetingCode}`,   { method: 'POST' }).catch(() => {});
           await apiRequest(`/meetings/start/${this.meetingCode}`, { method: 'POST' }).catch(() => {});
         }
-
         if (this.callFrame) {
           try { this.callFrame.sendAppMessage({ type: 'meeting-restarted', restartedBy: this.userName }, '*'); } catch (_) {}
         }
-
         this.showRestartModal = false;
         this.showToast('Meeting restarted!');
         this.messages    = [];
         this.unreadCount = 0;
-
         setTimeout(async () => {
           if (this.callFrame) {
             try { this.callFrame.destroy(); } catch (_) {}
@@ -752,6 +817,7 @@ export default {
     },
 
     cleanupAndNavigate() {
+      console.log('🧹 [cleanupAndNavigate] Cleaning up...');
       clearInterval(this.clockInterval);
       if (this.callFrame) {
         try { this.callFrame.destroy(); } catch (_) {}
@@ -766,6 +832,10 @@ export default {
       if (window.history.length > 1) this.$router.go(-1);
       else this.$router.push(this.isAuthenticated ? '/meeting-dashboard' : '/meetings/join');
     },
+
+    // ═══════════════════════════════════════════════════════════
+    //  CHAT
+    // ═══════════════════════════════════════════════════════════
 
     toggleChat() {
       this.chatOpen = !this.chatOpen;
@@ -792,6 +862,10 @@ export default {
       });
     },
 
+    // ═══════════════════════════════════════════════════════════
+    //  UTILITIES
+    // ═══════════════════════════════════════════════════════════
+
     copyMeetingCode() {
       navigator.clipboard.writeText(this.meetingCode)
         .then(() => this.showToast('Code copied!'));
@@ -815,9 +889,14 @@ export default {
   },
 
   mounted() {
+    console.log('🔧 [mounted] route query:', JSON.stringify(this.$route?.query));
+    console.log('🔧 [mounted] route params:', JSON.stringify(this.$route?.params));
+    console.log('🔧 [mounted] prop code:', this.code);
+
     const forceCreate = this.$route?.query?.create === 'true';
 
     if (forceCreate) {
+      console.log('🔧 [mounted] Force create mode');
       MeetingSession.clearMeetingCode();
       sessionStorage.removeItem('nova_is_host');
       sessionStorage.removeItem('nova_daily_room');
@@ -828,6 +907,8 @@ export default {
       const resolvedCode = this.code
         || this.$route?.params?.code
         || MeetingSession.getMeetingCode();
+
+      console.log('🔧 [mounted] resolvedCode:', resolvedCode);
 
       if (resolvedCode) {
         this.meetingCode = resolvedCode;
@@ -841,6 +922,8 @@ export default {
 
         this.view = 'meeting';
         this.$nextTick(() => this.initMeeting());
+      } else {
+        console.log('🔧 [mounted] No code found — showing create view');
       }
     }
 
@@ -854,6 +937,7 @@ export default {
   },
 
   beforeUnmount() {
+    console.log('🔧 [beforeUnmount] Cleaning up');
     window.removeEventListener('keydown', this._keyHandler);
     clearInterval(this.clockInterval);
     if (this.callFrame) {
@@ -942,6 +1026,8 @@ export default {
 .nv-daily-wrap{position:absolute;top:60px;bottom:80px;left:0;right:0;transition:right .25s cubic-bezier(.4,0,.2,1);background:#000}
 .nv-daily-wrap.nv-daily--chat-open{right:360px}
 .nv-daily-frame{width:100%;height:100%}
+/* Style the Daily iframe via CSS since we pass no options to createFrame */
+.nv-daily-frame iframe{width:100% !important;height:100% !important;border:none !important;background:#202124}
 .nv-daily-loading{position:absolute;inset:0;z-index:5;background:var(--c-bg);display:flex;align-items:center;justify-content:center}
 .nv-loading-inner{display:flex;flex-direction:column;align-items:center;gap:16px;color:var(--c-text2);font-size:15px}
 .nv-controls{position:fixed;bottom:0;left:0;right:0;height:80px;background:var(--c-bg);border-top:1px solid var(--c-line);display:flex;align-items:center;justify-content:center;z-index:201}
