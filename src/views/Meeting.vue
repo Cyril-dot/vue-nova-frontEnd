@@ -762,11 +762,23 @@ export default {
           this.activePresenterId = fromId;
           await this.$nextTick(); 
           await this.$nextTick();
-          
+          // Try to bind immediately, and also retry (stream may arrive via ontrack after this message)
           if (this.peerScreenStreams[fromId]) {
             this.bindPeerScreenWithRetry(fromId);
+          } else {
+            // Stream not yet received via ontrack — poll for up to 5 seconds
+            let attempts = 0;
+            const poll = setInterval(() => {
+              attempts++;
+              if (this.peerScreenStreams[fromId]) {
+                clearInterval(poll);
+                this.bindPeerScreenWithRetry(fromId);
+              } else if (attempts > 50) {
+                clearInterval(poll);
+                console.warn(`⚠️ Screen stream never arrived for ${fromId}`);
+              }
+            }, 100);
           }
-          this.bindAllVideos();
           break;
 
         case 'SCREEN_SHARE_STOP':
@@ -923,13 +935,14 @@ export default {
     async handleOffer(msg) {
       const peerId = msg.fromPeerId;
       if (!peerId || peerId === this.myPeerId) return;
-      console.log(`📥 Offer ← ${peerId}`);
+      console.log(`📥 Offer ← ${peerId} (renegotiation: ${!!msg.isRenegotiation})`);
 
       const offererName = msg.senderName || msg.data?.senderName || msg.data?.name || null;
       if (offererName) {
         this.peerNames = { ...this.peerNames, [peerId]: offererName };
       }
 
+      // Use existing PC for renegotiation, create new one for new peers
       const pc = this.peers[peerId] || await this.createPC(peerId, false);
 
       try {
@@ -971,19 +984,23 @@ export default {
       }
 
       try {
+        // Accept answer whenever we're expecting one (have-local-offer covers both initial and renegotiation)
         if (pc.signalingState === 'have-local-offer') {
           await pc.setRemoteDescription(new RTCSessionDescription(msg.data));
-          console.log(`✅ Answer set for ${peerId}`);
+          console.log(`✅ Answer set for ${peerId} (signalingState → stable)`);
           
           const queued = this.pendingCandidates[peerId] || [];
           for (const c of queued) { 
-            try { 
-              await pc.addIceCandidate(c); 
-            } catch (e) { 
-              console.warn('ICE drain:', e); 
-            } 
+            try { await pc.addIceCandidate(c); } catch (e) { console.warn('ICE drain:', e); } 
           }
           this.pendingCandidates[peerId] = [];
+
+          // If we just completed a screen-share renegotiation, try binding screen video
+          if (this.activePresenterId === peerId && this.peerScreenStreams[peerId]) {
+            this.$nextTick(() => this.bindPeerScreenWithRetry(peerId));
+          }
+        } else {
+          console.warn(`⚠️ Got ANSWER from ${peerId} but signalingState is ${pc.signalingState}, ignoring`);
         }
       } catch (err) {
         console.error('handleAnswer error:', err);
@@ -1089,7 +1106,7 @@ export default {
         this.screenStream.getTracks().forEach(t => t.stop());
         this.screenStream = null;
 
-        // FIX: Remove screen senders cleanly using stored sender references
+        // Remove screen senders and renegotiate with each peer
         for (const [peerId, sender] of Object.entries(this.screenSenders)) {
           const pc = this.peers[peerId];
           if (pc && sender) {
@@ -1099,6 +1116,8 @@ export default {
             } catch (e) {
               console.warn('Failed to remove screen sender:', e);
             }
+            // Renegotiate so the remote side knows the track is gone
+            await this.renegotiate(peerId, pc);
           }
         }
         this.screenSenders = {};
@@ -1120,28 +1139,31 @@ export default {
           const screenTrack = this.screenStream.getVideoTracks()[0];
           console.log('Screen track obtained:', screenTrack.label);
 
-          // Handle user stopping via browser UI
+          // Handle user stopping via browser UI (the X button in the browser share bar)
           screenTrack.onended = () => {
             console.log('Screen share ended by browser UI');
             if (this.screenStream) this.toggleScreen();
           };
 
-          // FIX: Add screen track to each peer connection using THIS screenStream as the container
-          // This ensures receivers see a different stream.id from the camera stream → screen detection works
+          // Add screen track to each peer connection, then renegotiate
+          // CRITICAL: use this.screenStream as the MediaStream container so the receiver
+          // gets a different stream.id than the camera stream → ontrack can distinguish them
           this.screenSenders = {};
           for (const [peerId, pc] of Object.entries(this.peers)) {
             try {
               const sender = pc.addTrack(screenTrack, this.screenStream);
               this.screenSenders[peerId] = sender;
-              console.log(`📤 Added screen track to ${peerId}`);
+              console.log(`📤 Added screen track to ${peerId}, now renegotiating…`);
+              // CRITICAL: renegotiate so the remote peer's ontrack fires for this new track
+              await this.renegotiate(peerId, pc);
             } catch (e) { 
-              console.warn(`addTrack screen failed for ${peerId}:`, e); 
+              console.warn(`addTrack/renegotiate failed for ${peerId}:`, e); 
             }
           }
 
           this.sendWs({ type: 'SCREEN_SHARE_START' });
 
-          // FIX: Bind the local screenVideo element after Vue renders the tile
+          // Bind the local screenVideo element after Vue renders the presenting tile
           await this.$nextTick();
           await this.$nextTick();
           this.bindAllVideos();
@@ -1153,6 +1175,24 @@ export default {
           }
           this.screenStream = null;
         }
+      }
+    },
+
+    // Send a fresh offer to a peer so they learn about added/removed tracks
+    async renegotiate(peerId, pc) {
+      try {
+        const offer = await pc.createOffer();
+        await pc.setLocalDescription(offer);
+        this.sendWs({
+          type: 'OFFER',
+          toPeerId: peerId,
+          data: pc.localDescription,
+          senderName: this.userName,
+          isRenegotiation: true,   // flag so receiver knows this isn't a brand-new peer
+        });
+        console.log(`🔄 Renegotiation offer sent to ${peerId}`);
+      } catch (err) {
+        console.error(`Renegotiation failed for ${peerId}:`, err);
       }
     },
 
