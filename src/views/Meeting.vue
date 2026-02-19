@@ -492,16 +492,28 @@ export default {
 
     bindPeerScreenWithRetry(peerId, attempt = 0) {
       const stream = this.peerScreenStreams[peerId];
-      if (!stream) return;
-      
+      if (!stream) {
+        console.warn(`🖥️ bindPeerScreenWithRetry: no stream for ${peerId}`);
+        return;
+      }
+
+      // activePresenterId must be set and Vue must have rendered the video element
+      if (!this.activePresenterId) {
+        if (attempt < 60) setTimeout(() => this.bindPeerScreenWithRetry(peerId, attempt + 1), 100);
+        return;
+      }
+
       const el = this.resolveRef(`peerScreen_${peerId}`);
+      if (attempt === 0 || attempt % 5 === 0) {
+        console.log(`🖥️ bindPeerScreenWithRetry attempt ${attempt}: el=${!!el}, activePresenterId=${this.activePresenterId}`);
+      }
       if (el) {
         if (el.srcObject !== stream) { 
-          el.srcObject = stream; 
-          el.play().catch(() => {}); 
+          el.srcObject = stream;
+          el.play().catch(e => console.warn('screen play() error:', e));
         }
-        console.log(`🖥️ Bound peerScreen_${peerId} (attempt ${attempt})`);
-      } else if (attempt < 40) {
+        console.log(`✅ Bound peerScreen_${peerId} (attempt ${attempt})`);
+      } else if (attempt < 80) {
         setTimeout(() => this.bindPeerScreenWithRetry(peerId, attempt + 1), 100);
       } else {
         console.warn(`⚠️ Could not bind peerScreen_${peerId} after ${attempt} attempts`);
@@ -758,24 +770,27 @@ export default {
           break;
 
         case 'SCREEN_SHARE_START':
-          console.log(`📺 Screen share started by ${fromId}`);
+          console.log(`📺 SCREEN_SHARE_START from ${fromId}, peerScreenStreams[fromId]=${!!this.peerScreenStreams[fromId]}`);
           this.activePresenterId = fromId;
-          await this.$nextTick(); 
           await this.$nextTick();
-          // Try to bind immediately, and also retry (stream may arrive via ontrack after this message)
+          await this.$nextTick();
           if (this.peerScreenStreams[fromId]) {
+            // Stream already arrived via ontrack before this WS message — bind immediately
+            console.log(`🖥️ Screen stream already available, binding now`);
             this.bindPeerScreenWithRetry(fromId);
           } else {
-            // Stream not yet received via ontrack — poll for up to 5 seconds
+            // Stream not yet arrived — poll until it comes in via ontrack (renegotiation may still be in flight)
+            console.log(`🖥️ Screen stream not yet available, starting poll…`);
             let attempts = 0;
             const poll = setInterval(() => {
               attempts++;
               if (this.peerScreenStreams[fromId]) {
                 clearInterval(poll);
+                console.log(`🖥️ Screen stream arrived after ${attempts} polls, binding`);
                 this.bindPeerScreenWithRetry(fromId);
-              } else if (attempts > 50) {
+              } else if (attempts > 100) {
                 clearInterval(poll);
-                console.warn(`⚠️ Screen stream never arrived for ${fromId}`);
+                console.warn(`⚠️ Screen stream never arrived for ${fromId} after 10s`);
               }
             }, 100);
           }
@@ -845,9 +860,9 @@ export default {
         const track = event.track;
         const incomingStream = event.streams[0];
 
-        if (track.kind === 'audio') return;
+        console.log(`🎥 ontrack from ${peerId}: kind=${track.kind}, streamId=${incomingStream?.id}, label=${track.label}`);
 
-        console.log(`🎥 ontrack from ${peerId}: kind=${track.kind}, streamId=${incomingStream?.id}`);
+        if (track.kind === 'audio') return;
 
         if (!incomingStream) {
           if (!this.peerCameraStreamIds[peerId]) {
@@ -855,11 +870,13 @@ export default {
             this.peerCameraStreamIds = { ...this.peerCameraStreamIds, [peerId]: s.id };
             this.setPeerStream(peerId, s);
             this.$nextTick(() => this.bindPeerVideoWithRetry(peerId));
+            console.log(`📷 Camera stream (no container) for ${peerId}`);
           }
           return;
         }
 
         const knownCamId = this.peerCameraStreamIds[peerId];
+        console.log(`🔍 knownCamId for ${peerId}: ${knownCamId || 'none'}, incoming: ${incomingStream.id}`);
 
         if (!knownCamId) {
           // First video stream → CAMERA
@@ -872,13 +889,24 @@ export default {
           // Different stream.id → SCREEN SHARE
           console.log(`🖥️ Screen stream detected for ${peerId}: ${incomingStream.id}`);
           this.peerScreenStreams = { ...this.peerScreenStreams, [peerId]: incomingStream };
-          
-          if (this.activePresenterId === peerId) {
-            this.$nextTick(() => this.bindPeerScreenWithRetry(peerId));
-          }
+
+          // Bind the screen stream. activePresenterId may not be set yet (race with WS signal),
+          // so we set it here too and always attempt to bind.
+          const doBindScreen = async () => {
+            if (!this.activePresenterId) {
+              console.log(`🖥️ ontrack: auto-setting activePresenterId = ${peerId}`);
+              this.activePresenterId = peerId;
+              await this.$nextTick();
+              await this.$nextTick();
+            }
+            if (this.activePresenterId === peerId) {
+              this.bindPeerScreenWithRetry(peerId);
+            }
+          };
+          this.$nextTick(doBindScreen);
 
         } else {
-          // Same stream.id → camera update
+          // Same stream.id → camera track updated after renegotiation
           this.setPeerStream(peerId, incomingStream);
           this.$nextTick(() => this.bindPeerVideoWithRetry(peerId));
           console.log(`🔄 Camera stream updated for ${peerId}: ${incomingStream.id}`);
@@ -893,6 +921,15 @@ export default {
             data: event.candidate.toJSON() 
           });
         }
+      };
+
+      // Auto-renegotiate when tracks are added/removed (fires after addTrack)
+      pc.onnegotiationneeded = async () => {
+        console.log(`🔄 onnegotiationneeded for ${peerId}, signalingState=${pc.signalingState}`);
+        // Only renegotiate if we're in a stable state and connection exists
+        if (pc.signalingState !== 'stable') return;
+        if (!this.peers[peerId]) return;
+        await this.renegotiate(peerId, pc);
       };
 
       pc.onconnectionstatechange = () => {
