@@ -1,4 +1,4 @@
-<!-- Meeting.vue — STABLE (FIX A–J) -->
+<!-- Meeting.vue — SCREEN SHARE FIXED (FIX F + FIX G + RENEGOTIATION) -->
 <!--
   FIXES IN THIS VERSION:
   ✅ FIX A: peerStreams uses object spread to stay reactive
@@ -6,15 +6,16 @@
   ✅ FIX C: NAME_SYNC — both sides always know each other's username
   ✅ FIX D: PARTICIPANT_LIST peers handled as objects or bare strings
   ✅ FIX E: JOIN echo from server (fromPeerId=null) ignored cleanly
-  ✅ FIX F: Screen share correctly shown via peerCameraStreamIds map
-  ✅ FIX G: SCREEN_SHARE_START re-triggers bindPeerScreenWithRetry once DOM ready
-  ✅ FIX H: Screen share renegotiation via onnegotiationneeded
-  ✅ FIX I: Negotiation lock (makingOffer map) prevents m-line order crash.
-            onnegotiationneeded no longer collides with the initial offer/answer,
-            which was the root cause of peers being kicked from the meeting when
-            screen share started.
-  ✅ FIX J: Camera-off on local tile shows initials avatar instead of black screen,
-            both in normal grid layout AND in the presenting sidebar layout.
+  ✅ FIX F: Screen share correctly shown (not the camera).
+            Uses peerCameraStreamIds map: first stream.id per peer = camera,
+            any new stream.id = screen share. Eliminates the old race-condition
+            heuristic that checked peerStreams[peerId] existence.
+  ✅ FIX G: SCREEN_SHARE_START re-triggers bindPeerScreenWithRetry once DOM ready.
+  ✅ FIX H: Screen share renegotiation — addTrack() triggers new offer/answer
+            exchange so remote peers actually receive the screen track.
+            Without this, receivers saw a black screen because the SDP had
+            no description for the dynamically-added track.
+            Same renegotiation on stop (removeTrack).
 -->
 <template>
   <div class="nv-root">
@@ -182,7 +183,6 @@
           </div>
 
           <div class="nv-gsidebar">
-            <!-- ✅ FIX J: local tile in sidebar shows initials when camera is off -->
             <div class="nv-tile nv-tile--me">
               <video ref="localVideo" autoplay muted playsinline></video>
               <div class="nv-tilebar">
@@ -203,7 +203,7 @@
                   <span v-if="peerMuted[pid]" class="nv-badge nv-badge--red"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="1" y1="1" x2="23" y2="23"/></svg></span>
                 </div>
               </div>
-              <div v-if="!peerStreams[pid] || peerVideoOff[pid]" class="nv-nocam">
+              <div v-if="!peerStreams[pid]" class="nv-nocam">
                 <div class="nv-avatar nv-avatar--sm">{{ getPeerName(pid).charAt(0).toUpperCase() }}</div>
               </div>
             </div>
@@ -212,7 +212,6 @@
 
         <!-- NORMAL GRID LAYOUT -->
         <template v-else>
-          <!-- ✅ FIX J: normal grid local tile also shows initials when camera is off -->
           <div class="nv-tile nv-tile--me">
             <video ref="localVideo" autoplay muted playsinline></video>
             <div class="nv-tilebar">
@@ -234,7 +233,7 @@
                 <span v-if="peerVideoOff[pid]" class="nv-badge nv-badge--red"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="1" y1="1" x2="23" y2="23"/></svg></span>
               </div>
             </div>
-            <div v-if="!peerStreams[pid] || peerVideoOff[pid]" class="nv-nocam">
+            <div v-if="!peerStreams[pid]" class="nv-nocam">
               <div class="nv-avatar nv-avatar--sm">{{ getPeerName(pid).charAt(0).toUpperCase() }}</div>
             </div>
           </div>
@@ -406,23 +405,18 @@ export default {
       ws: null,
 
       peers: {},
-      peerStreams: {},
-      peerScreenStreams: {},
-      peerCameraStreamIds: {},
+      peerStreams: {},          // peerId → camera MediaStream (for peerVideo_ tile)
+      peerScreenStreams: {},    // peerId → screen MediaStream (for peerScreen_ tile)
+      // ✅ FIX F: Track each peer's camera stream.id so we can identify screen tracks
+      // by stream.id comparison instead of an existence check (which had a race condition).
+      peerCameraStreamIds: {},  // peerId → camera stream.id string
       peerNames: {},
       peerMuted: {},
       peerVideoOff: {},
       pendingCandidates: {},
 
-      // ✅ FIX I: per-peer negotiation lock.
-      // Prevents onnegotiationneeded from racing with the initial manual offer,
-      // which caused "m-lines order mismatch" → peer connection crash → everyone
-      // appears to leave the meeting when screen share started.
-      makingOffer: {},
-
       localStream: null,
       screenStream: null,
-      _screenSenders: [],
 
       meetingCode: '',
       myPeerId: `peer_${Math.random().toString(36).substr(2, 9)}`,
@@ -467,8 +461,8 @@ export default {
   methods: {
     getPeerName(peerId) {
       if (this.peerNames[peerId]) return this.peerNames[peerId];
-      const adjectives = ['Happy','Clever','Swift','Brave','Calm','Bold','Kind','Wise','Cool','Bright','Sharp','Neat'];
-      const animals    = ['Panda','Falcon','Otter','Tiger','Koala','Eagle','Fox','Wolf','Lynx','Hawk','Bear','Deer'];
+      const adjectives = ['Happy', 'Clever', 'Swift', 'Brave', 'Calm', 'Bold', 'Kind', 'Wise', 'Cool', 'Bright', 'Sharp', 'Neat'];
+      const animals    = ['Panda', 'Falcon', 'Otter', 'Tiger', 'Koala', 'Eagle', 'Fox', 'Wolf', 'Lynx', 'Hawk', 'Bear', 'Deer'];
       let seed = 0;
       for (let i = 0; i < peerId.length; i++) seed += peerId.charCodeAt(i);
       return `${adjectives[seed % adjectives.length]} ${animals[Math.floor(seed / adjectives.length) % animals.length]}`;
@@ -498,6 +492,8 @@ export default {
     bindPeerScreenWithRetry(peerId, attempt = 0) {
       const stream = this.peerScreenStreams[peerId];
       if (!stream) return;
+      // If activePresenterId isn't set yet, the peerScreen_ element won't exist in DOM.
+      // Keep retrying — SCREEN_SHARE_START will also call us again once it's set.
       const el = this.resolveRef(`peerScreen_${peerId}`);
       if (el) {
         if (el.srcObject !== stream) { el.srcObject = stream; el.play().catch(() => {}); }
@@ -727,6 +723,10 @@ export default {
         case 'SCREEN_SHARE_START':
           this.activePresenterId = fromId;
           await this.$nextTick(); await this.$nextTick();
+          // ✅ FIX G: The screen stream may have already arrived via ontrack BEFORE
+          // this WS signal (WebRTC negotiation is often faster than WS signaling).
+          // Re-trigger bindPeerScreenWithRetry now that the peerScreen_ DOM element
+          // exists (activePresenterId just set → v-else-if branch rendered).
           if (this.peerScreenStreams[fromId]) {
             this.bindPeerScreenWithRetry(fromId);
           }
@@ -765,21 +765,43 @@ export default {
       if (this.peers[peerId]) return this.peers[peerId];
 
       const pc = new RTCPeerConnection(ICE_SERVERS);
-      this.makingOffer[peerId] = false;
 
       if (this.localStream) {
+        // Camera + audio tracks are added together in localStream
         this.localStream.getTracks().forEach(track => pc.addTrack(track, this.localStream));
       }
 
-      // ── FIX F: camera vs screen identification via stream.id ──
+      // ─────────────────────────────────────────────────────────────────
+      // ✅ FIX F — Correct camera vs screen track identification
+      //
+      // THE BUG (old code):
+      //   Used `if (!this.peerStreams[peerId])` to decide camera vs screen.
+      //   This was unreliable because Vue reactivity doesn't update synchronously,
+      //   so the second track could arrive before the first track's reactive update
+      //   was committed — both tracks would be treated as "camera".
+      //
+      // THE FIX:
+      //   On the SENDER side, we add the screen track in a brand-new MediaStream
+      //   (`screenOnlyStream = new MediaStream([screenTrack])`), giving it a unique
+      //   stream.id different from `localStream.id`.
+      //
+      //   On the RECEIVER side, we remember the FIRST stream.id we see per peer
+      //   as `peerCameraStreamIds[peerId]`. Any track that arrives in a stream with
+      //   a DIFFERENT id is unambiguously the screen share track.
+      //
+      //   This is a deterministic check — no races, no timing dependencies.
+      // ─────────────────────────────────────────────────────────────────
       pc.ontrack = (event) => {
         const track = event.track;
         const incomingStream = event.streams[0];
+
+        // Audio is routed automatically; skip it here.
         if (track.kind === 'audio') return;
 
         console.log(`🎥 ontrack from ${peerId}: kind=${track.kind}, streamId=${incomingStream?.id}`);
 
         if (!incomingStream) {
+          // Orphan track (no stream) — wrap it and treat as camera fallback
           if (!this.peerCameraStreamIds[peerId]) {
             const s = new MediaStream([track]);
             this.peerCameraStreamIds = { ...this.peerCameraStreamIds, [peerId]: s.id };
@@ -792,18 +814,20 @@ export default {
         const knownCamId = this.peerCameraStreamIds[peerId];
 
         if (!knownCamId) {
-          // First video track → CAMERA
+          // ── First video track → CAMERA ──
           this.peerCameraStreamIds = { ...this.peerCameraStreamIds, [peerId]: incomingStream.id };
           this.setPeerStream(peerId, incomingStream);
           this.$nextTick(() => this.bindPeerVideoWithRetry(peerId));
           console.log(`📷 Camera stream set for ${peerId}: ${incomingStream.id}`);
+
         } else if (incomingStream.id !== knownCamId) {
-          // Different stream.id → SCREEN SHARE
+          // ── Different stream.id → SCREEN SHARE ──
           this.peerScreenStreams = { ...this.peerScreenStreams, [peerId]: incomingStream };
           this.$nextTick(() => this.bindPeerScreenWithRetry(peerId));
           console.log(`🖥️ Screen stream set for ${peerId}: ${incomingStream.id}`);
+
         } else {
-          // Same stream.id → camera renegotiation/update
+          // ── Same stream.id as camera → re-negotiation / update of camera ──
           this.setPeerStream(peerId, incomingStream);
           this.$nextTick(() => this.bindPeerVideoWithRetry(peerId));
           console.log(`🔄 Camera stream updated for ${peerId}: ${incomingStream.id}`);
@@ -826,41 +850,18 @@ export default {
         }
       };
 
-      // ✅ FIX I: Negotiation lock
-      //
-      // THE BUG: When createPC() called addTrack() above, the browser immediately
-      // queued an onnegotiationneeded event. This fired WHILE the manual sendOffer
-      // path below was also running createOffer() → both tried setLocalDescription()
-      // simultaneously → "m-lines order mismatch" crash → peer disconnected → every
-      // other participant appeared to "leave" the meeting.
-      //
-      // THE FIX:
-      // • The manual sendOffer path sets makingOffer=true BEFORE createOffer() starts,
-      //   so onnegotiationneeded sees the flag and skips — no collision.
-      // • For screen share (addTrack on an existing PC, no manual offer), makingOffer
-      //   is false, so onnegotiationneeded fires exactly once and renegotiates cleanly.
-      // • Polite peer rollback handles the rare glare case where both peers try to
-      //   offer at the same time.
+      // ✅ FIX H: onnegotiationneeded fires automatically whenever tracks are added
+      // or removed (e.g. when screen sharing starts/stops mid-call). This handler
+      // re-runs the offer/answer exchange so remote peers learn about the new track.
       pc.onnegotiationneeded = async () => {
-        if (this.makingOffer[peerId]) {
-          console.log(`⏭️ onnegotiationneeded skipped for ${peerId} (offer in progress)`);
-          return;
-        }
-        if (pc.signalingState !== 'stable') {
-          console.log(`⏭️ onnegotiationneeded skipped for ${peerId} (state: ${pc.signalingState})`);
-          return;
-        }
         try {
-          this.makingOffer[peerId] = true;
-          console.log(`🔄 onnegotiationneeded for ${peerId} — renegotiating`);
+          if (pc.signalingState !== 'stable') return;
+          console.log(`🔄 onnegotiationneeded for ${peerId} — creating new offer`);
           const offer = await pc.createOffer();
-          if (pc.signalingState !== 'stable') return; // state may have changed after await
           await pc.setLocalDescription(offer);
           this.sendWs({ type: 'OFFER', toPeerId: peerId, data: pc.localDescription, senderName: this.userName });
         } catch (err) {
           console.error('onnegotiationneeded error:', err);
-        } finally {
-          this.makingOffer[peerId] = false;
         }
       };
 
@@ -868,9 +869,6 @@ export default {
       this.pendingCandidates[peerId] = [];
 
       if (sendOffer) {
-        // Lock BEFORE createOffer so the onnegotiationneeded that fires from
-        // addTrack() above is suppressed — it would collide with this offer.
-        this.makingOffer[peerId] = true;
         try {
           const offer = await pc.createOffer({ offerToReceiveAudio: true, offerToReceiveVideo: true });
           await pc.setLocalDescription(offer);
@@ -878,8 +876,6 @@ export default {
           console.log(`📤 Offer → ${peerId}`);
         } catch (err) {
           console.error('createOffer failed:', err);
-        } finally {
-          this.makingOffer[peerId] = false;
         }
       }
 
@@ -897,22 +893,6 @@ export default {
       const pc = this.peers[peerId] || await this.createPC(peerId, false);
 
       try {
-        // Perfect Negotiation: handle offer collision gracefully.
-        // If we're also making an offer right now (glare), the polite peer
-        // (lexicographically smaller peerId) rolls back so the remote offer wins.
-        const offerCollision = pc.signalingState !== 'stable' || this.makingOffer[peerId];
-        const isPolite = this.myPeerId < peerId;
-
-        if (offerCollision) {
-          if (!isPolite) {
-            console.log(`🙅 Ignoring colliding offer from ${peerId} (we are impolite)`);
-            return;
-          }
-          // Polite peer rolls back our in-progress local offer
-          await pc.setLocalDescription({ type: 'rollback' });
-          this.makingOffer[peerId] = false;
-        }
-
         await pc.setRemoteDescription(new RTCSessionDescription(msg.data));
         const queued = this.pendingCandidates[peerId] || [];
         for (const c of queued) { try { await pc.addIceCandidate(c); } catch (e) { console.warn('ICE drain:', e); } }
@@ -994,7 +974,6 @@ export default {
       const m = { ...this.peerMuted };   delete m[peerId];   this.peerMuted = m;
       const v = { ...this.peerVideoOff }; delete v[peerId]; this.peerVideoOff = v;
       delete this.pendingCandidates[peerId];
-      delete this.makingOffer[peerId];
       if (this.activePresenterId === peerId) this.activePresenterId = null;
       this.participantCount = Math.max(1, this.participantCount - 1);
       console.log(`👋 ${peerId} left`);
@@ -1003,7 +982,7 @@ export default {
     cleanupPeers() {
       Object.values(this.peers).forEach(pc => { try { pc.close(); } catch (_) {} });
       this.peers = {}; this.peerStreams = {}; this.peerScreenStreams = {};
-      this.peerCameraStreamIds = {}; this.makingOffer = {};
+      this.peerCameraStreamIds = {};
       this.peerNames = {}; this.peerMuted = {}; this.peerVideoOff = {};
       this.pendingCandidates = {}; this._screenSenders = [];
       this.activePresenterId = null; this.participantCount = 1;
@@ -1029,10 +1008,13 @@ export default {
         this.screenStream.getTracks().forEach(t => t.stop());
         this.screenStream = null;
 
-        // removeTrack triggers onnegotiationneeded → new offer removes the screen track
+        // ✅ FIX H: removeTrack() triggers onnegotiationneeded on each PC,
+        // which automatically sends a new offer so receivers know the track is gone.
         for (const pc of Object.values(this.peers)) {
-          for (const sender of (this._screenSenders || [])) {
-            try { pc.removeTrack(sender); } catch (e) { console.warn(e); }
+          if (this._screenSenders) {
+            for (const sender of this._screenSenders) {
+              try { pc.removeTrack(sender); } catch (e) { console.warn(e); }
+            }
           }
         }
         this._screenSenders = [];
@@ -1047,17 +1029,25 @@ export default {
           this.screenStream = await navigator.mediaDevices.getDisplayMedia({ video: { cursor: 'always' }, audio: false });
           const screenTrack = this.screenStream.getVideoTracks()[0];
 
-          // Add screen track in its own unique stream so the receiver can tell it
-          // apart from the camera stream by stream.id (FIX F).
-          // addTrack() fires onnegotiationneeded → renegotiates with remote peer
-          // so they receive the new track (FIX H). The makingOffer lock (FIX I)
-          // prevents any collision with concurrent signaling.
+          // ✅ FIX F (sender side):
+          // Add the screen track in its OWN dedicated MediaStream so it gets a unique
+          // stream.id. The receiver compares this id against the stored camera stream.id
+          // to correctly identify this as the screen track — not the camera.
+          //
+          // ✅ FIX H (sender side):
+          // addTrack() automatically fires onnegotiationneeded on each RTCPeerConnection,
+          // which triggers a new offer → answer exchange. This is what actually delivers
+          // the screen track's SDP description to remote peers. Without renegotiation,
+          // receivers have no SDP entry for the new track and render a black screen.
           this._screenSenders = [];
           for (const pc of Object.values(this.peers)) {
             try {
               const screenOnlyStream = new MediaStream([screenTrack]);
               const sender = pc.addTrack(screenTrack, screenOnlyStream);
               this._screenSenders.push(sender);
+              // NOTE: We intentionally do NOT manually call createOffer() here.
+              // The onnegotiationneeded handler (registered in createPC) handles it
+              // automatically and safely checks signalingState === 'stable' first.
             } catch (e) { console.warn('addTrack screen failed:', e); }
           }
 
