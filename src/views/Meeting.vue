@@ -486,12 +486,16 @@ export default {
     bindPeerScreenWithRetry(peerId, attempt = 0) {
       const stream = this.peerScreenStreams[peerId];
       if (!stream) return;
+      // If activePresenterId isn't set yet, the peerScreen_ element won't exist in DOM.
+      // Keep retrying — SCREEN_SHARE_START will also call us again once it's set.
       const el = this.resolveRef(`peerScreen_${peerId}`);
       if (el) {
         if (el.srcObject !== stream) { el.srcObject = stream; el.play().catch(() => {}); }
         console.log(`🖥️ Bound peerScreen_${peerId} (attempt ${attempt})`);
-      } else if (attempt < 20) {
+      } else if (attempt < 40) {
         setTimeout(() => this.bindPeerScreenWithRetry(peerId, attempt + 1), 100);
+      } else {
+        console.warn(`⚠️ Could not bind peerScreen_${peerId} after ${attempt} attempts`);
       }
     },
 
@@ -713,6 +717,13 @@ export default {
         case 'SCREEN_SHARE_START':
           this.activePresenterId = fromId;
           await this.$nextTick(); await this.$nextTick();
+          // ✅ FIX G: The screen stream may have already arrived via ontrack BEFORE
+          // this WS signal (WebRTC negotiation is often faster than WS signaling).
+          // Re-trigger bindPeerScreenWithRetry now that the peerScreen_ DOM element
+          // exists (activePresenterId just set → v-else-if branch rendered).
+          if (this.peerScreenStreams[fromId]) {
+            this.bindPeerScreenWithRetry(fromId);
+          }
           this.bindAllVideos();
           break;
 
