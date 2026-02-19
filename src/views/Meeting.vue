@@ -215,174 +215,147 @@
             </div>
           </div>
         </template>
-
-        <!-- NORMAL GRID LAYOUT -->
-        <template v-else>
-          <div class="nv-tile nv-tile--me">
-            <video ref="localVideo" autoplay muted playsinline></video>
-            <div class="nv-tilebar">
-              <div class="nv-tilemeta"><span class="nv-you-dot"></span>{{ userName }} (you)</div>
-              <div class="nv-tilebadges">
-                <span v-if="!audioOn" class="nv-badge nv-badge--red">
-                  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="1" y1="1" x2="23" y2="23"/></svg>
-                </span>
-                <span v-if="!videoOn" class="nv-badge nv-badge--red">
-                  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="1" y1="1" x2="23" y2="23"/></svg>
-                </span>
-              </div>
-            </div>
-            <div v-if="!videoOn" class="nv-nocam"><div class="nv-avatar">{{ userInitials }}</div></div>
-          </div>
-
-          <div v-for="pid in peerIds" :key="`grid-${pid}`" class="nv-tile">
-            <video
-              :ref="`peerVideo_${pid}`"
-              autoplay playsinline
-              style="width:100%;height:100%;object-fit:cover;display:block;"
-            ></video>
-            <div class="nv-tilebar">
-              <div class="nv-tilemeta">{{ peerNames[pid] || ('Peer ' + pid.slice(-4).toUpperCase()) }}</div>
-              <div class="nv-tilebadges">
-                <span v-if="peerMuted[pid]" class="nv-badge nv-badge--red">
-                  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="1" y1="1" x2="23" y2="23"/></svg>
-                </span>
-                <span v-if="peerVideoOff[pid]" class="nv-badge nv-badge--red">
-                  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="1" y1="1" x2="23" y2="23"/></svg>
-                </span>
-              </div>
-            </div>
-            <div v-if="!peerStreams[pid]" class="nv-nocam">
-              <div class="nv-avatar nv-avatar--sm">{{ pid.slice(-2).toUpperCase() }}</div>
-            </div>
-          </div>
-        </template>
-      </div>
-
-      <!-- Controls -->
-      <div class="nv-controls">
-        <div class="nv-ctrl-row">
-          <div class="nv-cslot">
-            <button class="nv-ctrl" :class="audioOn ? 'nv-ctrl--on' : 'nv-ctrl--off'" @click="toggleAudio">
-              <svg v-if="audioOn" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2M12 19v4M8 23h8"/></svg>
-              <svg v-else width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="1" y1="1" x2="23" y2="23"/><path d="M9 9v3a3 3 0 0 0 5.12 2.12M15 9.34V4a3 3 0 0 0-5.94-.6"/><path d="M17 16.95A7 7 0 0 1 5 12v-2m14 0v2a7 7 0 0 1-.11 1.23M12 19v4M8 23h8"/></svg>
+        <!-- ── CONTROLS BAR ────────────────────────────────────── -->
+        <footer class="nv-controls">
+          <div class="nv-ctrl-left">
+            <span class="nv-time">{{ currentTime }}</span>
+            <button class="nv-ctrl-pill" @click="copyMeetingCode" title="Copy meeting code">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+              {{ meetingCode }}
             </button>
-            <span class="nv-clabel">{{ audioOn ? 'Mute' : 'Unmute' }}</span>
+            <span class="nv-ctrl-pill">{{ participantCount }} participant{{ participantCount !== 1 ? 's' : '' }}</span>
           </div>
-          <div class="nv-cslot">
-            <button class="nv-ctrl" :class="videoOn ? 'nv-ctrl--on' : 'nv-ctrl--off'" @click="toggleVideo">
-              <svg v-if="videoOn" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2"/></svg>
+
+          <div class="nv-ctrl-center">
+            <!-- Mic -->
+            <button
+              class="nv-btn-ctrl"
+              :class="{ 'nv-btn-ctrl--off': !audioOn }"
+              @click="toggleAudio"
+              :title="audioOn ? 'Mute' : 'Unmute'"
+            >
+              <svg v-if="audioOn" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
+              <svg v-else width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="1" y1="1" x2="23" y2="23"/><path d="M9 9v3a3 3 0 0 0 5.12 2.12M15 9.34V4a3 3 0 0 0-5.94-.6"/><path d="M17 16.95A7 7 0 0 1 5 12v-2m14 0v2a7 7 0 0 1-.11 1.23"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
+              <span>{{ audioOn ? 'Mute' : 'Unmute' }}</span>
+            </button>
+
+            <!-- Camera -->
+            <button
+              class="nv-btn-ctrl"
+              :class="{ 'nv-btn-ctrl--off': !videoOn }"
+              @click="toggleVideo"
+              :title="videoOn ? 'Stop video' : 'Start video'"
+            >
+              <svg v-if="videoOn" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2"/></svg>
               <svg v-else width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M16 16v1a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h2m5.66 0H14a2 2 0 0 1 2 2v3.34l1 1L23 7v10"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+              <span>{{ videoOn ? 'Stop Video' : 'Start Video' }}</span>
             </button>
-            <span class="nv-clabel">{{ videoOn ? 'Stop video' : 'Start video' }}</span>
-          </div>
-          <div class="nv-cslot">
-            <button class="nv-ctrl" :class="screenStream ? 'nv-ctrl--sharing' : 'nv-ctrl--on'" @click="toggleScreen">
-              <svg v-if="!screenStream" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/><polyline points="8 10 12 6 16 10"/><line x1="12" y1="6" x2="12" y2="14"/></svg>
-              <svg v-else width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/><line x1="9" y1="9" x2="15" y2="15"/><line x1="15" y1="9" x2="9" y2="15"/></svg>
-            </button>
-            <span class="nv-clabel">{{ screenStream ? 'Stop sharing' : 'Present' }}</span>
-          </div>
-          <div class="nv-cdivider"></div>
-          <template v-if="isHost">
-            <div class="nv-cslot">
-              <button class="nv-ctrl nv-ctrl--restart" @click="restartMeeting" :disabled="restarting">
-                <span v-if="restarting" class="nv-spinner nv-spinner--sm"></span>
-                <svg v-else width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-4.5"/></svg>
-              </button>
-              <span class="nv-clabel">Restart</span>
-            </div>
-            <div class="nv-cslot">
-              <button class="nv-ctrl nv-ctrl--end" @click="endMeeting" :disabled="ending">
-                <span v-if="ending" class="nv-spinner nv-spinner--sm"></span>
-                <svg v-else width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="9" y1="9" x2="15" y2="15"/><line x1="15" y1="9" x2="9" y2="15"/></svg>
-              </button>
-              <span class="nv-clabel nv-clabel--orange">End</span>
-            </div>
-            <div class="nv-cdivider"></div>
-          </template>
-          <div class="nv-cslot">
-            <button class="nv-ctrl nv-ctrl--leave" @click="leave">
-              <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.68 13.31a16 16 0 0 0 3.41 2.6l1.27-1.27a2 2 0 0 1 2.11-.45c1.12.45 2.3.78 3.53.978a2 2 0 0 1 1.67 1.98V20a2 2 0 0 1-2 2h-1C7.82 22 2 16.18 2 9V8a2 2 0 0 1 2-2h3.5a2 2 0 0 1 1.98 1.67c.19 1.23.52 2.41.978 3.53a2 2 0 0 1-.45 2.11L10.68 13.31z"/><line x1="22" y1="2" x2="11" y2="13"/></svg>
-            </button>
-            <span class="nv-clabel nv-clabel--red">Leave</span>
-          </div>
-        </div>
-      </div>
 
-      <!-- Chat -->
-      <div class="nv-chat" :class="{ 'nv-chat--open': chatOpen }">
-        <div class="nv-chdr">
-          <div class="nv-chdr-title">
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
-            In-call messages
+            <!-- Screen share -->
+            <button
+              class="nv-btn-ctrl"
+              :class="{ 'nv-btn-ctrl--active': screenStream }"
+              @click="toggleScreen"
+              title="Share screen"
+            >
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+              <span>{{ screenStream ? 'Stop Share' : 'Share Screen' }}</span>
+            </button>
+
+            <!-- Chat -->
+            <button class="nv-btn-ctrl" :class="{ 'nv-btn-ctrl--active': chatOpen }" @click="toggleChat" title="Chat">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+              <span>Chat</span>
+              <span v-if="unreadCount > 0" class="nv-badge-count">{{ unreadCount }}</span>
+            </button>
+
+            <!-- Leave / End -->
+            <button v-if="!isHost" class="nv-btn-ctrl nv-btn-ctrl--leave" @click="leave" title="Leave">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+              <span>Leave</span>
+            </button>
+            <button v-if="isHost" class="nv-btn-ctrl nv-btn-ctrl--leave" @click="endMeeting" title="End meeting">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+              <span>End</span>
+            </button>
+            <button v-if="isHost" class="nv-btn-ctrl" @click="restartMeeting" title="Restart meeting">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-4.5"/></svg>
+              <span>Restart</span>
+            </button>
           </div>
-          <button class="nv-chdr-close" @click="toggleChat">
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+
+          <div class="nv-ctrl-right">
+            <button class="nv-btn-icon" @click="goBack" title="Back">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="15 18 9 12 15 6"/></svg>
+            </button>
+          </div>
+        </footer>
+
+        <!-- ── CHAT PANEL ─────────────────────────────────────────── -->
+        <aside class="nv-chat" :class="{ 'nv-chat--open': chatOpen }">
+          <div class="nv-chat-hd">
+            <span>Meeting Chat</span>
+            <button class="nv-btn-icon" @click="toggleChat">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+            </button>
+          </div>
+          <div class="nv-chat-msgs" ref="messagesContainer">
+            <div v-for="m in messages" :key="m.id" class="nv-msg" :class="{ 'nv-msg--self': m.isSelf }">
+              <span class="nv-msg-sender">{{ m.isSelf ? 'You' : m.sender }}</span>
+              <span class="nv-msg-text">{{ m.text }}</span>
+            </div>
+          </div>
+          <div class="nv-chat-input">
+            <input
+              v-model="chatMessage"
+              placeholder="Send a message…"
+              @keydown.enter.prevent="sendMessage"
+            />
+            <button @click="sendMessage">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+            </button>
+          </div>
+        </aside>
+
+      </div><!-- end nv-meeting -->
+    </div><!-- end meeting view wrapper -->
+
+    <!-- ── END MEETING MODAL ──────────────────────────────────────── -->
+    <div v-if="showEndModal" class="nv-modal-overlay">
+      <div class="nv-modal">
+        <h3>End Meeting?</h3>
+        <p>This will end the meeting for all participants.</p>
+        <div class="nv-modal-actions">
+          <button class="nv-btn-ghost" @click="showEndModal = false">Cancel</button>
+          <button class="nv-btn-danger" @click="confirmEndMeeting" :disabled="ending">
+            {{ ending ? 'Ending…' : 'End Meeting' }}
           </button>
         </div>
-        <div class="nv-cmsgs" ref="messagesContainer">
-          <div v-if="messages.length === 0" class="nv-cempty">
-            <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" opacity="0.2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
-            <p>No messages yet</p>
-          </div>
-          <div v-for="msg in messages" :key="msg.id" class="nv-cmsg" :class="{ 'nv-cmsg--self': msg.isSelf }">
-            <div class="nv-cmsg-who">{{ msg.sender }}{{ msg.isSelf ? ' (you)' : '' }}</div>
-            <div class="nv-cmsg-body">{{ msg.text }}</div>
-          </div>
-        </div>
-        <div class="nv-cfoot">
-          <input class="nv-cinput" type="text" v-model="chatMessage" @keypress.enter="sendMessage" placeholder="Message everyone…" />
-          <button class="nv-csend" @click="sendMessage" :disabled="!chatMessage.trim()">
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
-          </button>
-        </div>
       </div>
-
-      <!-- End Modal -->
-      <div v-if="showEndModal" class="nv-modal-overlay" @click.self="showEndModal = false">
-        <div class="nv-modal">
-          <div class="nv-modal-icon nv-modal-icon--red">
-            <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="9" y1="9" x2="15" y2="15"/><line x1="15" y1="9" x2="9" y2="15"/></svg>
-          </div>
-          <h2 class="nv-modal-title">End meeting for everyone?</h2>
-          <p class="nv-modal-body">This will end the call for all participants and mark the meeting as completed.</p>
-          <div class="nv-modal-actions">
-            <button class="nv-modal-btn nv-modal-btn--ghost" @click="showEndModal = false">Cancel</button>
-            <button class="nv-modal-btn nv-modal-btn--danger" @click="confirmEndMeeting" :disabled="ending">
-              <span v-if="ending" class="nv-spinner nv-spinner--sm"></span>
-              End for everyone
-            </button>
-          </div>
-        </div>
-      </div>
-
-      <!-- Restart Modal -->
-      <div v-if="showRestartModal" class="nv-modal-overlay" @click.self="showRestartModal = false">
-        <div class="nv-modal">
-          <div class="nv-modal-icon nv-modal-icon--blue">
-            <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-4.5"/></svg>
-          </div>
-          <h2 class="nv-modal-title">Restart this meeting?</h2>
-          <p class="nv-modal-body">All current participants will be disconnected and the meeting will restart fresh.</p>
-          <div class="nv-modal-actions">
-            <button class="nv-modal-btn nv-modal-btn--ghost" @click="showRestartModal = false">Cancel</button>
-            <button class="nv-modal-btn nv-modal-btn--primary" @click="confirmRestartMeeting" :disabled="restarting">
-              <span v-if="restarting" class="nv-spinner nv-spinner--sm"></span>
-              Restart meeting
-            </button>
-          </div>
-        </div>
-      </div>
-
-      <transition name="nv-toast-fx">
-        <div v-if="toastVisible" class="nv-toast" :class="toastType === 'error' ? 'nv-toast--error' : ''">
-          <svg v-if="toastType !== 'error'" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="20 6 9 17 4 12"/></svg>
-          <svg v-else width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><circle cx="12" cy="12" r="10"/></svg>
-          {{ toastMessage }}
-        </div>
-      </transition>
     </div>
-  </div>
+
+    <!-- ── RESTART MEETING MODAL ──────────────────────────────────── -->
+    <div v-if="showRestartModal" class="nv-modal-overlay">
+      <div class="nv-modal">
+        <h3>Restart Meeting?</h3>
+        <p>All participants will be disconnected and need to rejoin.</p>
+        <div class="nv-modal-actions">
+          <button class="nv-btn-ghost" @click="showRestartModal = false">Cancel</button>
+          <button class="nv-btn-primary" @click="confirmRestartMeeting" :disabled="restarting">
+            {{ restarting ? 'Restarting…' : 'Restart' }}
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── TOAST ──────────────────────────────────────────────────── -->
+    <transition name="nv-toast-fade">
+      <div v-if="toastVisible" class="nv-toast" :class="`nv-toast--${toastType}`">
+        {{ toastMessage }}
+      </div>
+    </transition>
+
+  </div><!-- end nv-root -->
 </template>
 
 <script>
@@ -422,13 +395,13 @@ export default {
 
       ws: null,
 
-      // ✅ All peer state stored reactively (Vue 3 — direct assignment, no $set needed)
-      peers: {},           // peerId → RTCPeerConnection
-      peerStreams: {},      // peerId → MediaStream (drives video elements)
-      peerNames: {},       // peerId → display name
-      peerMuted: {},       // peerId → bool
-      peerVideoOff: {},    // peerId → bool
-      pendingCandidates: {}, // peerId → RTCIceCandidate[] (queued before remoteDescription set)
+      peers: {},            // peerId → RTCPeerConnection
+      peerStreams: {},       // peerId → MediaStream
+      peerNames: {},         // peerId → display name string
+      peerMuted: {},         // peerId → bool
+      peerVideoOff: {},      // peerId → bool
+      pendingCandidates: {}, // peerId → RTCIceCandidate[]
+      makingOffer: {},       // peerId → bool  (glare prevention)
 
       localStream: null,
       screenStream: null,
@@ -459,21 +432,14 @@ export default {
   },
 
   watch: {
-    // When layout switches (presenting on/off), re-bind all video elements after re-render
     isPresenting() {
-      this.$nextTick(() => {
-        this.$nextTick(() => this.bindAllVideos());
-      });
+      this.$nextTick(() => this.$nextTick(() => this.bindAllVideos()));
     },
-    // When peer list changes, bind new peer's video
     peerIds(newIds, oldIds) {
-      this.$nextTick(() => {
-        newIds.forEach(pid => {
-          if (!oldIds.includes(pid) && this.peerStreams[pid]) {
-            this.bindPeerVideo(pid);
-          }
-        });
-      });
+      const added = newIds.filter(id => !oldIds.includes(id));
+      if (added.length) {
+        this.$nextTick(() => added.forEach(pid => this.bindPeerVideo(pid)));
+      }
     },
   },
 
@@ -490,7 +456,6 @@ export default {
       if (!this.form.title.trim()) { this.createError = 'Please enter a meeting title.'; return; }
       if (!this.token)             { this.createError = 'Session expired — please sign in again.'; return; }
       this.creating = true; this.createError = '';
-
       const pw = this.form.password.trim();
       const body = {
         title: this.form.title.trim(), description: this.form.description.trim() || null,
@@ -508,18 +473,15 @@ export default {
         });
         let data; try { data = await res.json(); } catch { throw new Error(`HTTP ${res.status}`); }
         if (!res.ok || data.success === false) throw new Error(data.message || data.error || `HTTP ${res.status}`);
-
         const code = data?.data?.meetingCode || data?.data?.meeting_code || data?.data?.code
           || data?.data?.meeting?.meetingCode || data?.data?.meeting?.code
           || data?.meetingCode || data?.code || null;
         if (!code) throw new Error('No meeting code returned from server.');
-
         try {
           await fetch(`${API}/meetings/start/${code}`, {
             method: 'POST', headers: { 'Authorization': `Bearer ${this.token}`, 'ngrok-skip-browser-warning': 'true' },
           });
         } catch (_) {}
-
         const recent = JSON.parse(sessionStorage.getItem('nova_recent') || '[]');
         recent.unshift({ code, title: body.title, date: new Date().toLocaleDateString() });
         sessionStorage.setItem('nova_recent', JSON.stringify(recent.slice(0, 10)));
@@ -557,7 +519,7 @@ export default {
       if (!this.meetingCode) { this.$router.push('/join-meeting'); return; }
 
       const user = JSON.parse(sessionStorage.getItem('nova_user') || '{}');
-      this.userName     = user.name || 'Guest';
+      this.userName     = user.name || user.username || user.email?.split('@')[0] || 'Guest';
       this.userInitials = this.userName.charAt(0).toUpperCase();
 
       if (!this.isHost) this.isHost = sessionStorage.getItem('nova_is_host') === 'true';
@@ -566,7 +528,6 @@ export default {
       this.updateClock();
       this.clockInterval = setInterval(this.updateClock, 10000);
 
-      // ✅ Get local camera/mic FIRST before any peer connections
       try {
         this.localStream = await navigator.mediaDevices.getUserMedia({
           video: { width: { ideal: 1280 }, height: { ideal: 720 } },
@@ -574,11 +535,9 @@ export default {
         });
       } catch (err) {
         console.warn('Camera/mic unavailable:', err.message);
-        this.videoOn = false;
-        this.audioOn = false;
+        this.videoOn = false; this.audioOn = false;
       }
 
-      // Bind local preview
       await this.$nextTick();
       if (this.$refs.localVideo && this.localStream) {
         this.$refs.localVideo.srcObject = this.localStream;
@@ -595,14 +554,15 @@ export default {
       this.ws = new WebSocket(url);
 
       this.ws.onopen = () => {
-        console.log('✅ WS open');
-        this.sendWs({ type: 'JOIN', data: { name: this.userName } });
+        console.log('✅ WS open, myPeerId:', this.myPeerId, 'name:', this.userName);
+        this.sendWs({ type: 'JOIN', data: { name: this.userName, peerId: this.myPeerId } });
       };
 
       this.ws.onmessage = async (e) => {
         let msg;
         try { msg = JSON.parse(e.data); } catch { return; }
-        if (msg.fromPeerId === this.myPeerId) return; // ignore own messages
+        // Ignore messages from ourselves
+        if (msg.fromPeerId && msg.fromPeerId === this.myPeerId) return;
         await this.handleWsMsg(msg);
       };
 
@@ -619,29 +579,37 @@ export default {
     },
 
     async handleWsMsg(msg) {
-      console.log('📨 WS message:', msg.type, '| from:', msg.fromPeerId, '| data:', JSON.stringify(msg.data)?.slice(0, 120));
+      console.log('📨', msg.type, '| from:', msg.fromPeerId);
       switch (msg.type) {
 
-        // Server sends the list of already-connected peers → we offer to each one
         case 'PARTICIPANT_LIST': {
-          console.log('📋 PARTICIPANT_LIST raw:', JSON.stringify(msg.data));
-          // Handle different server shapes: { peers: [...] } or just [...]
+          // Handle both { peers: [...] } and flat array shapes
           const peerList = Array.isArray(msg.data) ? msg.data
-            : Array.isArray(msg.data?.peers) ? msg.data.peers
-            : [];
+            : Array.isArray(msg.data?.peers) ? msg.data.peers : [];
+          console.log('📋 peers on join:', peerList);
           this.participantCount = peerList.length + 1;
-          for (const id of peerList) {
-            if (id && id !== this.myPeerId) await this.createPC(id, true);
+          // Store names if server sends objects instead of strings
+          for (const entry of peerList) {
+            const id   = typeof entry === 'string' ? entry : entry?.peerId;
+            const name = typeof entry === 'object' ? (entry?.name || entry?.userName) : null;
+            if (!id || id === this.myPeerId) continue;
+            if (name) this.peerNames[id] = name;
+            // We are POLITE to existing peers → they will offer to us
+            // Only send offer if we are impolite (our ID > theirs lexicographically)
+            await this.createPC(id, this.myPeerId > id);
           }
           break;
         }
 
-        // New peer joined → send them an offer so they see us
         case 'JOIN': {
-          console.log('👤 JOIN raw:', JSON.stringify(msg));
-          if (!msg.fromPeerId || msg.fromPeerId === this.myPeerId) break;
+          // Skip the server "connected" ping (fromPeerId is null)
+          if (!msg.fromPeerId) break;
+          console.log('👤 JOIN from:', msg.fromPeerId, 'name:', msg.data?.name);
           this.participantCount++;
-          if (msg.data?.name) this.peerNames[msg.fromPeerId] = msg.data.name;
+          // Store the joiner's name
+          const joinName = msg.data?.name || msg.data?.userName;
+          if (joinName) this.peerNames[msg.fromPeerId] = joinName;
+          // New peer just joined — we are IMPOLITE (we send the offer to them)
           await this.createPC(msg.fromPeerId, true);
           break;
         }
@@ -663,7 +631,7 @@ export default {
           break;
 
         case 'CHAT_MESSAGE':
-          this.addMsg(msg.data?.senderName || 'Peer', msg.data?.message || '', false);
+          this.addMsg(msg.data?.senderName || msg.data?.name || 'Peer', msg.data?.message || '', false);
           if (!this.chatOpen) this.unreadCount++;
           break;
 
@@ -677,19 +645,14 @@ export default {
 
         case 'SCREEN_SHARE_START':
           this.activePresenterId = msg.fromPeerId;
-          // Wait two ticks for Vue to render the new layout with screen video element
-          await this.$nextTick();
-          await this.$nextTick();
+          await this.$nextTick(); await this.$nextTick();
           this.bindAllVideos();
           break;
 
         case 'SCREEN_SHARE_STOP':
-          if (this.activePresenterId === msg.fromPeerId) {
-            this.activePresenterId = null;
-            await this.$nextTick();
-            await this.$nextTick();
-            this.bindAllVideos();
-          }
+          if (this.activePresenterId === msg.fromPeerId) this.activePresenterId = null;
+          await this.$nextTick(); await this.$nextTick();
+          this.bindAllVideos();
           break;
 
         case 'MEETING_ENDED':
@@ -708,55 +671,56 @@ export default {
     },
 
     // ═══════════════════════════════════════════════════════
-    //  WEBRTC CORE
+    //  WEBRTC — PERFECT NEGOTIATION PATTERN
+    //  https://w3c.github.io/webrtc-pc/#perfect-negotiation-example
     // ═══════════════════════════════════════════════════════
 
-    async createPC(peerId, sendOffer) {
-      // ✅ Guard: never create a PC for null/undefined/self
-      if (!peerId || peerId === this.myPeerId) {
-        console.warn('createPC called with invalid peerId:', peerId);
-        return null;
-      }
+    async createPC(peerId, polite) {
+      if (!peerId || peerId === this.myPeerId) return null;
       if (this.peers[peerId]) return this.peers[peerId];
 
+      console.log(`🔧 createPC ${peerId} | polite=${polite}`);
       const pc = new RTCPeerConnection(ICE_SERVERS);
 
-      // ✅ CRITICAL FIX #1: Add local tracks to the PC BEFORE creating the offer.
-      // If tracks aren't added first, the SDP won't include media sections and
-      // the remote peer will never receive any audio/video from us.
+      // Add local tracks before creating offer
       if (this.localStream) {
-        this.localStream.getTracks().forEach(track => {
-          pc.addTrack(track, this.localStream);
-        });
+        this.localStream.getTracks().forEach(t => pc.addTrack(t, this.localStream));
       }
 
-      // ✅ CRITICAL FIX #2: ontrack — save stream reactively so Vue video elements get it
-      pc.ontrack = (event) => {
-        console.log(`🎥 ontrack from ${peerId}:`, event.track.kind);
-        const stream = event.streams[0];
-        if (stream) {
-          this.peerStreams[peerId] = stream;
-          // Bind to video element after Vue updates the DOM
-          this.$nextTick(() => this.bindPeerVideo(peerId));
+      // ── Perfect Negotiation: negotiationneeded ─────────────────────
+      pc.onnegotiationneeded = async () => {
+        try {
+          this.makingOffer[peerId] = true;
+          await pc.setLocalDescription();          // creates offer automatically
+          this.sendWs({ type: 'OFFER', toPeerId: peerId, data: pc.localDescription });
+          console.log(`📤 Offer → ${peerId}`);
+        } catch (e) {
+          console.error('onnegotiationneeded error:', e);
+        } finally {
+          this.makingOffer[peerId] = false;
         }
       };
 
-      // Send ICE candidates to the remote peer
-      pc.onicecandidate = (event) => {
-        if (event.candidate) {
-          this.sendWs({
-            type: 'ICE_CANDIDATE',
-            toPeerId: peerId,
-            data: event.candidate.toJSON(),
-          });
+      // ── ontrack: store stream and bind to video element ────────────
+      pc.ontrack = (event) => {
+        console.log(`🎥 ontrack from ${peerId}:`, event.track.kind, event.streams.length);
+        const stream = event.streams[0];
+        if (stream) {
+          this.peerStreams[peerId] = stream;
+          // Try binding immediately, then retry until the DOM element exists
+          this.bindPeerVideoWithRetry(peerId, stream);
+        }
+      };
+
+      pc.onicecandidate = ({ candidate }) => {
+        if (candidate) {
+          this.sendWs({ type: 'ICE_CANDIDATE', toPeerId: peerId, data: candidate.toJSON() });
         }
       };
 
       pc.onconnectionstatechange = () => {
-        console.log(`🔗 [${peerId.slice(-4)}] connectionState: ${pc.connectionState}`);
-        if (pc.connectionState === 'failed') {
-          pc.restartIce();
-        }
+        console.log(`🔗 [${peerId.slice(-6)}] ${pc.connectionState}`);
+        if (pc.connectionState === 'failed') pc.restartIce();
         if (pc.connectionState === 'disconnected') {
           setTimeout(() => {
             if (['disconnected', 'failed', 'closed'].includes(pc.connectionState)) {
@@ -766,73 +730,74 @@ export default {
         }
       };
 
-      // ✅ Store reactively so v-for tile renders
+      // Store polite flag on the PC object itself for use in handleOffer
+      pc._polite = !!polite;
       this.peers[peerId] = pc;
       this.pendingCandidates[peerId] = [];
-
-      if (sendOffer) {
-        try {
-          const offer = await pc.createOffer({
-            offerToReceiveAudio: true,
-            offerToReceiveVideo: true,
-          });
-          await pc.setLocalDescription(offer);
-          this.sendWs({ type: 'OFFER', toPeerId: peerId, data: pc.localDescription });
-          console.log(`📤 Offer → ${peerId}`);
-        } catch (err) {
-          console.error('createOffer failed:', err);
-        }
-      }
+      this.makingOffer[peerId] = false;
 
       return pc;
     },
 
+    // ── Perfect Negotiation offer handler ─────────────────────────────
     async handleOffer(msg) {
       const peerId = msg.fromPeerId;
-      if (!peerId || peerId === this.myPeerId) { console.warn('handleOffer: invalid peerId', peerId); return; }
-      console.log(`📥 Offer ← ${peerId}`);
+      if (!peerId || peerId === this.myPeerId) return;
 
-      // Create PC without sending an offer (we're the answerer)
-      const pc = this.peers[peerId] || await this.createPC(peerId, false);
+      // Create PC if we don't have one yet (polite=false, they offered first)
+      let pc = this.peers[peerId];
+      if (!pc) pc = await this.createPC(peerId, false);
+      if (!pc) return;
 
-      try {
-        await pc.setRemoteDescription(new RTCSessionDescription(msg.data));
+      const offerCollision = pc.signalingState !== 'stable' || this.makingOffer[peerId];
+      const ignoreOffer = !pc._polite && offerCollision;
 
-        // ✅ CRITICAL FIX #3: Drain any ICE candidates that arrived before remoteDescription
-        const queued = this.pendingCandidates[peerId] || [];
-        for (const c of queued) {
-          try { await pc.addIceCandidate(c); } catch (e) { console.warn('ICE drain:', e); }
-        }
-        this.pendingCandidates[peerId] = [];
-
-        const answer = await pc.createAnswer();
-        await pc.setLocalDescription(answer);
-        this.sendWs({ type: 'ANSWER', toPeerId: peerId, data: pc.localDescription });
-        console.log(`📤 Answer → ${peerId}`);
-      } catch (err) {
-        console.error('handleOffer error:', err);
+      if (ignoreOffer) {
+        console.log(`🚫 Ignoring offer from ${peerId} (impolite + collision)`);
+        return;
       }
+
+      if (offerCollision) {
+        // Polite peer: roll back our pending offer and accept theirs
+        console.log(`🔄 Rollback for ${peerId} (polite collision)`);
+        await Promise.all([
+          pc.setLocalDescription({ type: 'rollback' }),
+          pc.setRemoteDescription(new RTCSessionDescription(msg.data)),
+        ]);
+      } else {
+        await pc.setRemoteDescription(new RTCSessionDescription(msg.data));
+      }
+
+      // Drain queued ICE candidates
+      const queued = this.pendingCandidates[peerId] || [];
+      for (const c of queued) {
+        try { await pc.addIceCandidate(c); } catch (e) { console.warn('ICE drain:', e); }
+      }
+      this.pendingCandidates[peerId] = [];
+
+      const answer = await pc.createAnswer();
+      await pc.setLocalDescription(answer);
+      this.sendWs({ type: 'ANSWER', toPeerId: peerId, data: pc.localDescription });
+      console.log(`📤 Answer → ${peerId}`);
     },
 
     async handleAnswer(msg) {
       const peerId = msg.fromPeerId;
       const pc = this.peers[peerId];
-      if (!pc) { console.warn('handleAnswer: no PC for', peerId); return; }
-
-      try {
-        if (pc.signalingState === 'have-local-offer') {
+      if (!pc) return;
+      if (pc.signalingState === 'have-local-offer') {
+        try {
           await pc.setRemoteDescription(new RTCSessionDescription(msg.data));
-          console.log(`✅ Answer set for ${peerId}`);
-
-          // Drain queued ICE candidates
+          console.log(`✅ Answer accepted from ${peerId}`);
+          // Drain queued ICE
           const queued = this.pendingCandidates[peerId] || [];
           for (const c of queued) {
             try { await pc.addIceCandidate(c); } catch (e) { console.warn('ICE drain:', e); }
           }
           this.pendingCandidates[peerId] = [];
-        }
-      } catch (err) {
-        console.error('handleAnswer error:', err);
+        } catch (e) { console.error('handleAnswer error:', e); }
+      } else {
+        console.warn(`handleAnswer: unexpected signalingState=${pc.signalingState} for ${peerId}`);
       }
     },
 
@@ -841,21 +806,17 @@ export default {
       const pc = this.peers[peerId];
       if (!pc || !msg.data) return;
 
-      const candidate = new RTCIceCandidate(msg.data);
-
-      // ✅ CRITICAL FIX #4: Queue candidates if remoteDescription not set yet
-      // Without this, addIceCandidate throws and connection fails
-      if (!pc.remoteDescription || !pc.remoteDescription.type) {
-        console.log(`⏳ Queuing ICE for ${peerId}`);
-        if (!this.pendingCandidates[peerId]) this.pendingCandidates[peerId] = [];
-        this.pendingCandidates[peerId].push(candidate);
-        return;
-      }
-
       try {
-        await pc.addIceCandidate(candidate);
+        const candidate = new RTCIceCandidate(msg.data);
+        if (!pc.remoteDescription?.type) {
+          if (!this.pendingCandidates[peerId]) this.pendingCandidates[peerId] = [];
+          this.pendingCandidates[peerId].push(candidate);
+          console.log(`⏳ Queued ICE for ${peerId}`);
+        } else {
+          await pc.addIceCandidate(candidate);
+        }
       } catch (e) {
-        console.warn('addIceCandidate error:', e);
+        if (!e.message?.includes('Unknown candidate')) console.warn('ICE error:', e);
       }
     },
 
@@ -863,59 +824,59 @@ export default {
     //  VIDEO BINDING
     // ═══════════════════════════════════════════════════════
 
-    // Resolve a Vue ref that may be an array (when inside v-for)
     resolveRef(key) {
       const r = this.$refs[key];
       return Array.isArray(r) ? r[0] : r;
     },
 
-    // Bind a peer's stream to their video element(s)
-    bindPeerVideo(peerId) {
-      const stream = this.peerStreams[peerId];
-      if (!stream) return;
+    // ── Bind with retry: polls up to 3 seconds for the DOM element ──
+    bindPeerVideoWithRetry(peerId, stream, attempts = 0) {
+      const MAX = 30; // 30 × 100ms = 3 seconds
+      const refKey = `peerVideo_${peerId}`;
+      const el = this.resolveRef(refKey);
 
-      // Normal peer tile
-      const el = this.resolveRef(`peerVideo_${peerId}`);
-      if (el && el.srcObject !== stream) {
-        el.srcObject = stream;
-        el.play().catch(() => {});
-        console.log(`✅ Bound peerVideo_${peerId}`);
+      if (el) {
+        if (el.srcObject !== stream) {
+          el.srcObject = stream;
+          el.play().catch(() => {});
+          console.log(`✅ Video bound (attempt ${attempts}): ${refKey}`);
+        }
+        // Also bind screen ref if this is the presenter
+        if (this.activePresenterId === peerId) {
+          const sEl = this.resolveRef(`peerScreen_${peerId}`);
+          if (sEl && sEl.srcObject !== stream) { sEl.srcObject = stream; sEl.play().catch(() => {}); }
+        }
+        return;
       }
 
-      // If this peer is also the screen presenter, bind the large screen view too
-      if (this.activePresenterId === peerId) {
-        const screenEl = this.resolveRef(`peerScreen_${peerId}`);
-        if (screenEl && screenEl.srcObject !== stream) {
-          screenEl.srcObject = stream;
-          screenEl.play().catch(() => {});
-          console.log(`✅ Bound peerScreen_${peerId}`);
-        }
+      if (attempts < MAX) {
+        setTimeout(() => this.bindPeerVideoWithRetry(peerId, stream, attempts + 1), 100);
+      } else {
+        console.warn(`⚠️ Could not find DOM element for ${refKey} after ${MAX} attempts`);
       }
     },
 
-    // Re-bind every video element after a layout change
+    bindPeerVideo(peerId) {
+      const stream = this.peerStreams[peerId];
+      if (stream) this.bindPeerVideoWithRetry(peerId, stream);
+    },
+
     bindAllVideos() {
-      // Local camera
       const localEl = this.$refs.localVideo;
       if (localEl && this.localStream && localEl.srcObject !== this.localStream) {
         localEl.srcObject = this.localStream;
       }
-
-      // Local screen share preview
       const screenEl = this.$refs.screenVideo;
       if (screenEl && this.screenStream && screenEl.srcObject !== this.screenStream) {
         screenEl.srcObject = this.screenStream;
         screenEl.play().catch(() => {});
       }
-
-      // All remote peers (both their sidebar tile and the screen tile if presenting)
       this.peerIds.forEach(pid => this.bindPeerVideo(pid));
     },
 
     // ═══════════════════════════════════════════════════════
     //  PEER LIFECYCLE
     // ═══════════════════════════════════════════════════════
-
     peerLeave(peerId) {
       try { this.peers[peerId]?.close(); } catch (_) {}
       delete this.peers[peerId];
@@ -924,6 +885,7 @@ export default {
       delete this.peerMuted[peerId];
       delete this.peerVideoOff[peerId];
       delete this.pendingCandidates[peerId];
+      delete this.makingOffer[peerId];
       if (this.activePresenterId === peerId) this.activePresenterId = null;
       this.participantCount = Math.max(1, this.participantCount - 1);
       console.log(`👋 ${peerId} left`);
@@ -931,20 +893,15 @@ export default {
 
     cleanupPeers() {
       Object.values(this.peers).forEach(pc => { try { pc.close(); } catch (_) {} });
-      this.peers             = {};
-      this.peerStreams        = {};
-      this.peerNames         = {};
-      this.peerMuted         = {};
-      this.peerVideoOff      = {};
-      this.pendingCandidates = {};
-      this.activePresenterId = null;
-      this.participantCount  = 1;
+      this.peers = {}; this.peerStreams = {}; this.peerNames = {};
+      this.peerMuted = {}; this.peerVideoOff = {};
+      this.pendingCandidates = {}; this.makingOffer = {};
+      this.activePresenterId = null; this.participantCount = 1;
     },
 
     // ═══════════════════════════════════════════════════════
     //  MEDIA CONTROLS
     // ═══════════════════════════════════════════════════════
-
     toggleAudio() {
       if (!this.localStream) return;
       this.audioOn = !this.audioOn;
@@ -961,63 +918,32 @@ export default {
 
     async toggleScreen() {
       if (this.screenStream) {
-        // ── STOP sharing ──
         this.screenStream.getTracks().forEach(t => t.stop());
         this.screenStream = null;
-
-        // ✅ Restore camera track on every peer connection
         const cameraTrack = this.localStream?.getVideoTracks()[0];
         if (cameraTrack) {
           for (const pc of Object.values(this.peers)) {
             const sender = pc.getSenders().find(s => s.track?.kind === 'video');
-            if (sender) {
-              try { await sender.replaceTrack(cameraTrack); }
-              catch (e) { console.warn('replaceTrack (restore cam):', e); }
-            }
+            if (sender) try { await sender.replaceTrack(cameraTrack); } catch (_) {}
           }
         }
-
         this.sendWs({ type: 'SCREEN_SHARE_STOP' });
-
-        await this.$nextTick();
-        await this.$nextTick();
+        await this.$nextTick(); await this.$nextTick();
         this.bindAllVideos();
-
       } else {
-        // ── START sharing ──
         try {
-          this.screenStream = await navigator.mediaDevices.getDisplayMedia({
-            video: { cursor: 'always' },
-            audio: false,
-          });
-
+          this.screenStream = await navigator.mediaDevices.getDisplayMedia({ video: { cursor: 'always' }, audio: false });
           const screenTrack = this.screenStream.getVideoTracks()[0];
-
-          // ✅ CRITICAL: Replace the video sender track on ALL peer connections.
-          // This is what makes every participant see your screen instead of camera.
           for (const pc of Object.values(this.peers)) {
             const sender = pc.getSenders().find(s => s.track?.kind === 'video');
-            if (sender) {
-              try { await sender.replaceTrack(screenTrack); }
-              catch (e) { console.warn('replaceTrack (screen):', e); }
-            }
+            if (sender) try { await sender.replaceTrack(screenTrack); } catch (_) {}
           }
-
-          // If user stops sharing via the browser's native "Stop sharing" button
           screenTrack.onended = () => this.toggleScreen();
-
           this.sendWs({ type: 'SCREEN_SHARE_START' });
-
-          // Bind local screen preview after layout re-renders
-          await this.$nextTick();
-          await this.$nextTick();
+          await this.$nextTick(); await this.$nextTick();
           this.bindAllVideos();
-
         } catch (err) {
-          if (err.name !== 'NotAllowedError') {
-            console.error('getDisplayMedia error:', err);
-            this.showToast('Screen share failed.', 'error');
-          }
+          if (err.name !== 'NotAllowedError') this.showToast('Screen share failed.', 'error');
           this.screenStream = null;
         }
       }
@@ -1040,8 +966,7 @@ export default {
       } catch (err) { console.error('End meeting error:', err); }
       setTimeout(() => {
         this.ending = false; this.showEndModal = false;
-        sessionStorage.removeItem('nova_is_host');
-        sessionStorage.removeItem('nova_meeting_code');
+        sessionStorage.removeItem('nova_is_host'); sessionStorage.removeItem('nova_meeting_code');
         this.cleanupAndNavigate();
       }, 600);
     },
@@ -1055,13 +980,10 @@ export default {
         await fetch(`${API}/meetings/start/${this.meetingCode}`, {
           method: 'POST', headers: { 'Authorization': `Bearer ${this.token}`, 'ngrok-skip-browser-warning': 'true' },
         }).catch(() => {});
-
         this.sendWs({ type: 'MEETING_RESTARTED', data: { restartedBy: this.userName } });
         this.cleanupPeers();
         if (this.ws) { this.ws.onclose = null; this.ws.close(); this.ws = null; }
-
-        this.showRestartModal = false; this.restarting = false;
-        this.messages = [];
+        this.showRestartModal = false; this.restarting = false; this.messages = [];
         this.showToast('Meeting restarted!');
         await this.$nextTick();
         this.connectWebSocket();
@@ -1089,10 +1011,7 @@ export default {
 
     addMsg(sender, text, isSelf) {
       this.messages.push({ id: Date.now() + Math.random(), sender, text, isSelf });
-      this.$nextTick(() => {
-        const c = this.$refs.messagesContainer;
-        if (c) c.scrollTop = c.scrollHeight;
-      });
+      this.$nextTick(() => { const c = this.$refs.messagesContainer; if (c) c.scrollTop = c.scrollHeight; });
     },
 
     // ═══════════════════════════════════════════════════════
@@ -1116,23 +1035,15 @@ export default {
       this.localStream?.getTracks().forEach(t => t.stop());
       this.screenStream?.getTracks().forEach(t => t.stop());
       this.cleanupPeers();
-      if (this.ws) {
-        this.ws.onclose = null;
-        try { this.sendWs({ type: 'LEAVE' }); } catch (_) {}
-        this.ws.close();
-        this.ws = null;
-      }
-      sessionStorage.removeItem('nova_meeting_code');
-      sessionStorage.removeItem('nova_is_host');
+      if (this.ws) { this.ws.onclose = null; try { this.sendWs({ type: 'LEAVE' }); } catch (_) {} this.ws.close(); this.ws = null; }
+      sessionStorage.removeItem('nova_meeting_code'); sessionStorage.removeItem('nova_is_host');
       clearInterval(this.clockInterval);
       if (window.history.length > 1) this.$router.go(-1);
       else this.$router.push(this.isAuthenticated ? '/meeting-dashboard' : '/join-meeting');
     },
 
     leave() {
-      const msg = this.isHost
-        ? 'Leave this meeting? (Use "End" to close for everyone.)'
-        : 'Leave this meeting?';
+      const msg = this.isHost ? 'Leave this meeting? (Use "End" to close for everyone.)' : 'Leave this meeting?';
       if (!confirm(msg)) return;
       this.cleanupAndNavigate();
     },
@@ -1141,8 +1052,7 @@ export default {
   mounted() {
     const forceCreate = this.$route?.query?.create === 'true';
     if (forceCreate) {
-      sessionStorage.removeItem('nova_meeting_code');
-      sessionStorage.removeItem('nova_is_host');
+      sessionStorage.removeItem('nova_meeting_code'); sessionStorage.removeItem('nova_is_host');
       this.view = 'create';
     } else {
       const routeCode = this.$route?.params?.code || sessionStorage.getItem('nova_meeting_code');
@@ -1153,7 +1063,6 @@ export default {
         this.$nextTick(() => this.initMeeting());
       }
     }
-
     this._keyHandler = (e) => {
       if (this.view !== 'meeting') return;
       if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
@@ -1173,6 +1082,7 @@ export default {
   },
 };
 </script>
+
 
 <style scoped>
 @import url('https://fonts.googleapis.com/css2?family=Google+Sans:wght@400;500;600&family=Google+Sans+Mono&display=swap');
