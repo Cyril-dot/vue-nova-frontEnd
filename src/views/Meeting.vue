@@ -405,6 +405,7 @@ export default {
       screenStream: null,
       // FIX: Track the actual screen track sender per peer so we can cleanly remove it
       screenSenders: {},        // peerId → RTCRtpSender for the screen track
+      negotiating: {},           // peerId → bool, prevents concurrent renegotiations
 
       meetingCode: '',
       myPeerId: `peer_${Math.random().toString(36).substr(2, 9)}`,
@@ -429,6 +430,7 @@ export default {
       toastType: 'success',
       currentTime: '', 
       clockInterval: null,
+      negotiating: {},
     };
   },
 
@@ -923,14 +925,18 @@ export default {
         }
       };
 
-      // Auto-renegotiate when tracks are added/removed (fires after addTrack)
+      // onnegotiationneeded fires after addTrack/removeTrack.
+      // We use this.negotiating (reactive) to guard against concurrent negotiations.
+      // IMPORTANT: The initial offer sent below (sendOffer=true) also triggers this event,
+      // but by then this.negotiating[peerId] will already be set by the sendOffer block.
       pc.onnegotiationneeded = async () => {
-        console.log(`🔄 onnegotiationneeded for ${peerId}, signalingState=${pc.signalingState}`);
-        // Only renegotiate if we're in a stable state and connection exists
+        console.log(`🔄 onnegotiationneeded for ${peerId}, signalingState=${pc.signalingState}, negotiating=${!!this.negotiating[peerId]}`);
         if (pc.signalingState !== 'stable') return;
+        if (this.negotiating[peerId]) return;   // already sending an offer
         if (!this.peers[peerId]) return;
         await this.renegotiate(peerId, pc);
       };
+
 
       pc.onconnectionstatechange = () => {
         console.log(`🔗 [${peerId.slice(-4)}] connectionState: ${pc.connectionState}`);
@@ -948,6 +954,9 @@ export default {
       this.pendingCandidates[peerId] = [];
 
       if (sendOffer) {
+        // Set negotiating flag BEFORE createOffer so onnegotiationneeded (which fires during addTrack)
+        // doesn't create a competing offer and cause m-line order errors.
+        this.negotiating = { ...this.negotiating, [peerId]: true };
         try {
           const offer = await pc.createOffer({ 
             offerToReceiveAudio: true, 
@@ -963,6 +972,10 @@ export default {
           console.log(`📤 Offer → ${peerId}`);
         } catch (err) {
           console.error('createOffer failed:', err);
+        } finally {
+          const n = { ...this.negotiating };
+          delete n[peerId];
+          this.negotiating = n;
         }
       }
 
@@ -1025,6 +1038,8 @@ export default {
         if (pc.signalingState === 'have-local-offer') {
           await pc.setRemoteDescription(new RTCSessionDescription(msg.data));
           console.log(`✅ Answer set for ${peerId} (signalingState → stable)`);
+          // Allow next negotiation
+          if (pc._negotiating) pc._negotiating = false;
           
           const queued = this.pendingCandidates[peerId] || [];
           for (const c of queued) { 
@@ -1102,6 +1117,7 @@ export default {
       const v = { ...this.peerVideoOff }; delete v[peerId]; this.peerVideoOff = v;
       delete this.pendingCandidates[peerId];
       delete this.screenSenders[peerId];
+      const nCopy = { ...this.negotiating }; delete nCopy[peerId]; this.negotiating = nCopy;
       if (this.activePresenterId === peerId) this.activePresenterId = null;
       this.participantCount = Math.max(1, this.participantCount - 1);
       console.log(`👋 ${peerId} left`);
@@ -1118,6 +1134,7 @@ export default {
       this.peerVideoOff = {};
       this.pendingCandidates = {};
       this.screenSenders = {};
+      this.negotiating = {};
       this.activePresenterId = null; 
       this.participantCount = 1;
     },
@@ -1143,18 +1160,16 @@ export default {
         this.screenStream.getTracks().forEach(t => t.stop());
         this.screenStream = null;
 
-        // Remove screen senders and renegotiate with each peer
+        // Remove screen senders — onnegotiationneeded fires automatically after removeTrack
         for (const [peerId, sender] of Object.entries(this.screenSenders)) {
           const pc = this.peers[peerId];
           if (pc && sender) {
             try {
               pc.removeTrack(sender);
-              console.log(`Removed screen sender from ${peerId}`);
+              console.log(`Removed screen sender from ${peerId} (onnegotiationneeded will renegotiate)`);
             } catch (e) {
               console.warn('Failed to remove screen sender:', e);
             }
-            // Renegotiate so the remote side knows the track is gone
-            await this.renegotiate(peerId, pc);
           }
         }
         this.screenSenders = {};
@@ -1182,19 +1197,16 @@ export default {
             if (this.screenStream) this.toggleScreen();
           };
 
-          // Add screen track to each peer connection, then renegotiate
-          // CRITICAL: use this.screenStream as the MediaStream container so the receiver
-          // gets a different stream.id than the camera stream → ontrack can distinguish them
+          // Add screen track to each peer connection.
+          // onnegotiationneeded fires automatically after addTrack and handles renegotiation.
           this.screenSenders = {};
           for (const [peerId, pc] of Object.entries(this.peers)) {
             try {
               const sender = pc.addTrack(screenTrack, this.screenStream);
               this.screenSenders[peerId] = sender;
-              console.log(`📤 Added screen track to ${peerId}, now renegotiating…`);
-              // CRITICAL: renegotiate so the remote peer's ontrack fires for this new track
-              await this.renegotiate(peerId, pc);
+              console.log(`📤 Added screen track to ${peerId} (onnegotiationneeded will renegotiate)`);
             } catch (e) { 
-              console.warn(`addTrack/renegotiate failed for ${peerId}:`, e); 
+              console.warn(`addTrack screen failed for ${peerId}:`, e); 
             }
           }
 
@@ -1215,21 +1227,42 @@ export default {
       }
     },
 
-    // Send a fresh offer to a peer so they learn about added/removed tracks
+    // Send a fresh offer after adding/removing a track. Uses a per-peer lock
+    // to prevent concurrent offers which cause the m-line order InvalidAccessError.
     async renegotiate(peerId, pc) {
+      if (this.negotiating[peerId]) {
+        console.log(`🔒 Renegotiation already in progress for ${peerId}, skipping`);
+        return;
+      }
+      if (!pc || pc.signalingState === 'closed') return;
+      if (pc.signalingState !== 'stable') {
+        console.warn(`🔄 renegotiate skipped: signalingState=${pc.signalingState}`);
+        return;
+      }
+
+      this.negotiating = { ...this.negotiating, [peerId]: true };
       try {
         const offer = await pc.createOffer();
+        // Check again — state can change while createOffer is async
+        if (pc.signalingState !== 'stable') {
+          console.warn(`🔄 renegotiate aborted after createOffer: signalingState=${pc.signalingState}`);
+          return;
+        }
         await pc.setLocalDescription(offer);
         this.sendWs({
           type: 'OFFER',
           toPeerId: peerId,
           data: pc.localDescription,
           senderName: this.userName,
-          isRenegotiation: true,   // flag so receiver knows this isn't a brand-new peer
+          isRenegotiation: true,
         });
         console.log(`🔄 Renegotiation offer sent to ${peerId}`);
       } catch (err) {
         console.error(`Renegotiation failed for ${peerId}:`, err);
+      } finally {
+        const n = { ...this.negotiating };
+        delete n[peerId];
+        this.negotiating = n;
       }
     },
 
