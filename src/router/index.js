@@ -8,15 +8,13 @@ const routes = [
     path: '/',
     name: 'Home',
     component: Home,
-    meta: {
-      title: 'Home | NovaSpace'
-    }
+    meta: { title: 'Home | NovaSpace' }
   },
   {
     path: '/auth',
     name: 'Auth',
     component: LoginSignUp,
-    meta: { 
+    meta: {
       guestOnly: true,
       title: 'Login | NovaSpace'
     }
@@ -25,82 +23,55 @@ const routes = [
     path: '/dashboard',
     name: 'Dashboard',
     component: () => import('../views/DashBoard.vue'),
-    meta: { 
-      requiresAuth: true,
-      title: 'Dashboard | NovaSpace'
-    }
+    meta: { requiresAuth: true, title: 'Dashboard | NovaSpace' }
   },
   {
     path: '/projects',
     name: 'Projects',
     component: () => import('../views/Project.vue'),
-    meta: { 
-      requiresAuth: true,
-      title: 'Projects | NovaSpace'
-    }
+    meta: { requiresAuth: true, title: 'Projects | NovaSpace' }
   },
   {
     path: '/projects/create',
     name: 'CreateProject',
     component: () => import('../views/CreateProject.vue'),
-    meta: { 
-      requiresAuth: true,
-      title: 'Create Project | NovaSpace'
-    }
+    meta: { requiresAuth: true, title: 'Create Project | NovaSpace' }
   },
   {
     path: '/projects/:id/edit',
     name: 'EditProject',
     component: () => import('../views/CreateProject.vue'),
-    meta: { 
-      requiresAuth: true,
-      title: 'Edit Project | NovaSpace'
-    }
+    meta: { requiresAuth: true, title: 'Edit Project | NovaSpace' }
   },
   {
     path: '/projects/:id',
     name: 'ProjectDetail',
     component: () => import('../views/ProjectDetail.vue'),
-    meta: { 
-      requiresAuth: true,
-      title: 'Project Details | NovaSpace'
-    }
+    meta: { requiresAuth: true, title: 'Project Details | NovaSpace' }
   },
   {
     path: '/tasks',
     name: 'Tasks',
     component: () => import('../views/Tasks.vue'),
-    meta: {
-      requiresAuth: true,
-      title: 'Tasks | NovaSpace'
-    }
+    meta: { requiresAuth: true, title: 'Tasks | NovaSpace' }
   },
   {
     path: '/tasks/create',
     name: 'CreateTask',
     component: () => import('../views/CreateTask.vue'),
-    meta: {
-      requiresAuth: true,
-      title: 'Create Task | NovaSpace'
-    }
+    meta: { requiresAuth: true, title: 'Create Task | NovaSpace' }
   },
   {
     path: '/tasks/:id/edit',
     name: 'EditTask',
     component: () => import('../views/TaskDetail.vue'),
-    meta: {
-      requiresAuth: true,
-      title: 'Edit Task | NovaSpace'
-    }
+    meta: { requiresAuth: true, title: 'Edit Task | NovaSpace' }
   },
   {
     path: '/tasks/:id',
     name: 'TaskDetail',
     component: () => import('../views/TaskDetail.vue'),
-    meta: {
-      requiresAuth: true,
-      title: 'Task Details | NovaSpace'
-    }
+    meta: { requiresAuth: true, title: 'Task Details | NovaSpace' }
   },
   {
     path: '/ai-assistant',
@@ -204,6 +175,75 @@ const routes = [
     component: () => import('../views/TeamWorkspaceMember.vue'),
     meta: { requiresAuth: true, title: 'Team Workspace Members | NovaSpace' }
   },
+
+  // ── MEETING ROUTES ────────────────────────────────────────────────────────
+
+  // /meetings → redirect to join page
+  {
+    path: '/meetings',
+    name: 'Meetings',
+    redirect: '/meetings/join',
+    meta: { requiresAuth: false },
+  },
+
+  // Join page — public (guests can join too)
+  {
+    path: '/meetings/join',
+    name: 'JoinMeeting',
+    component: () => import('../views/meetings/JoinMeeting.vue'),
+    meta: { requiresAuth: false, title: 'Join Meeting | NovaSpace' },
+  },
+
+  // Create meeting — requires auth
+  {
+    path: '/meetings/create',
+    name: 'CreateMeeting',
+    component: () => import('../views/meetings/Meeting.vue'),
+    meta: { requiresAuth: true, title: 'New Meeting | NovaSpace' },
+    beforeEnter(to, from, next) {
+      if (!to.query.create) {
+        next({ path: '/meetings/create', query: { create: 'true' } });
+      } else {
+        next();
+      }
+    },
+  },
+
+  // Meeting room with code in URL — public (guests allowed)
+  {
+    path: '/meetings/:code',
+    name: 'MeetingRoom',
+    component: () => import('../views/meetings/Meeting.vue'),
+    meta: { requiresAuth: false, title: 'Meeting | NovaSpace' },
+    props: true,
+  },
+
+  // Meeting room without code — reads code from sessionStorage
+  {
+    path: '/meeting',
+    name: 'MeetingRoot',
+    component: () => import('../views/meetings/Meeting.vue'),
+    meta: { requiresAuth: false, title: 'Meeting | NovaSpace' },
+  },
+
+  // Meeting dashboard — requires auth
+  {
+    path: '/meeting-dashboard',
+    name: 'MeetingDashboard',
+    component: () => import('../views/meetings/MeetingsDashboard.vue'),
+    meta: { requiresAuth: true, title: 'Meeting Dashboard | NovaSpace' },
+  },
+
+  // Legacy /join-meeting alias
+  {
+    path: '/join-meeting',
+    name: 'JoinMeetingAlias',
+    redirect: '/meetings/join',
+    meta: { requiresAuth: false },
+  },
+
+  // ── OTHER ─────────────────────────────────────────────────────────────────
+
   {
     path: '/chat',
     name: 'Chat',
@@ -238,17 +278,11 @@ router.isReady().then(() => {
   console.log('✅ Router is ready');
 });
 
-// ============================================================
-// ✅ CHANGE 1: Removed unused `patchProp` import from original
-// ✅ CHANGE 2: OAuth token interception moved to TOP of guard
-// ✅ CHANGE 3: guestOnly no longer blocks OAuth redirect flow
-// ============================================================
 router.beforeEach((to, from, next) => {
   console.log(`\n=== ROUTER NAVIGATION ===`);
   console.log(`From: ${from.path} → To: ${to.path}`);
 
-  // ✅ CHANGE: Check for OAuth tokens in URL FIRST before any auth logic
-  // This runs before we even look at localStorage, fixing the race condition
+  // Check for OAuth tokens in URL FIRST
   const urlParams = new URLSearchParams(window.location.search);
   const oauthAccessToken = urlParams.get('accessToken');
   const oauthRefreshToken = urlParams.get('refreshToken');
@@ -267,7 +301,6 @@ router.beforeEach((to, from, next) => {
         sessionStorage.setItem('refreshToken', decodedRefresh);
       }
 
-      // Clean the tokens out of the URL
       window.history.replaceState({}, document.title, to.path);
 
       console.log('✅ OAuth tokens saved - redirecting to dashboard');
@@ -276,11 +309,9 @@ router.beforeEach((to, from, next) => {
 
     } catch (err) {
       console.error('❌ Failed to save OAuth tokens:', err);
-      // Fall through to normal auth logic if token save fails
     }
   }
 
-  // Normal token check from storage
   const localToken = localStorage.getItem('accessToken');
   const sessionToken = sessionStorage.getItem('accessToken');
   const hasToken = !!(localToken || sessionToken);
