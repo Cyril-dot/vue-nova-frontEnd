@@ -1,14 +1,12 @@
-<!-- Meeting.vue — WEBRTC FULLY FIXED (same layout/colors) -->
+<!-- Meeting.vue — VIDEO + USERNAME FIXED -->
 <!--
-  ROOT CAUSE FIXES:
-  ✅ FIX 1: Tracks added to PC BEFORE createOffer() — critical for media to flow
-  ✅ FIX 2: pendingCandidates[] queue — ICE candidates buffered until remoteDescription is set
-  ✅ FIX 3: peerStreams reactive object — Vue-reactive remote stream storage, no DOM hacks
-  ✅ FIX 4: <video> elements bound via Vue ref bindings — Vue manages DOM properly
-  ✅ FIX 5: Screen share replaces video sender track on ALL peer connections → visible to everyone
-  ✅ FIX 6: On layout change (isPresenting), re-bind all video srcObjects via nextTick
-  ✅ FIX 7: JOIN message triggers createPC(isInit=true) so new peer always gets an offer
-  ✅ FIX 8: WS null-guard before close to prevent double-close crash
+  FIXES IN THIS VERSION:
+  ✅ FIX A: peerStreams uses Vue.set / object spread to stay reactive
+  ✅ FIX B: bindPeerVideo retries up to 20× with 100ms delay waiting for DOM element
+  ✅ FIX C: NAME_SYNC message — on join we broadcast our name; on receiving offer/answer
+            we reply with our name so both sides always know each other's username
+  ✅ FIX D: PARTICIPANT_LIST peers are objects {id, name} OR bare strings (both handled)
+  ✅ FIX E: The initial JOIN echo from the server (fromPeerId=null) is ignored cleanly
 -->
 <template>
   <div class="nv-root">
@@ -151,7 +149,6 @@
         <!-- SCREEN SHARE LAYOUT -->
         <template v-if="isPresenting">
           <div class="nv-gmain">
-            <!-- LOCAL screen share main view -->
             <div v-if="screenStream" class="nv-tile nv-tile--screen">
               <video ref="screenVideo" autoplay playsinline muted></video>
               <div class="nv-tilebar">
@@ -161,7 +158,6 @@
                 </div>
               </div>
             </div>
-            <!-- REMOTE screen share main view: the remote video stream IS the screen -->
             <div v-else-if="activePresenterId" class="nv-tile nv-tile--screen">
               <video
                 :ref="`peerScreen_${activePresenterId}`"
@@ -171,46 +167,35 @@
               <div class="nv-tilebar">
                 <div class="nv-tilemeta">
                   <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>
-                  {{ peerNames[activePresenterId] || ('Peer ' + activePresenterId.slice(-4).toUpperCase()) }} · Presenting
+                  {{ peerNames[activePresenterId] || 'Participant' }} · Presenting
                 </div>
               </div>
             </div>
           </div>
 
-          <!-- SIDEBAR: your cam + all peers cam feeds -->
           <div class="nv-gsidebar">
             <div class="nv-tile nv-tile--me">
               <video ref="localVideo" autoplay muted playsinline></video>
               <div class="nv-tilebar">
                 <div class="nv-tilemeta"><span class="nv-you-dot"></span>You</div>
                 <div class="nv-tilebadges">
-                  <span v-if="!audioOn" class="nv-badge nv-badge--red">
-                    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="1" y1="1" x2="23" y2="23"/></svg>
-                  </span>
-                  <span v-if="!videoOn" class="nv-badge nv-badge--red">
-                    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="1" y1="1" x2="23" y2="23"/></svg>
-                  </span>
+                  <span v-if="!audioOn" class="nv-badge nv-badge--red"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="1" y1="1" x2="23" y2="23"/></svg></span>
+                  <span v-if="!videoOn" class="nv-badge nv-badge--red"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="1" y1="1" x2="23" y2="23"/></svg></span>
                 </div>
               </div>
               <div v-if="!videoOn" class="nv-nocam"><div class="nv-avatar">{{ userInitials }}</div></div>
             </div>
 
             <div v-for="pid in peerIds" :key="`sidebar-${pid}`" class="nv-tile">
-              <video
-                :ref="`peerVideo_${pid}`"
-                autoplay playsinline
-                style="width:100%;height:100%;object-fit:cover;display:block;"
-              ></video>
+              <video :ref="`peerVideo_${pid}`" autoplay playsinline style="width:100%;height:100%;object-fit:cover;display:block;"></video>
               <div class="nv-tilebar">
-                <div class="nv-tilemeta">{{ peerNames[pid] || ('Peer ' + pid.slice(-4).toUpperCase()) }}</div>
+                <div class="nv-tilemeta">{{ peerNames[pid] || 'Connecting…' }}</div>
                 <div class="nv-tilebadges">
-                  <span v-if="peerMuted[pid]" class="nv-badge nv-badge--red">
-                    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="1" y1="1" x2="23" y2="23"/></svg>
-                  </span>
+                  <span v-if="peerMuted[pid]" class="nv-badge nv-badge--red"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="1" y1="1" x2="23" y2="23"/></svg></span>
                 </div>
               </div>
               <div v-if="!peerStreams[pid]" class="nv-nocam">
-                <div class="nv-avatar nv-avatar--sm">{{ pid.slice(-2).toUpperCase() }}</div>
+                <div class="nv-avatar nv-avatar--sm">{{ (peerNames[pid] || '?').charAt(0).toUpperCase() }}</div>
               </div>
             </div>
           </div>
@@ -223,36 +208,24 @@
             <div class="nv-tilebar">
               <div class="nv-tilemeta"><span class="nv-you-dot"></span>{{ userName }} (you)</div>
               <div class="nv-tilebadges">
-                <span v-if="!audioOn" class="nv-badge nv-badge--red">
-                  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="1" y1="1" x2="23" y2="23"/></svg>
-                </span>
-                <span v-if="!videoOn" class="nv-badge nv-badge--red">
-                  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="1" y1="1" x2="23" y2="23"/></svg>
-                </span>
+                <span v-if="!audioOn" class="nv-badge nv-badge--red"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="1" y1="1" x2="23" y2="23"/></svg></span>
+                <span v-if="!videoOn" class="nv-badge nv-badge--red"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="1" y1="1" x2="23" y2="23"/></svg></span>
               </div>
             </div>
             <div v-if="!videoOn" class="nv-nocam"><div class="nv-avatar">{{ userInitials }}</div></div>
           </div>
 
           <div v-for="pid in peerIds" :key="`grid-${pid}`" class="nv-tile">
-            <video
-              :ref="`peerVideo_${pid}`"
-              autoplay playsinline
-              style="width:100%;height:100%;object-fit:cover;display:block;"
-            ></video>
+            <video :ref="`peerVideo_${pid}`" autoplay playsinline style="width:100%;height:100%;object-fit:cover;display:block;"></video>
             <div class="nv-tilebar">
-              <div class="nv-tilemeta">{{ peerNames[pid] || ('Peer ' + pid.slice(-4).toUpperCase()) }}</div>
+              <div class="nv-tilemeta">{{ peerNames[pid] || 'Connecting…' }}</div>
               <div class="nv-tilebadges">
-                <span v-if="peerMuted[pid]" class="nv-badge nv-badge--red">
-                  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="1" y1="1" x2="23" y2="23"/></svg>
-                </span>
-                <span v-if="peerVideoOff[pid]" class="nv-badge nv-badge--red">
-                  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="1" y1="1" x2="23" y2="23"/></svg>
-                </span>
+                <span v-if="peerMuted[pid]" class="nv-badge nv-badge--red"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="1" y1="1" x2="23" y2="23"/></svg></span>
+                <span v-if="peerVideoOff[pid]" class="nv-badge nv-badge--red"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="1" y1="1" x2="23" y2="23"/></svg></span>
               </div>
             </div>
             <div v-if="!peerStreams[pid]" class="nv-nocam">
-              <div class="nv-avatar nv-avatar--sm">{{ pid.slice(-2).toUpperCase() }}</div>
+              <div class="nv-avatar nv-avatar--sm">{{ (peerNames[pid] || '?').charAt(0).toUpperCase() }}</div>
             </div>
           </div>
         </template>
@@ -422,13 +395,12 @@ export default {
 
       ws: null,
 
-      // ✅ All peer state stored reactively (Vue 3 — direct assignment, no $set needed)
-      peers: {},           // peerId → RTCPeerConnection
-      peerStreams: {},      // peerId → MediaStream (drives video elements)
-      peerNames: {},       // peerId → display name
-      peerMuted: {},       // peerId → bool
-      peerVideoOff: {},    // peerId → bool
-      pendingCandidates: {}, // peerId → RTCIceCandidate[] (queued before remoteDescription set)
+      peers: {},
+      peerStreams: {},
+      peerNames: {},
+      peerMuted: {},
+      peerVideoOff: {},
+      pendingCandidates: {},
 
       localStream: null,
       screenStream: null,
@@ -459,18 +431,14 @@ export default {
   },
 
   watch: {
-    // When layout switches (presenting on/off), re-bind all video elements after re-render
     isPresenting() {
-      this.$nextTick(() => {
-        this.$nextTick(() => this.bindAllVideos());
-      });
+      this.$nextTick(() => this.$nextTick(() => this.bindAllVideos()));
     },
-    // When peer list changes, bind new peer's video
     peerIds(newIds, oldIds) {
       this.$nextTick(() => {
         newIds.forEach(pid => {
           if (!oldIds.includes(pid) && this.peerStreams[pid]) {
-            this.bindPeerVideo(pid);
+            this.bindPeerVideoWithRetry(pid);
           }
         });
       });
@@ -478,6 +446,43 @@ export default {
   },
 
   methods: {
+    // ═══════════════════════════════════════════════════════
+    //  HELPERS
+    // ═══════════════════════════════════════════════════════
+
+    // ✅ FIX A: Always replace peerStreams as a new object so Vue detects the change
+    setPeerStream(peerId, stream) {
+      this.peerStreams = { ...this.peerStreams, [peerId]: stream };
+    },
+
+    // ✅ FIX B: Retry binding up to 20 times (2 seconds total) waiting for DOM element
+    bindPeerVideoWithRetry(peerId, attempt = 0) {
+      const stream = this.peerStreams[peerId];
+      if (!stream) return;
+
+      const el = this.resolveRef(`peerVideo_${peerId}`);
+      if (el) {
+        if (el.srcObject !== stream) {
+          el.srcObject = stream;
+          el.play().catch(() => {});
+          console.log(`✅ Bound peerVideo_${peerId} (attempt ${attempt})`);
+        }
+        // Also bind screen view if this peer is the presenter
+        if (this.activePresenterId === peerId) {
+          const screenEl = this.resolveRef(`peerScreen_${peerId}`);
+          if (screenEl && screenEl.srcObject !== stream) {
+            screenEl.srcObject = stream;
+            screenEl.play().catch(() => {});
+          }
+        }
+      } else if (attempt < 20) {
+        // DOM element not rendered yet — wait 100ms and retry
+        setTimeout(() => this.bindPeerVideoWithRetry(peerId, attempt + 1), 100);
+      } else {
+        console.warn(`⚠️ Could not find video element for ${peerId} after ${attempt} attempts`);
+      }
+    },
+
     // ═══════════════════════════════════════════════════════
     //  CREATE
     // ═══════════════════════════════════════════════════════
@@ -557,7 +562,7 @@ export default {
       if (!this.meetingCode) { this.$router.push('/join-meeting'); return; }
 
       const user = JSON.parse(sessionStorage.getItem('nova_user') || '{}');
-      this.userName     = user.name || 'Guest';
+      this.userName     = user.name || user.username || user.displayName || 'Guest';
       this.userInitials = this.userName.charAt(0).toUpperCase();
 
       if (!this.isHost) this.isHost = sessionStorage.getItem('nova_is_host') === 'true';
@@ -566,7 +571,6 @@ export default {
       this.updateClock();
       this.clockInterval = setInterval(this.updateClock, 10000);
 
-      // ✅ Get local camera/mic FIRST before any peer connections
       try {
         this.localStream = await navigator.mediaDevices.getUserMedia({
           video: { width: { ideal: 1280 }, height: { ideal: 720 } },
@@ -578,7 +582,6 @@ export default {
         this.audioOn = false;
       }
 
-      // Bind local preview
       await this.$nextTick();
       if (this.$refs.localVideo && this.localStream) {
         this.$refs.localVideo.srcObject = this.localStream;
@@ -596,13 +599,15 @@ export default {
 
       this.ws.onopen = () => {
         console.log('✅ WS open');
-        this.sendWs({ type: 'JOIN', data: { name: this.userName } });
+        // ✅ FIX C: Send our real username in the JOIN message
+        this.sendWs({ type: 'JOIN', data: { name: this.userName, peerId: this.myPeerId } });
       };
 
       this.ws.onmessage = async (e) => {
         let msg;
         try { msg = JSON.parse(e.data); } catch { return; }
-        if (msg.fromPeerId === this.myPeerId) return; // ignore own messages
+        // Ignore messages from ourselves OR server echo messages with null fromPeerId
+        if (!msg.fromPeerId || msg.fromPeerId === this.myPeerId) return;
         await this.handleWsMsg(msg);
       };
 
@@ -618,40 +623,65 @@ export default {
       }
     },
 
+    // ✅ FIX C: Send our name to a specific peer so they can display it
+    sendNameSync(toPeerId) {
+      this.sendWs({ type: 'NAME_SYNC', toPeerId, data: { name: this.userName } });
+    },
+
     async handleWsMsg(msg) {
-      console.log('📨 WS message:', msg.type, '| from:', msg.fromPeerId, '| data:', JSON.stringify(msg.data)?.slice(0, 120));
+      const fromId = msg.fromPeerId;
+      console.log('📨 WS message:', msg.type, '| from:', fromId);
+
       switch (msg.type) {
 
-        // Server sends the list of already-connected peers → we offer to each one
         case 'PARTICIPANT_LIST': {
-          console.log('📋 PARTICIPANT_LIST raw:', JSON.stringify(msg.data));
-          // Handle different server shapes: { peers: [...] } or just [...]
-          const peerList = Array.isArray(msg.data) ? msg.data
-            : Array.isArray(msg.data?.peers) ? msg.data.peers
-            : [];
+          // ✅ FIX D: Handle peers as array of strings OR array of {id, name} objects
+          const raw = Array.isArray(msg.data) ? msg.data
+            : Array.isArray(msg.data?.peers) ? msg.data.peers : [];
+
+          const peerList = raw.map(p => (typeof p === 'string' ? { id: p, name: null } : { id: p.peerId || p.id, name: p.name || null }))
+                             .filter(p => p.id && p.id !== this.myPeerId);
+
           this.participantCount = peerList.length + 1;
-          for (const id of peerList) {
-            if (id && id !== this.myPeerId) await this.createPC(id, true);
+
+          for (const { id, name } of peerList) {
+            if (name) this.peerNames = { ...this.peerNames, [id]: name };
+            await this.createPC(id, true);
+            // Ask them to tell us their name in case server didn't include it
+            this.sendNameSync(id);
           }
           break;
         }
 
-        // New peer joined → send them an offer so they see us
         case 'JOIN': {
-          console.log('👤 JOIN raw:', JSON.stringify(msg));
-          if (!msg.fromPeerId || msg.fromPeerId === this.myPeerId) break;
+          if (!fromId) break;
           this.participantCount++;
-          if (msg.data?.name) this.peerNames[msg.fromPeerId] = msg.data.name;
-          await this.createPC(msg.fromPeerId, true);
+          // ✅ FIX C: Save name from JOIN payload — check multiple possible field locations
+          const joinName = msg.data?.name || msg.data?.userName || msg.data?.displayName || null;
+          if (joinName) this.peerNames = { ...this.peerNames, [fromId]: joinName };
+          await this.createPC(fromId, true);
+          // Reply with our own name so the new peer knows who we are
+          this.sendNameSync(fromId);
+          break;
+        }
+
+        // ✅ FIX C: Handle incoming name sync
+        case 'NAME_SYNC': {
+          const syncName = msg.data?.name;
+          if (fromId && syncName) {
+            this.peerNames = { ...this.peerNames, [fromId]: syncName };
+          }
           break;
         }
 
         case 'LEAVE':
-          this.peerLeave(msg.fromPeerId);
+          this.peerLeave(fromId);
           break;
 
         case 'OFFER':
           await this.handleOffer(msg);
+          // After answering, always send our name back so the offerer knows us
+          this.sendNameSync(fromId);
           break;
 
         case 'ANSWER':
@@ -663,28 +693,27 @@ export default {
           break;
 
         case 'CHAT_MESSAGE':
-          this.addMsg(msg.data?.senderName || 'Peer', msg.data?.message || '', false);
+          this.addMsg(msg.data?.senderName || this.peerNames[fromId] || 'Participant', msg.data?.message || '', false);
           if (!this.chatOpen) this.unreadCount++;
           break;
 
         case 'TOGGLE_AUDIO':
-          this.peerMuted[msg.fromPeerId] = !msg.data?.enabled;
+          this.peerMuted = { ...this.peerMuted, [fromId]: !msg.data?.enabled };
           break;
 
         case 'TOGGLE_VIDEO':
-          this.peerVideoOff[msg.fromPeerId] = !msg.data?.enabled;
+          this.peerVideoOff = { ...this.peerVideoOff, [fromId]: !msg.data?.enabled };
           break;
 
         case 'SCREEN_SHARE_START':
-          this.activePresenterId = msg.fromPeerId;
-          // Wait two ticks for Vue to render the new layout with screen video element
+          this.activePresenterId = fromId;
           await this.$nextTick();
           await this.$nextTick();
           this.bindAllVideos();
           break;
 
         case 'SCREEN_SHARE_STOP':
-          if (this.activePresenterId === msg.fromPeerId) {
+          if (this.activePresenterId === fromId) {
             this.activePresenterId = null;
             await this.$nextTick();
             await this.$nextTick();
@@ -710,72 +739,47 @@ export default {
     // ═══════════════════════════════════════════════════════
     //  WEBRTC CORE
     // ═══════════════════════════════════════════════════════
-
     async createPC(peerId, sendOffer) {
-      // ✅ Guard: never create a PC for null/undefined/self
-      if (!peerId || peerId === this.myPeerId) {
-        console.warn('createPC called with invalid peerId:', peerId);
-        return null;
-      }
+      if (!peerId || peerId === this.myPeerId) return null;
       if (this.peers[peerId]) return this.peers[peerId];
 
       const pc = new RTCPeerConnection(ICE_SERVERS);
 
-      // ✅ CRITICAL FIX #1: Add local tracks to the PC BEFORE creating the offer.
-      // If tracks aren't added first, the SDP won't include media sections and
-      // the remote peer will never receive any audio/video from us.
       if (this.localStream) {
-        this.localStream.getTracks().forEach(track => {
-          pc.addTrack(track, this.localStream);
-        });
+        this.localStream.getTracks().forEach(track => pc.addTrack(track, this.localStream));
       }
 
-      // ✅ CRITICAL FIX #2: ontrack — save stream reactively so Vue video elements get it
+      // ✅ FIX A+B: Use setPeerStream for reactivity, then retry DOM binding
       pc.ontrack = (event) => {
-        console.log(`🎥 ontrack from ${peerId}:`, event.track.kind);
-        const stream = event.streams[0];
-        if (stream) {
-          this.peerStreams[peerId] = stream;
-          // Bind to video element after Vue updates the DOM
-          this.$nextTick(() => this.bindPeerVideo(peerId));
-        }
+        console.log(`🎥 ontrack from ${peerId}:`, event.track.kind, '| streams:', event.streams.length);
+        const stream = event.streams[0] || new MediaStream([event.track]);
+        this.setPeerStream(peerId, stream);
+        // Wait for Vue to re-render tile (peerStreams changed → v-if hides nocam, shows video)
+        this.$nextTick(() => this.bindPeerVideoWithRetry(peerId));
       };
 
-      // Send ICE candidates to the remote peer
       pc.onicecandidate = (event) => {
         if (event.candidate) {
-          this.sendWs({
-            type: 'ICE_CANDIDATE',
-            toPeerId: peerId,
-            data: event.candidate.toJSON(),
-          });
+          this.sendWs({ type: 'ICE_CANDIDATE', toPeerId: peerId, data: event.candidate.toJSON() });
         }
       };
 
       pc.onconnectionstatechange = () => {
         console.log(`🔗 [${peerId.slice(-4)}] connectionState: ${pc.connectionState}`);
-        if (pc.connectionState === 'failed') {
-          pc.restartIce();
-        }
+        if (pc.connectionState === 'failed') pc.restartIce();
         if (pc.connectionState === 'disconnected') {
           setTimeout(() => {
-            if (['disconnected', 'failed', 'closed'].includes(pc.connectionState)) {
-              this.peerLeave(peerId);
-            }
+            if (['disconnected', 'failed', 'closed'].includes(pc.connectionState)) this.peerLeave(peerId);
           }, 5000);
         }
       };
 
-      // ✅ Store reactively so v-for tile renders
-      this.peers[peerId] = pc;
+      this.peers = { ...this.peers, [peerId]: pc };
       this.pendingCandidates[peerId] = [];
 
       if (sendOffer) {
         try {
-          const offer = await pc.createOffer({
-            offerToReceiveAudio: true,
-            offerToReceiveVideo: true,
-          });
+          const offer = await pc.createOffer({ offerToReceiveAudio: true, offerToReceiveVideo: true });
           await pc.setLocalDescription(offer);
           this.sendWs({ type: 'OFFER', toPeerId: peerId, data: pc.localDescription });
           console.log(`📤 Offer → ${peerId}`);
@@ -789,16 +793,14 @@ export default {
 
     async handleOffer(msg) {
       const peerId = msg.fromPeerId;
-      if (!peerId || peerId === this.myPeerId) { console.warn('handleOffer: invalid peerId', peerId); return; }
+      if (!peerId || peerId === this.myPeerId) return;
       console.log(`📥 Offer ← ${peerId}`);
 
-      // Create PC without sending an offer (we're the answerer)
       const pc = this.peers[peerId] || await this.createPC(peerId, false);
 
       try {
         await pc.setRemoteDescription(new RTCSessionDescription(msg.data));
 
-        // ✅ CRITICAL FIX #3: Drain any ICE candidates that arrived before remoteDescription
         const queued = this.pendingCandidates[peerId] || [];
         for (const c of queued) {
           try { await pc.addIceCandidate(c); } catch (e) { console.warn('ICE drain:', e); }
@@ -817,14 +819,13 @@ export default {
     async handleAnswer(msg) {
       const peerId = msg.fromPeerId;
       const pc = this.peers[peerId];
-      if (!pc) { console.warn('handleAnswer: no PC for', peerId); return; }
+      if (!pc) return;
 
       try {
         if (pc.signalingState === 'have-local-offer') {
           await pc.setRemoteDescription(new RTCSessionDescription(msg.data));
           console.log(`✅ Answer set for ${peerId}`);
 
-          // Drain queued ICE candidates
           const queued = this.pendingCandidates[peerId] || [];
           for (const c of queued) {
             try { await pc.addIceCandidate(c); } catch (e) { console.warn('ICE drain:', e); }
@@ -843,86 +844,49 @@ export default {
 
       const candidate = new RTCIceCandidate(msg.data);
 
-      // ✅ CRITICAL FIX #4: Queue candidates if remoteDescription not set yet
-      // Without this, addIceCandidate throws and connection fails
-      if (!pc.remoteDescription || !pc.remoteDescription.type) {
-        console.log(`⏳ Queuing ICE for ${peerId}`);
+      if (!pc.remoteDescription?.type) {
         if (!this.pendingCandidates[peerId]) this.pendingCandidates[peerId] = [];
         this.pendingCandidates[peerId].push(candidate);
         return;
       }
 
-      try {
-        await pc.addIceCandidate(candidate);
-      } catch (e) {
-        console.warn('addIceCandidate error:', e);
-      }
+      try { await pc.addIceCandidate(candidate); }
+      catch (e) { console.warn('addIceCandidate error:', e); }
     },
 
     // ═══════════════════════════════════════════════════════
     //  VIDEO BINDING
     // ═══════════════════════════════════════════════════════
-
-    // Resolve a Vue ref that may be an array (when inside v-for)
     resolveRef(key) {
       const r = this.$refs[key];
       return Array.isArray(r) ? r[0] : r;
     },
 
-    // Bind a peer's stream to their video element(s)
-    bindPeerVideo(peerId) {
-      const stream = this.peerStreams[peerId];
-      if (!stream) return;
-
-      // Normal peer tile
-      const el = this.resolveRef(`peerVideo_${peerId}`);
-      if (el && el.srcObject !== stream) {
-        el.srcObject = stream;
-        el.play().catch(() => {});
-        console.log(`✅ Bound peerVideo_${peerId}`);
-      }
-
-      // If this peer is also the screen presenter, bind the large screen view too
-      if (this.activePresenterId === peerId) {
-        const screenEl = this.resolveRef(`peerScreen_${peerId}`);
-        if (screenEl && screenEl.srcObject !== stream) {
-          screenEl.srcObject = stream;
-          screenEl.play().catch(() => {});
-          console.log(`✅ Bound peerScreen_${peerId}`);
-        }
-      }
-    },
-
-    // Re-bind every video element after a layout change
     bindAllVideos() {
-      // Local camera
       const localEl = this.$refs.localVideo;
       if (localEl && this.localStream && localEl.srcObject !== this.localStream) {
         localEl.srcObject = this.localStream;
       }
 
-      // Local screen share preview
       const screenEl = this.$refs.screenVideo;
       if (screenEl && this.screenStream && screenEl.srcObject !== this.screenStream) {
         screenEl.srcObject = this.screenStream;
         screenEl.play().catch(() => {});
       }
 
-      // All remote peers (both their sidebar tile and the screen tile if presenting)
-      this.peerIds.forEach(pid => this.bindPeerVideo(pid));
+      this.peerIds.forEach(pid => this.bindPeerVideoWithRetry(pid));
     },
 
     // ═══════════════════════════════════════════════════════
     //  PEER LIFECYCLE
     // ═══════════════════════════════════════════════════════
-
     peerLeave(peerId) {
       try { this.peers[peerId]?.close(); } catch (_) {}
-      delete this.peers[peerId];
-      delete this.peerStreams[peerId];
-      delete this.peerNames[peerId];
-      delete this.peerMuted[peerId];
-      delete this.peerVideoOff[peerId];
+      const p = { ...this.peers }; delete p[peerId]; this.peers = p;
+      const s = { ...this.peerStreams }; delete s[peerId]; this.peerStreams = s;
+      const n = { ...this.peerNames }; delete n[peerId]; this.peerNames = n;
+      const m = { ...this.peerMuted }; delete m[peerId]; this.peerMuted = m;
+      const v = { ...this.peerVideoOff }; delete v[peerId]; this.peerVideoOff = v;
       delete this.pendingCandidates[peerId];
       if (this.activePresenterId === peerId) this.activePresenterId = null;
       this.participantCount = Math.max(1, this.participantCount - 1);
@@ -931,20 +895,14 @@ export default {
 
     cleanupPeers() {
       Object.values(this.peers).forEach(pc => { try { pc.close(); } catch (_) {} });
-      this.peers             = {};
-      this.peerStreams        = {};
-      this.peerNames         = {};
-      this.peerMuted         = {};
-      this.peerVideoOff      = {};
-      this.pendingCandidates = {};
-      this.activePresenterId = null;
-      this.participantCount  = 1;
+      this.peers = {}; this.peerStreams = {}; this.peerNames = {};
+      this.peerMuted = {}; this.peerVideoOff = {}; this.pendingCandidates = {};
+      this.activePresenterId = null; this.participantCount = 1;
     },
 
     // ═══════════════════════════════════════════════════════
     //  MEDIA CONTROLS
     // ═══════════════════════════════════════════════════════
-
     toggleAudio() {
       if (!this.localStream) return;
       this.audioOn = !this.audioOn;
@@ -961,63 +919,36 @@ export default {
 
     async toggleScreen() {
       if (this.screenStream) {
-        // ── STOP sharing ──
         this.screenStream.getTracks().forEach(t => t.stop());
         this.screenStream = null;
 
-        // ✅ Restore camera track on every peer connection
         const cameraTrack = this.localStream?.getVideoTracks()[0];
         if (cameraTrack) {
           for (const pc of Object.values(this.peers)) {
             const sender = pc.getSenders().find(s => s.track?.kind === 'video');
-            if (sender) {
-              try { await sender.replaceTrack(cameraTrack); }
-              catch (e) { console.warn('replaceTrack (restore cam):', e); }
-            }
+            if (sender) { try { await sender.replaceTrack(cameraTrack); } catch (e) { console.warn(e); } }
           }
         }
 
         this.sendWs({ type: 'SCREEN_SHARE_STOP' });
-
-        await this.$nextTick();
-        await this.$nextTick();
+        await this.$nextTick(); await this.$nextTick();
         this.bindAllVideos();
-
       } else {
-        // ── START sharing ──
         try {
-          this.screenStream = await navigator.mediaDevices.getDisplayMedia({
-            video: { cursor: 'always' },
-            audio: false,
-          });
-
+          this.screenStream = await navigator.mediaDevices.getDisplayMedia({ video: { cursor: 'always' }, audio: false });
           const screenTrack = this.screenStream.getVideoTracks()[0];
 
-          // ✅ CRITICAL: Replace the video sender track on ALL peer connections.
-          // This is what makes every participant see your screen instead of camera.
           for (const pc of Object.values(this.peers)) {
             const sender = pc.getSenders().find(s => s.track?.kind === 'video');
-            if (sender) {
-              try { await sender.replaceTrack(screenTrack); }
-              catch (e) { console.warn('replaceTrack (screen):', e); }
-            }
+            if (sender) { try { await sender.replaceTrack(screenTrack); } catch (e) { console.warn(e); } }
           }
 
-          // If user stops sharing via the browser's native "Stop sharing" button
           screenTrack.onended = () => this.toggleScreen();
-
           this.sendWs({ type: 'SCREEN_SHARE_START' });
-
-          // Bind local screen preview after layout re-renders
-          await this.$nextTick();
-          await this.$nextTick();
+          await this.$nextTick(); await this.$nextTick();
           this.bindAllVideos();
-
         } catch (err) {
-          if (err.name !== 'NotAllowedError') {
-            console.error('getDisplayMedia error:', err);
-            this.showToast('Screen share failed.', 'error');
-          }
+          if (err.name !== 'NotAllowedError') this.showToast('Screen share failed.', 'error');
           this.screenStream = null;
         }
       }
@@ -1119,8 +1050,7 @@ export default {
       if (this.ws) {
         this.ws.onclose = null;
         try { this.sendWs({ type: 'LEAVE' }); } catch (_) {}
-        this.ws.close();
-        this.ws = null;
+        this.ws.close(); this.ws = null;
       }
       sessionStorage.removeItem('nova_meeting_code');
       sessionStorage.removeItem('nova_is_host');
@@ -1130,9 +1060,7 @@ export default {
     },
 
     leave() {
-      const msg = this.isHost
-        ? 'Leave this meeting? (Use "End" to close for everyone.)'
-        : 'Leave this meeting?';
+      const msg = this.isHost ? 'Leave this meeting? (Use "End" to close for everyone.)' : 'Leave this meeting?';
       if (!confirm(msg)) return;
       this.cleanupAndNavigate();
     },
@@ -1254,30 +1182,16 @@ export default {
 .nv-unread { min-width:17px; height:17px; border-radius:9px; background:var(--c-blue); color:#fff; font-size:10px; font-weight:700; display:inline-flex; align-items:center; justify-content:center; padding:0 4px; }
 
 /* ── GRID ─────────────────────────────────────────────── */
-.nv-grid {
-  flex:1; min-height:0;
-  display:grid;
-  grid-template-columns:repeat(auto-fit,minmax(280px,1fr));
-  gap:12px; padding:16px;
-  overflow-y:auto; align-content:start;
-  background:var(--c-bg);
-}
+.nv-grid { flex:1; min-height:0; display:grid; grid-template-columns:repeat(auto-fit,minmax(280px,1fr)); gap:12px; padding:16px; overflow-y:auto; align-content:start; background:var(--c-bg); }
 .nv-grid:has(> .nv-tile:nth-child(2))  { grid-template-columns:repeat(2,1fr); }
 .nv-grid:has(> .nv-tile:nth-child(5))  { grid-template-columns:repeat(3,1fr); }
 .nv-grid:has(> .nv-tile:nth-child(10)) { grid-template-columns:repeat(4,1fr); }
-
-.nv-grid--presenting {
-  grid-template-columns:1fr 300px;
-  grid-template-rows:1fr;
-  align-content:stretch;
-  gap:12px;
-}
+.nv-grid--presenting { grid-template-columns:1fr 300px; grid-template-rows:1fr; align-content:stretch; gap:12px; }
 .nv-gmain { grid-column:1; grid-row:1; display:flex; align-items:center; justify-content:center; min-height:0; border-radius:16px; overflow:hidden; background:#000; }
 .nv-gsidebar { grid-column:2; grid-row:1; display:flex; flex-direction:column; gap:10px; overflow-y:auto; min-height:0; padding-right:4px; }
 .nv-gsidebar .nv-tile { flex-shrink:0; aspect-ratio:16/9; min-height:100px; }
 .nv-gsidebar::-webkit-scrollbar { width:6px; }
 .nv-gsidebar::-webkit-scrollbar-thumb { background:var(--c-surf2); border-radius:3px; }
-
 .nv-tile { position:relative; background:var(--c-surf); border-radius:12px; overflow:hidden; aspect-ratio:16/9; border:1px solid var(--c-line); transition:border-color .2s; }
 .nv-tile:hover { border-color:#5f6368; }
 .nv-tile--me { border:2px solid rgba(52,168,83,.4); box-shadow:0 0 0 1px rgba(52,168,83,.2); }
