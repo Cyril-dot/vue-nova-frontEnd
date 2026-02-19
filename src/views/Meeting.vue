@@ -1,20 +1,9 @@
-<!-- Meeting.vue — SCREEN SHARE FIXED (FIX F) -->
-<!--
-  FIXES IN THIS VERSION:
-  ✅ FIX A: peerStreams uses object spread to stay reactive
-  ✅ FIX B: bindPeerVideo retries up to 20× waiting for DOM element
-  ✅ FIX C: NAME_SYNC — both sides always know each other's username
-  ✅ FIX D: PARTICIPANT_LIST peers handled as objects or bare strings
-  ✅ FIX E: JOIN echo from server (fromPeerId=null) ignored cleanly
-  ✅ FIX F: Screen share correctly shown (not the camera).
-            Uses peerCameraStreamIds map: first stream.id per peer = camera,
-            any new stream.id = screen share. Eliminates the old race-condition
-            heuristic that checked peerStreams[peerId] existence.
--->
+<!-- Meeting.vue — Powered by Daily.co SDK -->
+<!-- All custom WebRTC / WebSocket logic removed. Daily handles video, audio, screen share. -->
 <template>
   <div class="nv-root">
 
-    <!-- ════════════════════ PHASE 1 — CREATE ════════════════════ -->
+    <!-- ════════════════════ CREATE ════════════════════ -->
     <div v-if="view === 'create'" class="nv-create-wrap">
       <nav class="nv-cnav">
         <div class="nv-cbrand" @click="goToDashboard">
@@ -37,6 +26,8 @@
           <p class="nv-csub">Configure and launch your meeting instantly.</p>
         </div>
         <div class="nv-card">
+
+          <!-- Success banner -->
           <div v-if="created.code" class="nv-success-banner">
             <div class="nv-success-check">
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="20 6 9 17 4 12"/></svg>
@@ -51,6 +42,7 @@
             </div>
           </div>
 
+          <!-- Form -->
           <div v-if="!created.code" class="nv-form-body">
             <div class="nv-section-label">Meeting details</div>
             <div class="nv-field">
@@ -94,6 +86,7 @@
             </div>
           </div>
 
+          <!-- Post-create actions -->
           <div v-if="created.code" class="nv-postcreate">
             <button class="nv-btn-primary nv-btn-go" @click="enterMeeting">
               <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"/></svg>
@@ -105,9 +98,10 @@
       </main>
     </div>
 
-    <!-- ════════════════════ PHASE 2 — MEETING ════════════════════ -->
+    <!-- ════════════════════ MEETING ════════════════════ -->
     <div v-if="view === 'meeting'" class="nv-meet">
 
+      <!-- Header -->
       <header class="nv-header">
         <div class="nv-hleft">
           <div class="nv-brand">
@@ -146,97 +140,33 @@
         </div>
       </header>
 
-      <!-- ══ VIDEO GRID ══ -->
-      <div class="nv-grid" :class="{ 'nv-grid--presenting': isPresenting }" ref="videosGrid">
-
-        <!-- SCREEN SHARE LAYOUT -->
-        <template v-if="isPresenting">
-          <div class="nv-gmain">
-            <div v-if="screenStream" class="nv-tile nv-tile--screen">
-              <video ref="screenVideo" autoplay playsinline muted style="width:100%;height:100%;object-fit:contain;background:#000;display:block;"></video>
-              <div class="nv-tilebar">
-                <div class="nv-tilemeta">
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>
-                  {{ userName }} · Presenting
-                </div>
-              </div>
-            </div>
-            <div v-else-if="activePresenterId" class="nv-tile nv-tile--screen">
-              <video
-                :ref="`peerScreen_${activePresenterId}`"
-                autoplay playsinline
-                style="width:100%;height:100%;object-fit:contain;background:#000;display:block;"
-              ></video>
-              <div class="nv-tilebar">
-                <div class="nv-tilemeta">
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>
-                  {{ getPeerName(activePresenterId) }} · Presenting
-                </div>
-              </div>
-            </div>
+      <!--
+        Daily.co embedded iframe
+        ─────────────────────────────────────────────────────────────────────
+        This single <div ref="dailyContainer"> is where Daily renders its
+        full-featured video call UI including:
+          • Participant video tiles + speaker detection
+          • Screen share (both local and remote) — WORKS out of the box
+          • Noise cancellation, background blur
+          • Participant list
+        No custom WebRTC or WebSocket code needed.
+      -->
+      <div class="nv-daily-wrap" :class="{ 'nv-daily--chat-open': chatOpen }">
+        <!-- Loading overlay while Daily SDK connects -->
+        <div v-if="dailyLoading" class="nv-daily-loading">
+          <div class="nv-loading-inner">
+            <span class="nv-spinner nv-spinner--lg"></span>
+            <p>Connecting to meeting…</p>
           </div>
-
-          <div class="nv-gsidebar">
-            <div class="nv-tile nv-tile--me">
-              <video ref="localVideo" autoplay muted playsinline></video>
-              <div class="nv-tilebar">
-                <div class="nv-tilemeta"><span class="nv-you-dot"></span>You</div>
-                <div class="nv-tilebadges">
-                  <span v-if="!audioOn" class="nv-badge nv-badge--red"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="1" y1="1" x2="23" y2="23"/></svg></span>
-                  <span v-if="!videoOn" class="nv-badge nv-badge--red"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="1" y1="1" x2="23" y2="23"/></svg></span>
-                </div>
-              </div>
-              <div v-if="!videoOn" class="nv-nocam"><div class="nv-avatar">{{ userInitials }}</div></div>
-            </div>
-
-            <div v-for="pid in peerIds" :key="`sidebar-${pid}`" class="nv-tile">
-              <video :ref="`peerVideo_${pid}`" autoplay playsinline style="width:100%;height:100%;object-fit:cover;display:block;"></video>
-              <div class="nv-tilebar">
-                <div class="nv-tilemeta">{{ getPeerName(pid) }}</div>
-                <div class="nv-tilebadges">
-                  <span v-if="peerMuted[pid]" class="nv-badge nv-badge--red"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="1" y1="1" x2="23" y2="23"/></svg></span>
-                </div>
-              </div>
-              <div v-if="!peerStreams[pid]" class="nv-nocam">
-                <div class="nv-avatar nv-avatar--sm">{{ getPeerName(pid).charAt(0).toUpperCase() }}</div>
-              </div>
-            </div>
-          </div>
-        </template>
-
-        <!-- NORMAL GRID LAYOUT -->
-        <template v-else>
-          <div class="nv-tile nv-tile--me">
-            <video ref="localVideo" autoplay muted playsinline></video>
-            <div class="nv-tilebar">
-              <div class="nv-tilemeta"><span class="nv-you-dot"></span>{{ userName }} (you)</div>
-              <div class="nv-tilebadges">
-                <span v-if="!audioOn" class="nv-badge nv-badge--red"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="1" y1="1" x2="23" y2="23"/></svg></span>
-                <span v-if="!videoOn" class="nv-badge nv-badge--red"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="1" y1="1" x2="23" y2="23"/></svg></span>
-              </div>
-            </div>
-            <div v-if="!videoOn" class="nv-nocam"><div class="nv-avatar">{{ userInitials }}</div></div>
-          </div>
-
-          <div v-for="pid in peerIds" :key="`grid-${pid}`" class="nv-tile">
-            <video :ref="`peerVideo_${pid}`" autoplay playsinline style="width:100%;height:100%;object-fit:cover;display:block;"></video>
-            <div class="nv-tilebar">
-              <div class="nv-tilemeta">{{ getPeerName(pid) }}</div>
-              <div class="nv-tilebadges">
-                <span v-if="peerMuted[pid]" class="nv-badge nv-badge--red"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="1" y1="1" x2="23" y2="23"/></svg></span>
-                <span v-if="peerVideoOff[pid]" class="nv-badge nv-badge--red"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="1" y1="1" x2="23" y2="23"/></svg></span>
-              </div>
-            </div>
-            <div v-if="!peerStreams[pid]" class="nv-nocam">
-              <div class="nv-avatar nv-avatar--sm">{{ getPeerName(pid).charAt(0).toUpperCase() }}</div>
-            </div>
-          </div>
-        </template>
+        </div>
+        <!-- Daily renders its iframe inside this div -->
+        <div ref="dailyContainer" class="nv-daily-frame"></div>
       </div>
 
-      <!-- Controls -->
+      <!-- Controls bar (delegates to Daily callFrame methods) -->
       <div class="nv-controls">
         <div class="nv-ctrl-row">
+
           <div class="nv-cslot">
             <button class="nv-ctrl" :class="audioOn ? 'nv-ctrl--on' : 'nv-ctrl--off'" @click="toggleAudio">
               <svg v-if="audioOn" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2M12 19v4M8 23h8"/></svg>
@@ -244,6 +174,7 @@
             </button>
             <span class="nv-clabel">{{ audioOn ? 'Mute' : 'Unmute' }}</span>
           </div>
+
           <div class="nv-cslot">
             <button class="nv-ctrl" :class="videoOn ? 'nv-ctrl--on' : 'nv-ctrl--off'" @click="toggleVideo">
               <svg v-if="videoOn" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2"/></svg>
@@ -251,14 +182,18 @@
             </button>
             <span class="nv-clabel">{{ videoOn ? 'Stop video' : 'Start video' }}</span>
           </div>
+
           <div class="nv-cslot">
-            <button class="nv-ctrl" :class="screenStream ? 'nv-ctrl--sharing' : 'nv-ctrl--on'" @click="toggleScreen">
-              <svg v-if="!screenStream" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/><polyline points="8 10 12 6 16 10"/><line x1="12" y1="6" x2="12" y2="14"/></svg>
+            <button class="nv-ctrl" :class="screenSharing ? 'nv-ctrl--sharing' : 'nv-ctrl--on'" @click="toggleScreen">
+              <svg v-if="!screenSharing" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/><polyline points="8 10 12 6 16 10"/><line x1="12" y1="6" x2="12" y2="14"/></svg>
               <svg v-else width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/><line x1="9" y1="9" x2="15" y2="15"/><line x1="15" y1="9" x2="9" y2="15"/></svg>
             </button>
-            <span class="nv-clabel">{{ screenStream ? 'Stop sharing' : 'Present' }}</span>
+            <span class="nv-clabel">{{ screenSharing ? 'Stop sharing' : 'Present' }}</span>
           </div>
+
           <div class="nv-cdivider"></div>
+
+          <!-- Host-only: restart + end -->
           <template v-if="isHost">
             <div class="nv-cslot">
               <button class="nv-ctrl nv-ctrl--restart" @click="restartMeeting" :disabled="restarting">
@@ -276,16 +211,18 @@
             </div>
             <div class="nv-cdivider"></div>
           </template>
+
           <div class="nv-cslot">
             <button class="nv-ctrl nv-ctrl--leave" @click="leave">
               <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.68 13.31a16 16 0 0 0 3.41 2.6l1.27-1.27a2 2 0 0 1 2.11-.45c1.12.45 2.3.78 3.53.978a2 2 0 0 1 1.67 1.98V20a2 2 0 0 1-2 2h-1C7.82 22 2 16.18 2 9V8a2 2 0 0 1 2-2h3.5a2 2 0 0 1 1.98 1.67c.19 1.23.52 2.41.978 3.53a2 2 0 0 1-.45 2.11L10.68 13.31z"/><line x1="22" y1="2" x2="11" y2="13"/></svg>
             </button>
             <span class="nv-clabel nv-clabel--red">Leave</span>
           </div>
+
         </div>
       </div>
 
-      <!-- Chat -->
+      <!-- Chat panel (uses Daily sendAppMessage for real-time delivery) -->
       <div class="nv-chat" :class="{ 'nv-chat--open': chatOpen }">
         <div class="nv-chdr">
           <div class="nv-chdr-title">
@@ -314,14 +251,14 @@
         </div>
       </div>
 
-      <!-- End Modal -->
+      <!-- End Meeting Modal -->
       <div v-if="showEndModal" class="nv-modal-overlay" @click.self="showEndModal = false">
         <div class="nv-modal">
           <div class="nv-modal-icon nv-modal-icon--red">
             <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="9" y1="9" x2="15" y2="15"/><line x1="15" y1="9" x2="9" y2="15"/></svg>
           </div>
           <h2 class="nv-modal-title">End meeting for everyone?</h2>
-          <p class="nv-modal-body">This will end the call for all participants and mark the meeting as completed.</p>
+          <p class="nv-modal-body">This will disconnect all participants and mark the meeting as completed.</p>
           <div class="nv-modal-actions">
             <button class="nv-modal-btn nv-modal-btn--ghost" @click="showEndModal = false">Cancel</button>
             <button class="nv-modal-btn nv-modal-btn--danger" @click="confirmEndMeeting" :disabled="ending">
@@ -332,14 +269,14 @@
         </div>
       </div>
 
-      <!-- Restart Modal -->
+      <!-- Restart Meeting Modal -->
       <div v-if="showRestartModal" class="nv-modal-overlay" @click.self="showRestartModal = false">
         <div class="nv-modal">
           <div class="nv-modal-icon nv-modal-icon--blue">
             <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-4.5"/></svg>
           </div>
           <h2 class="nv-modal-title">Restart this meeting?</h2>
-          <p class="nv-modal-body">All current participants will be disconnected and the meeting will restart fresh.</p>
+          <p class="nv-modal-body">All participants will be disconnected. They can rejoin with the same code.</p>
           <div class="nv-modal-actions">
             <button class="nv-modal-btn nv-modal-btn--ghost" @click="showRestartModal = false">Cancel</button>
             <button class="nv-modal-btn nv-modal-btn--primary" @click="confirmRestartMeeting" :disabled="restarting">
@@ -350,6 +287,7 @@
         </div>
       </div>
 
+      <!-- Toast -->
       <transition name="nv-toast-fx">
         <div v-if="toastVisible" class="nv-toast" :class="toastType === 'error' ? 'nv-toast--error' : ''">
           <svg v-if="toastType !== 'error'" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="20 6 9 17 4 12"/></svg>
@@ -357,194 +295,252 @@
           {{ toastMessage }}
         </div>
       </transition>
+
     </div>
   </div>
 </template>
 
 <script>
 import { TokenService } from '@/utils/apiService';
+import { MeetingSession } from '@/utils/meetingSession';
 
-const API    = 'https://nova-test-ctne.onrender.com/api';
-const WS_URL = 'wss://nova-test-ctne.onrender.com/ws/webrtc';
-
-const ICE_SERVERS = {
-  iceServers: [
-    { urls: 'stun:stun.l.google.com:19302' },
-    { urls: 'stun:stun1.l.google.com:19302' },
-    { urls: 'stun:stun2.l.google.com:19302' },
-  ],
-};
+// ─── Config ─────────────────────────────────────────────────────────────────
+const BACKEND_API   = 'https://nova-test-ctne.onrender.com/api';
+const DAILY_API_KEY = '9cf7d8f488fb16347cf73386d1967d42da81e568a4f504c23e64f0a0ae769fe6';
+const DAILY_DOMAIN  = 'noav.daily.co';
+const DAILY_API     = 'https://api.daily.co/v1';
 
 export default {
   name: 'Meeting',
 
+  // Route prop: /meetings/:code passes the code directly
+  props: {
+    code: { type: String, default: null },
+  },
+
   data() {
     return {
-      view: 'create',
+      view: 'create',   // 'create' | 'meeting'
+
+      // ── Create form ──────────────────────────────────────────
       form: {
         title: '', description: '', maxParticipants: 50, password: '',
         allowGuests: true, videoEnabled: true, audioEnabled: true,
         chatEnabled: true, screenShareEnabled: true,
       },
       toggleOpts: [
-        { key: 'allowGuests',        label: 'Allow guests',       sub: 'Anyone can join without an account' },
+        { key: 'allowGuests',        label: 'Allow guests',       sub: 'Anyone with the code can join' },
         { key: 'videoEnabled',       label: 'Video on by default' },
         { key: 'audioEnabled',       label: 'Audio on by default' },
         { key: 'chatEnabled',        label: 'Enable chat' },
         { key: 'screenShareEnabled', label: 'Screen sharing' },
       ],
-      creating: false, createError: '',
+      creating: false,
+      createError: '',
       created: { code: null, title: null },
 
-      ws: null,
+      // ── Meeting / Daily state ────────────────────────────────
+      meetingCode:    '',
+      dailyRoomUrl:   '',   // e.g. https://noav.daily.co/abc123
+      dailyRoomName:  '',   // e.g. abc123
+      callFrame:      null, // DailyIframe.CallFrame instance
+      dailyLoading:   true,
 
-      peers: {},
-      peerStreams: {},          // peerId → camera MediaStream (for peerVideo_ tile)
-      peerScreenStreams: {},    // peerId → screen MediaStream (for peerScreen_ tile)
-      // ✅ FIX F: Track each peer's camera stream.id so we can identify screen tracks
-      // by stream.id comparison instead of an existence check (which had a race condition).
-      peerCameraStreamIds: {},  // peerId → camera stream.id string
-      peerNames: {},
-      peerMuted: {},
-      peerVideoOff: {},
-      pendingCandidates: {},
+      // Media state — kept in sync via Daily participant-updated events
+      audioOn:       true,
+      videoOn:       true,
+      screenSharing: false,
 
-      localStream: null,
-      screenStream: null,
-
-      meetingCode: '',
-      myPeerId: `peer_${Math.random().toString(36).substr(2, 9)}`,
       participantCount: 1,
-      isHost: false,
+      isHost:           false,
 
-      showEndModal: false, showRestartModal: false,
-      ending: false, restarting: false,
+      // User info
+      userName:     'Guest',
+      userInitials: 'G',
 
-      userName: 'Guest', userInitials: 'G',
-      videoOn: true, audioOn: true,
-      activePresenterId: null,
+      // UI
+      showEndModal:     false,
+      showRestartModal: false,
+      ending:           false,
+      restarting:       false,
 
-      chatOpen: false, chatMessage: '', messages: [], unreadCount: 0,
-      toastVisible: false, toastMessage: '', toastType: 'success',
-      currentTime: '', clockInterval: null,
+      chatOpen:    false,
+      chatMessage: '',
+      messages:    [],
+      unreadCount: 0,
+
+      toastVisible: false,
+      toastMessage: '',
+      toastType:    'success',
+
+      currentTime:   '',
+      clockInterval: null,
     };
   },
 
   computed: {
     isAuthenticated() { return TokenService.isAuthenticated(); },
     token()           { return TokenService.getAccessToken(); },
-    peerIds()         { return Object.keys(this.peers); },
-    isPresenting()    { return !!(this.screenStream || this.activePresenterId); },
-  },
-
-  watch: {
-    isPresenting() {
-      this.$nextTick(() => this.$nextTick(() => this.bindAllVideos()));
-    },
-    peerIds(newIds, oldIds) {
-      this.$nextTick(() => {
-        newIds.forEach(pid => {
-          if (!oldIds.includes(pid) && this.peerStreams[pid]) {
-            this.bindPeerVideoWithRetry(pid);
-          }
-        });
-      });
-    },
   },
 
   methods: {
-    getPeerName(peerId) {
-      if (this.peerNames[peerId]) return this.peerNames[peerId];
-      const adjectives = ['Happy', 'Clever', 'Swift', 'Brave', 'Calm', 'Bold', 'Kind', 'Wise', 'Cool', 'Bright', 'Sharp', 'Neat'];
-      const animals    = ['Panda', 'Falcon', 'Otter', 'Tiger', 'Koala', 'Eagle', 'Fox', 'Wolf', 'Lynx', 'Hawk', 'Bear', 'Deer'];
-      let seed = 0;
-      for (let i = 0; i < peerId.length; i++) seed += peerId.charCodeAt(i);
-      return `${adjectives[seed % adjectives.length]} ${animals[Math.floor(seed / adjectives.length) % animals.length]}`;
+
+    // ═══════════════════════════════════════════════════════════
+    //  DAILY.CO REST HELPERS
+    // ═══════════════════════════════════════════════════════════
+
+    async _dailyFetch(path, options = {}) {
+      return fetch(`${DAILY_API}${path}`, {
+        ...options,
+        headers: {
+          'Content-Type':  'application/json',
+          'Authorization': `Bearer ${DAILY_API_KEY}`,
+          ...(options.headers || {}),
+        },
+      });
     },
 
-    setPeerStream(peerId, stream) {
-      this.peerStreams = { ...this.peerStreams, [peerId]: stream };
-    },
+    /** Create a Daily room, or return the existing one if it already exists */
+    async ensureDailyRoom(roomName) {
+      // Try fetching first (idempotent)
+      const get = await this._dailyFetch(`/rooms/${roomName}`);
+      if (get.ok) return get.json();
 
-    bindPeerVideoWithRetry(peerId, attempt = 0) {
-      const stream = this.peerStreams[peerId];
-      if (!stream) {
-        if (attempt < 20) setTimeout(() => this.bindPeerVideoWithRetry(peerId, attempt + 1), 100);
-        return;
+      // Create new room
+      const create = await this._dailyFetch('/rooms', {
+        method: 'POST',
+        body: JSON.stringify({
+          name:       roomName,
+          privacy:    'public',
+          properties: {
+            enable_screenshare:  true,
+            enable_chat:         false, // we handle chat ourselves via sendAppMessage
+            enable_knocking:     false,
+            start_video_off:     false,
+            start_audio_off:     false,
+            max_participants:    this.form.maxParticipants || 50,
+            exp:                 Math.floor(Date.now() / 1000) + 86_400, // 24 h
+          },
+        }),
+      });
+
+      if (!create.ok) {
+        const err = await create.json().catch(() => ({}));
+        // 409 = room already exists — retry GET
+        if (create.status === 409) {
+          const retry = await this._dailyFetch(`/rooms/${roomName}`);
+          if (retry.ok) return retry.json();
+        }
+        throw new Error(err.info || err.error || `Daily API ${create.status}`);
       }
-      const el = this.resolveRef(`peerVideo_${peerId}`);
-      if (el) {
-        if (el.srcObject !== stream) { el.srcObject = stream; el.play().catch(() => {}); }
-        console.log(`✅ Bound peerVideo_${peerId} (attempt ${attempt})`);
-      } else if (attempt < 20) {
-        setTimeout(() => this.bindPeerVideoWithRetry(peerId, attempt + 1), 100);
-      } else {
-        console.warn(`⚠️ Could not bind peerVideo_${peerId} after ${attempt} attempts`);
-      }
+      return create.json();
     },
 
-    bindPeerScreenWithRetry(peerId, attempt = 0) {
-      const stream = this.peerScreenStreams[peerId];
-      if (!stream) return;
-      // If activePresenterId isn't set yet, the peerScreen_ element won't exist in DOM.
-      // Keep retrying — SCREEN_SHARE_START will also call us again once it's set.
-      const el = this.resolveRef(`peerScreen_${peerId}`);
-      if (el) {
-        if (el.srcObject !== stream) { el.srcObject = stream; el.play().catch(() => {}); }
-        console.log(`🖥️ Bound peerScreen_${peerId} (attempt ${attempt})`);
-      } else if (attempt < 40) {
-        setTimeout(() => this.bindPeerScreenWithRetry(peerId, attempt + 1), 100);
-      } else {
-        console.warn(`⚠️ Could not bind peerScreen_${peerId} after ${attempt} attempts`);
-      }
+    /** Delete the Daily room (called when host ends meeting) */
+    async deleteDailyRoom(roomName) {
+      await this._dailyFetch(`/rooms/${roomName}`, { method: 'DELETE' }).catch(() => {});
+      console.log('🗑️ Daily room deleted:', roomName);
     },
 
-    goToDashboard() {
-      if (window.history.length > 1) this.$router.go(-1);
-      else this.$router.push(this.isAuthenticated ? '/meeting-dashboard' : '/join-meeting');
+    /** Issue a meeting token so Daily knows the user's display name and owner flag */
+    async createDailyToken(roomName) {
+      const res = await this._dailyFetch('/meeting-tokens', {
+        method: 'POST',
+        body: JSON.stringify({
+          properties: {
+            room_name:          roomName,
+            user_name:          this.userName,
+            is_owner:           this.isHost,
+            enable_screenshare: true,
+          },
+        }),
+      });
+      if (!res.ok) return null;
+      const data = await res.json();
+      return data.token || null;
     },
+
+    /** Turn a meeting code into a valid Daily room name (lowercase alphanumeric + hyphens) */
+    toRoomName(code) {
+      return code.toLowerCase().replace(/[^a-z0-9]/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '');
+    },
+
+    // ═══════════════════════════════════════════════════════════
+    //  CREATE MEETING
+    // ═══════════════════════════════════════════════════════════
 
     async createMeeting() {
       if (!this.form.title.trim()) { this.createError = 'Please enter a meeting title.'; return; }
-      if (!this.token)             { this.createError = 'Session expired — please sign in again.'; return; }
       this.creating = true; this.createError = '';
 
-      const pw = this.form.password.trim();
-      const body = {
-        title: this.form.title.trim(), description: this.form.description.trim() || null,
-        maxParticipants: this.form.maxParticipants || 50, allowGuests: this.form.allowGuests,
-        requiresPassword: pw.length > 0, password: pw || null,
-        videoEnabled: this.form.videoEnabled, audioEnabled: this.form.audioEnabled,
-        chatEnabled: this.form.chatEnabled, screenShareEnabled: this.form.screenShareEnabled,
-        isPublic: false,
-      };
       try {
-        const res = await fetch(`${API}/meetings/create`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${this.token}`, 'ngrok-skip-browser-warning': 'true' },
-          body: JSON.stringify(body),
-        });
-        let data; try { data = await res.json(); } catch { throw new Error(`HTTP ${res.status}`); }
-        if (!res.ok || data.success === false) throw new Error(data.message || data.error || `HTTP ${res.status}`);
+        // 1. Try your backend to persist the meeting and get a code
+        let meetingCode = null;
+        if (this.token) {
+          try {
+            const pw   = this.form.password.trim();
+            const res  = await fetch(`${BACKEND_API}/meetings/create`, {
+              method:  'POST',
+              headers: {
+                'Content-Type':  'application/json',
+                'Authorization': `Bearer ${this.token}`,
+                'ngrok-skip-browser-warning': 'true',
+              },
+              body: JSON.stringify({
+                title:              this.form.title.trim(),
+                description:        this.form.description.trim() || null,
+                maxParticipants:    this.form.maxParticipants || 50,
+                allowGuests:        this.form.allowGuests,
+                requiresPassword:   pw.length > 0,
+                password:           pw || null,
+                videoEnabled:       this.form.videoEnabled,
+                audioEnabled:       this.form.audioEnabled,
+                chatEnabled:        this.form.chatEnabled,
+                screenShareEnabled: this.form.screenShareEnabled,
+                isPublic:           false,
+              }),
+            });
+            const data = await res.json().catch(() => ({}));
+            meetingCode = data?.data?.meetingCode || data?.data?.meeting_code || data?.data?.code
+                       || data?.data?.meeting?.meetingCode || data?.meetingCode || data?.code || null;
 
-        const code = data?.data?.meetingCode || data?.data?.meeting_code || data?.data?.code
-          || data?.data?.meeting?.meetingCode || data?.data?.meeting?.code
-          || data?.meetingCode || data?.code || null;
-        if (!code) throw new Error('No meeting code returned from server.');
+            if (meetingCode) {
+              // Mark as started
+              fetch(`${BACKEND_API}/meetings/start/${meetingCode}`, {
+                method: 'POST', headers: { 'Authorization': `Bearer ${this.token}`, 'ngrok-skip-browser-warning': 'true' },
+              }).catch(() => {});
+            }
+          } catch (e) {
+            console.warn('Backend create failed, using Daily-only mode:', e.message);
+          }
+        }
 
-        try {
-          await fetch(`${API}/meetings/start/${code}`, {
-            method: 'POST', headers: { 'Authorization': `Bearer ${this.token}`, 'ngrok-skip-browser-warning': 'true' },
-          });
-        } catch (_) {}
+        // 2. Fall back to a random code if backend didn't provide one
+        if (!meetingCode) {
+          meetingCode = Math.random().toString(36).substr(2, 8).toUpperCase();
+        }
 
-        const recent = JSON.parse(sessionStorage.getItem('nova_recent') || '[]');
-        recent.unshift({ code, title: body.title, date: new Date().toLocaleDateString() });
-        sessionStorage.setItem('nova_recent', JSON.stringify(recent.slice(0, 10)));
-        this.created = { code, title: body.title };
+        // 3. Create (or fetch) the Daily.co room
+        const roomName = this.toRoomName(meetingCode);
+        const room     = await this.ensureDailyRoom(roomName);
+
+        this.created = { code: meetingCode, title: this.form.title.trim() };
+
+        // Persist for the join flow
+        MeetingSession.setMeetingCode(meetingCode);
+        sessionStorage.setItem('nova_daily_room',    room.url);
+        sessionStorage.setItem('nova_daily_name',    roomName);
+        sessionStorage.setItem('nova_meeting_title', this.form.title.trim());
+
+        MeetingSession.saveRecentMeeting(meetingCode, this.form.title.trim());
+        console.log('✅ Meeting created:', meetingCode, '→', room.url);
+
       } catch (err) {
-        this.createError = err.message || 'Unexpected error.';
-      } finally { this.creating = false; }
+        this.createError = err.message || 'Failed to create meeting.';
+        console.error('Create meeting error:', err);
+      } finally {
+        this.creating = false;
+      }
     },
 
     copyCreatedCode() {
@@ -552,496 +548,287 @@ export default {
       navigator.clipboard.writeText(this.created.code).then(() => this.showToast('Code copied!'));
     },
 
+    /** Host clicks "Start meeting now" — switch to meeting view */
     enterMeeting() {
       if (!this.created.code) return;
-      sessionStorage.setItem('nova_meeting_code', this.created.code);
       this.meetingCode = this.created.code;
-      this.isHost = true;
+      this.isHost      = true;
+      sessionStorage.setItem('nova_is_host', 'true');
       this.view = 'meeting';
       this.$nextTick(() => this.initMeeting());
     },
 
-    updateClock() {
-      this.currentTime = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-    },
+    // ═══════════════════════════════════════════════════════════
+    //  JOIN / INIT MEETING
+    // ═══════════════════════════════════════════════════════════
 
     async initMeeting() {
+      // Resolve meeting code from props → sessionStorage → route
       if (!this.meetingCode) {
-        this.meetingCode = this.$route?.params?.code || sessionStorage.getItem('nova_meeting_code');
+        this.meetingCode = this.code
+          || this.$route?.params?.code
+          || MeetingSession.getMeetingCode();
       }
-      if (!this.meetingCode) { this.$router.push('/join-meeting'); return; }
+      if (!this.meetingCode) { this.$router.push('/meetings/join'); return; }
 
-      const user = JSON.parse(sessionStorage.getItem('nova_user') || '{}');
-      this.userName = user.name || user.username || user.displayName || user.firstName || '';
-
-      if (!this.userName && this.token) {
+      // Resolve display name
+      this.userName = MeetingSession.getUserDisplayName();
+      if (this.userName === 'Guest' && this.token) {
         try {
-          const res = await fetch(`${API}/auth/me`, {
+          const res = await fetch(`${BACKEND_API}/auth/me`, {
             headers: { 'Authorization': `Bearer ${this.token}`, 'ngrok-skip-browser-warning': 'true' },
           });
           if (res.ok) {
             const data = await res.json();
-            const u = data?.data || data?.user || data || {};
-            this.userName = u.name || u.username || u.displayName || u.firstName || u.email?.split('@')[0] || '';
-            if (this.userName) sessionStorage.setItem('nova_user', JSON.stringify({ ...user, name: this.userName }));
+            const u    = data?.data || data?.user || data || {};
+            const name = u.name || u.username || u.displayName || u.firstName || u.email?.split('@')[0] || '';
+            if (name) {
+              this.userName = name;
+              sessionStorage.setItem('nova_user', JSON.stringify({ ...MeetingSession.getUser(), name }));
+            }
           }
         } catch (_) {}
       }
-
-      if (!this.userName) this.userName = 'Guest';
       this.userInitials = this.userName.charAt(0).toUpperCase();
+      this.isHost       = this.isHost || sessionStorage.getItem('nova_is_host') === 'true';
 
-      if (!this.isHost) this.isHost = sessionStorage.getItem('nova_is_host') === 'true';
-      if (this.isHost)  sessionStorage.setItem('nova_is_host', 'true');
+      // Resolve Daily room URL
+      let roomUrl  = sessionStorage.getItem('nova_daily_room');
+      let roomName = sessionStorage.getItem('nova_daily_name');
 
-      this.updateClock();
-      this.clockInterval = setInterval(this.updateClock, 10000);
-
-      try {
-        this.localStream = await navigator.mediaDevices.getUserMedia({
-          video: { width: { ideal: 1280 }, height: { ideal: 720 } },
-          audio: true,
-        });
-      } catch (err) {
-        console.warn('Camera/mic unavailable:', err.message);
-        this.videoOn = false; this.audioOn = false;
-      }
-
-      await this.$nextTick();
-      if (this.$refs.localVideo && this.localStream) {
-        this.$refs.localVideo.srcObject = this.localStream;
-      }
-
-      this.connectWebSocket();
-    },
-
-    connectWebSocket() {
-      const url = this.token ? `${WS_URL}?token=${this.token}` : WS_URL;
-      this.ws = new WebSocket(url);
-
-      this.ws.onopen = () => {
-        console.log('✅ WS open');
-        this.sendWs({ type: 'JOIN', data: { name: this.userName, peerId: this.myPeerId } });
-      };
-
-      this.ws.onmessage = async (e) => {
-        let msg;
-        try { msg = JSON.parse(e.data); } catch { return; }
-        if (!msg.fromPeerId || msg.fromPeerId === this.myPeerId) return;
-        await this.handleWsMsg(msg);
-      };
-
-      this.ws.onerror = (e) => console.error('WS error', e);
-      this.ws.onclose = () => console.log('WS closed');
-    },
-
-    sendWs(obj) {
-      if (this.ws?.readyState === WebSocket.OPEN) {
-        obj.meetingCode = this.meetingCode;
-        obj.fromPeerId  = this.myPeerId;
-        this.ws.send(JSON.stringify(obj));
-      }
-    },
-
-    sendNameSync(toPeerId) {
-      this.sendWs({ type: 'NAME_SYNC', toPeerId, data: { name: this.userName } });
-    },
-
-    async handleWsMsg(msg) {
-      const fromId = msg.fromPeerId;
-      console.log('📨 WS message:', msg.type, '| from:', fromId);
-
-      switch (msg.type) {
-
-        case 'PARTICIPANT_LIST': {
-          const raw = Array.isArray(msg.data) ? msg.data
-            : Array.isArray(msg.data?.peers) ? msg.data.peers : [];
-          const peerList = raw
-            .map(p => (typeof p === 'string' ? { id: p, name: null } : { id: p.peerId || p.id, name: p.name || null }))
-            .filter(p => p.id && p.id !== this.myPeerId);
-          this.participantCount = peerList.length + 1;
-          for (const { id, name } of peerList) {
-            if (name) this.peerNames = { ...this.peerNames, [id]: name };
-            await this.createPC(id, true);
-            this.sendNameSync(id);
-          }
-          break;
-        }
-
-        case 'JOIN': {
-          if (!fromId) break;
-          this.participantCount++;
-          const joinName = msg.data?.name || msg.data?.userName || msg.data?.displayName || null;
-          if (joinName) this.peerNames = { ...this.peerNames, [fromId]: joinName };
-          await this.createPC(fromId, true);
-          this.sendNameSync(fromId);
-          break;
-        }
-
-        case 'NAME_SYNC': {
-          const syncName = msg.data?.name;
-          if (fromId && syncName) this.peerNames = { ...this.peerNames, [fromId]: syncName };
-          break;
-        }
-
-        case 'LEAVE':
-          this.peerLeave(fromId);
-          break;
-
-        case 'OFFER':
-          await this.handleOffer(msg);
-          this.sendNameSync(fromId);
-          break;
-
-        case 'ANSWER':
-          await this.handleAnswer(msg);
-          break;
-
-        case 'ICE_CANDIDATE':
-          await this.handleICE(msg);
-          break;
-
-        case 'CHAT_MESSAGE':
-          this.addMsg(msg.data?.senderName || this.peerNames[fromId] || 'Participant', msg.data?.message || '', false);
-          if (!this.chatOpen) this.unreadCount++;
-          break;
-
-        case 'TOGGLE_AUDIO':
-          this.peerMuted = { ...this.peerMuted, [fromId]: !msg.data?.enabled };
-          break;
-
-        case 'TOGGLE_VIDEO':
-          this.peerVideoOff = { ...this.peerVideoOff, [fromId]: !msg.data?.enabled };
-          break;
-
-        case 'SCREEN_SHARE_START':
-          this.activePresenterId = fromId;
-          await this.$nextTick(); await this.$nextTick();
-          // ✅ FIX G: The screen stream may have already arrived via ontrack BEFORE
-          // this WS signal (WebRTC negotiation is often faster than WS signaling).
-          // Re-trigger bindPeerScreenWithRetry now that the peerScreen_ DOM element
-          // exists (activePresenterId just set → v-else-if branch rendered).
-          if (this.peerScreenStreams[fromId]) {
-            this.bindPeerScreenWithRetry(fromId);
-          }
-          this.bindAllVideos();
-          break;
-
-        case 'SCREEN_SHARE_STOP':
-          if (this.activePresenterId === fromId) {
-            this.activePresenterId = null;
-            const ss = { ...this.peerScreenStreams }; delete ss[fromId]; this.peerScreenStreams = ss;
-            await this.$nextTick(); await this.$nextTick();
-            this.bindAllVideos();
-          }
-          break;
-
-        case 'MEETING_ENDED':
-          this.showToast('Meeting ended by host.', 'error');
-          setTimeout(() => this.cleanupAndNavigate(), 1800);
-          break;
-
-        case 'MEETING_RESTARTED':
-          this.showToast('Meeting restarted by host.');
-          this.cleanupPeers();
-          if (this.ws) { this.ws.onclose = null; this.ws.close(); this.ws = null; }
-          await this.$nextTick();
-          this.connectWebSocket();
-          break;
-      }
-    },
-
-    // ═══════════════════════════════════════════════════════
-    //  WEBRTC CORE
-    // ═══════════════════════════════════════════════════════
-    async createPC(peerId, sendOffer) {
-      if (!peerId || peerId === this.myPeerId) return null;
-      if (this.peers[peerId]) return this.peers[peerId];
-
-      const pc = new RTCPeerConnection(ICE_SERVERS);
-
-      if (this.localStream) {
-        // Camera + audio tracks are added together in localStream
-        this.localStream.getTracks().forEach(track => pc.addTrack(track, this.localStream));
-      }
-
-      // ─────────────────────────────────────────────────────────────────
-      // ✅ FIX F — Correct camera vs screen track identification
-      //
-      // THE BUG (old code):
-      //   Used `if (!this.peerStreams[peerId])` to decide camera vs screen.
-      //   This was unreliable because Vue reactivity doesn't update synchronously,
-      //   so the second track could arrive before the first track's reactive update
-      //   was committed — both tracks would be treated as "camera".
-      //
-      // THE FIX:
-      //   On the SENDER side, we add the screen track in a brand-new MediaStream
-      //   (`screenOnlyStream = new MediaStream([screenTrack])`), giving it a unique
-      //   stream.id different from `localStream.id`.
-      //
-      //   On the RECEIVER side, we remember the FIRST stream.id we see per peer
-      //   as `peerCameraStreamIds[peerId]`. Any track that arrives in a stream with
-      //   a DIFFERENT id is unambiguously the screen share track.
-      //
-      //   This is a deterministic check — no races, no timing dependencies.
-      // ─────────────────────────────────────────────────────────────────
-      pc.ontrack = (event) => {
-        const track = event.track;
-        const incomingStream = event.streams[0];
-
-        // Audio is routed automatically; skip it here.
-        if (track.kind === 'audio') return;
-
-        console.log(`🎥 ontrack from ${peerId}: kind=${track.kind}, streamId=${incomingStream?.id}`);
-
-        if (!incomingStream) {
-          // Orphan track (no stream) — wrap it and treat as camera fallback
-          if (!this.peerCameraStreamIds[peerId]) {
-            const s = new MediaStream([track]);
-            this.peerCameraStreamIds = { ...this.peerCameraStreamIds, [peerId]: s.id };
-            this.setPeerStream(peerId, s);
-            this.$nextTick(() => this.bindPeerVideoWithRetry(peerId));
-          }
+      if (!roomUrl) {
+        // First time joining via code — create/fetch the Daily room
+        roomName = this.toRoomName(this.meetingCode);
+        try {
+          const room = await this.ensureDailyRoom(roomName);
+          roomUrl    = room.url;
+          sessionStorage.setItem('nova_daily_room', roomUrl);
+          sessionStorage.setItem('nova_daily_name', roomName);
+        } catch (e) {
+          this.showToast('Could not connect to meeting room: ' + e.message, 'error');
           return;
         }
-
-        const knownCamId = this.peerCameraStreamIds[peerId];
-
-        if (!knownCamId) {
-          // ── First video track → CAMERA ──
-          this.peerCameraStreamIds = { ...this.peerCameraStreamIds, [peerId]: incomingStream.id };
-          this.setPeerStream(peerId, incomingStream);
-          this.$nextTick(() => this.bindPeerVideoWithRetry(peerId));
-          console.log(`📷 Camera stream set for ${peerId}: ${incomingStream.id}`);
-
-        } else if (incomingStream.id !== knownCamId) {
-          // ── Different stream.id → SCREEN SHARE ──
-          this.peerScreenStreams = { ...this.peerScreenStreams, [peerId]: incomingStream };
-          this.$nextTick(() => this.bindPeerScreenWithRetry(peerId));
-          console.log(`🖥️ Screen stream set for ${peerId}: ${incomingStream.id}`);
-
-        } else {
-          // ── Same stream.id as camera → re-negotiation / update of camera ──
-          this.setPeerStream(peerId, incomingStream);
-          this.$nextTick(() => this.bindPeerVideoWithRetry(peerId));
-          console.log(`🔄 Camera stream updated for ${peerId}: ${incomingStream.id}`);
-        }
-      };
-
-      pc.onicecandidate = (event) => {
-        if (event.candidate) {
-          this.sendWs({ type: 'ICE_CANDIDATE', toPeerId: peerId, data: event.candidate.toJSON() });
-        }
-      };
-
-      pc.onconnectionstatechange = () => {
-        console.log(`🔗 [${peerId.slice(-4)}] connectionState: ${pc.connectionState}`);
-        if (pc.connectionState === 'failed') pc.restartIce();
-        if (pc.connectionState === 'disconnected') {
-          setTimeout(() => {
-            if (['disconnected', 'failed', 'closed'].includes(pc.connectionState)) this.peerLeave(peerId);
-          }, 5000);
-        }
-      };
-
-      this.peers = { ...this.peers, [peerId]: pc };
-      this.pendingCandidates[peerId] = [];
-
-      if (sendOffer) {
-        try {
-          const offer = await pc.createOffer({ offerToReceiveAudio: true, offerToReceiveVideo: true });
-          await pc.setLocalDescription(offer);
-          this.sendWs({ type: 'OFFER', toPeerId: peerId, data: pc.localDescription, senderName: this.userName });
-          console.log(`📤 Offer → ${peerId}`);
-        } catch (err) {
-          console.error('createOffer failed:', err);
-        }
       }
 
-      return pc;
+      this.dailyRoomUrl  = roomUrl;
+      this.dailyRoomName = roomName;
+
+      this.updateClock();
+      this.clockInterval = setInterval(this.updateClock, 10_000);
+
+      await this.loadDailySDK();
+      await this.joinDailyRoom();
     },
 
-    async handleOffer(msg) {
-      const peerId = msg.fromPeerId;
-      if (!peerId || peerId === this.myPeerId) return;
-      console.log(`📥 Offer ← ${peerId}`);
-
-      const offererName = msg.senderName || msg.data?.senderName || null;
-      if (offererName) this.peerNames = { ...this.peerNames, [peerId]: offererName };
-
-      const pc = this.peers[peerId] || await this.createPC(peerId, false);
-
-      try {
-        await pc.setRemoteDescription(new RTCSessionDescription(msg.data));
-        const queued = this.pendingCandidates[peerId] || [];
-        for (const c of queued) { try { await pc.addIceCandidate(c); } catch (e) { console.warn('ICE drain:', e); } }
-        this.pendingCandidates[peerId] = [];
-
-        const answer = await pc.createAnswer();
-        await pc.setLocalDescription(answer);
-        this.sendWs({ type: 'ANSWER', toPeerId: peerId, data: pc.localDescription, senderName: this.userName });
-        console.log(`📤 Answer → ${peerId}`);
-      } catch (err) {
-        console.error('handleOffer error:', err);
-      }
-    },
-
-    async handleAnswer(msg) {
-      const peerId = msg.fromPeerId;
-      const pc = this.peers[peerId];
-      if (!pc) return;
-
-      const answererName = msg.senderName || msg.data?.senderName || null;
-      if (answererName) this.peerNames = { ...this.peerNames, [peerId]: answererName };
-
-      try {
-        if (pc.signalingState === 'have-local-offer') {
-          await pc.setRemoteDescription(new RTCSessionDescription(msg.data));
-          console.log(`✅ Answer set for ${peerId}`);
-          const queued = this.pendingCandidates[peerId] || [];
-          for (const c of queued) { try { await pc.addIceCandidate(c); } catch (e) { console.warn('ICE drain:', e); } }
-          this.pendingCandidates[peerId] = [];
-        }
-      } catch (err) {
-        console.error('handleAnswer error:', err);
-      }
-    },
-
-    async handleICE(msg) {
-      const peerId = msg.fromPeerId;
-      const pc = this.peers[peerId];
-      if (!pc || !msg.data) return;
-
-      const candidate = new RTCIceCandidate(msg.data);
-      if (!pc.remoteDescription?.type) {
-        if (!this.pendingCandidates[peerId]) this.pendingCandidates[peerId] = [];
-        this.pendingCandidates[peerId].push(candidate);
-        return;
-      }
-      try { await pc.addIceCandidate(candidate); }
-      catch (e) { console.warn('addIceCandidate error:', e); }
-    },
-
-    resolveRef(key) {
-      const r = this.$refs[key];
-      return Array.isArray(r) ? r[0] : r;
-    },
-
-    bindAllVideos() {
-      const localEl = this.$refs.localVideo;
-      if (localEl && this.localStream && localEl.srcObject !== this.localStream) {
-        localEl.srcObject = this.localStream;
-      }
-      const screenEl = this.$refs.screenVideo;
-      if (screenEl && this.screenStream && screenEl.srcObject !== this.screenStream) {
-        screenEl.srcObject = this.screenStream;
-        screenEl.play().catch(() => {});
-      }
-      this.peerIds.forEach(pid => {
-        this.bindPeerVideoWithRetry(pid);
-        if (this.peerScreenStreams[pid]) this.bindPeerScreenWithRetry(pid);
+    /** Dynamically load @daily-co/daily-js from CDN (cached after first load) */
+    loadDailySDK() {
+      return new Promise((resolve, reject) => {
+        if (window.DailyIframe) { resolve(); return; }
+        const s    = document.createElement('script');
+        s.src      = 'https://unpkg.com/@daily-co/daily-js';
+        s.onload   = resolve;
+        s.onerror  = () => reject(new Error('Failed to load Daily.co SDK'));
+        document.head.appendChild(s);
       });
     },
 
-    peerLeave(peerId) {
-      try { this.peers[peerId]?.close(); } catch (_) {}
-      const p = { ...this.peers };   delete p[peerId];   this.peers = p;
-      const s = { ...this.peerStreams }; delete s[peerId]; this.peerStreams = s;
-      const ss = { ...this.peerScreenStreams }; delete ss[peerId]; this.peerScreenStreams = ss;
-      const ci = { ...this.peerCameraStreamIds }; delete ci[peerId]; this.peerCameraStreamIds = ci;
-      const n = { ...this.peerNames };   delete n[peerId];   this.peerNames = n;
-      const m = { ...this.peerMuted };   delete m[peerId];   this.peerMuted = m;
-      const v = { ...this.peerVideoOff }; delete v[peerId]; this.peerVideoOff = v;
-      delete this.pendingCandidates[peerId];
-      if (this.activePresenterId === peerId) this.activePresenterId = null;
-      this.participantCount = Math.max(1, this.participantCount - 1);
-      console.log(`👋 ${peerId} left`);
+    /**
+     * Embed Daily inside our container div.
+     * DailyIframe.createFrame renders an <iframe> that handles:
+     *   - All video tiles
+     *   - Screen sharing (presenter + viewer — no custom WebRTC needed)
+     *   - Speaker detection layout
+     *   - Network quality adaptation
+     */
+    async joinDailyRoom() {
+      try {
+        this.dailyLoading = true;
+        console.log('🎥 Joining Daily room:', this.dailyRoomUrl);
+
+        const token = await this.createDailyToken(this.dailyRoomName);
+
+        this.callFrame = window.DailyIframe.createFrame(this.$refs.dailyContainer, {
+          iframeStyle: {
+            width:    '100%',
+            height:   '100%',
+            border:   'none',
+            background: '#202124',
+          },
+          // Hide Daily's own leave button — we have our custom controls bar
+          showLeaveButton:      false,
+          showFullscreenButton: true,
+          showParticipantsBar:  true,
+          showLocalVideo:       true,
+          // Match Nova's dark palette
+          theme: {
+            colors: {
+              accent:           '#1a73e8',
+              accentText:       '#ffffff',
+              background:       '#202124',
+              backgroundAccent: '#292b2f',
+              baseText:         '#e8eaed',
+              border:           '#3c4043',
+              mainAreaBg:       '#202124',
+              mainAreaBgAccent: '#292b2f',
+              supportiveText:   '#9aa0a6',
+            },
+          },
+        });
+
+        // Register event listeners
+        this.callFrame
+          .on('joined-meeting',      this.onJoinedMeeting)
+          .on('left-meeting',        this.onLeftMeeting)
+          .on('participant-joined',  this.onParticipantJoined)
+          .on('participant-updated', this.onParticipantUpdated)
+          .on('participant-left',    this.onParticipantLeft)
+          .on('app-message',         this.onAppMessage)
+          .on('error',               this.onDailyError)
+          .on('camera-error',        this.onCameraError);
+
+        // Join
+        const joinOpts = {
+          url:           this.dailyRoomUrl,
+          userName:      this.userName,
+          startVideoOff: false,
+          startAudioOff: false,
+        };
+        if (token) joinOpts.token = token;
+
+        await this.callFrame.join(joinOpts);
+      } catch (err) {
+        console.error('Daily join error:', err);
+        this.dailyLoading = false;
+        this.showToast('Failed to join: ' + err.message, 'error');
+      }
     },
 
-    cleanupPeers() {
-      Object.values(this.peers).forEach(pc => { try { pc.close(); } catch (_) {} });
-      this.peers = {}; this.peerStreams = {}; this.peerScreenStreams = {};
-      this.peerCameraStreamIds = {};
-      this.peerNames = {}; this.peerMuted = {}; this.peerVideoOff = {};
-      this.pendingCandidates = {};
-      this.activePresenterId = null; this.participantCount = 1;
+    // ═══════════════════════════════════════════════════════════
+    //  DAILY EVENT HANDLERS
+    // ═══════════════════════════════════════════════════════════
+
+    onJoinedMeeting(event) {
+      console.log('✅ Joined Daily meeting');
+      this.dailyLoading = false;
+      const local = event?.participants?.local;
+      if (local) {
+        this.audioOn = !local.audio_disabled;
+        this.videoOn = !local.video_disabled;
+      }
+      this.syncParticipantCount();
     },
+
+    onLeftMeeting() {
+      console.log('👋 Left Daily meeting');
+    },
+
+    onParticipantJoined(event) {
+      const name = event?.participant?.user_name;
+      console.log('👥 Participant joined:', name);
+      this.syncParticipantCount();
+      if (name && name !== this.userName) this.showToast(`${name} joined`);
+    },
+
+    onParticipantUpdated(event) {
+      const p = event?.participant;
+      if (!p) return;
+      if (p.local) {
+        this.audioOn       = !p.audio_disabled;
+        this.videoOn       = !p.video_disabled;
+        this.screenSharing = !!p.screen;
+      }
+      this.syncParticipantCount();
+    },
+
+    onParticipantLeft(event) {
+      console.log('👋 Participant left:', event?.participant?.user_name);
+      this.syncParticipantCount();
+    },
+
+    syncParticipantCount() {
+      if (!this.callFrame) return;
+      try {
+        this.participantCount = Object.keys(this.callFrame.participants()).length;
+      } catch (_) {}
+    },
+
+    /** All in-call chat and system messages go through sendAppMessage */
+    onAppMessage(event) {
+      const data = event?.data;
+      if (!data) return;
+
+      if (data.type === 'chat') {
+        this.addMsg(data.sender || 'Participant', data.text, false);
+        if (!this.chatOpen) this.unreadCount++;
+      }
+
+      if (data.type === 'meeting-ended') {
+        this.showToast('Meeting ended by host.', 'error');
+        setTimeout(() => this.cleanupAndNavigate(), 1800);
+      }
+
+      if (data.type === 'meeting-restarted') {
+        this.showToast('Meeting restarted — reconnecting…');
+        setTimeout(() => {
+          // Destroy current frame and rejoin
+          if (this.callFrame) {
+            try { this.callFrame.destroy(); } catch (_) {}
+            this.callFrame = null;
+          }
+          this.dailyLoading = true;
+          this.joinDailyRoom();
+        }, 1000);
+      }
+    },
+
+    onDailyError(event) {
+      console.error('Daily error:', event);
+      this.showToast('Connection error: ' + (event?.errorMsg || 'Unknown error'), 'error');
+    },
+
+    onCameraError(event) {
+      console.warn('Camera error:', event);
+      this.showToast('Camera/mic error — please check permissions.', 'error');
+    },
+
+    // ═══════════════════════════════════════════════════════════
+    //  MEDIA CONTROLS (delegate to Daily callFrame)
+    //  Daily handles ALL the WebRTC internals — no manual
+    //  renegotiation, ICE, or track management needed.
+    // ═══════════════════════════════════════════════════════════
 
     toggleAudio() {
-      if (!this.localStream) return;
-      this.audioOn = !this.audioOn;
-      this.localStream.getAudioTracks().forEach(t => { t.enabled = this.audioOn; });
-      this.sendWs({ type: 'TOGGLE_AUDIO', data: { enabled: this.audioOn } });
+      if (!this.callFrame) return;
+      this.callFrame.setLocalAudio(!this.audioOn);
+      // audioOn is updated via onParticipantUpdated
     },
 
     toggleVideo() {
-      if (!this.localStream) return;
-      this.videoOn = !this.videoOn;
-      this.localStream.getVideoTracks().forEach(t => { t.enabled = this.videoOn; });
-      this.sendWs({ type: 'TOGGLE_VIDEO', data: { enabled: this.videoOn } });
+      if (!this.callFrame) return;
+      this.callFrame.setLocalVideo(!this.videoOn);
     },
 
     async toggleScreen() {
-      if (this.screenStream) {
-        // ── STOP sharing ──
-        this.screenStream.getTracks().forEach(t => t.stop());
-        this.screenStream = null;
-
-        // Remove screen tracks from all peers
-        for (const pc of Object.values(this.peers)) {
-          const senders = pc.getSenders();
-          for (const sender of senders) {
-            if (sender.track?.kind === 'video' && sender.track !== this.localStream?.getVideoTracks()[0]) {
-              try {
-                pc.removeTrack(sender);
-              } catch (e) {
-                console.warn('Failed to remove screen track:', e);
-              }
-            }
-          }
+      if (!this.callFrame) return;
+      try {
+        if (this.screenSharing) {
+          await this.callFrame.stopScreenShare();
+        } else {
+          // Daily's startScreenShare handles getDisplayMedia + WebRTC renegotiation
+          // automatically for ALL remote participants. This is what was broken before.
+          await this.callFrame.startScreenShare();
         }
-
-        this.sendWs({ type: 'SCREEN_SHARE_STOP' });
-        await this.$nextTick(); await this.$nextTick();
-        this.bindAllVideos();
-      } else {
-        // ── START sharing ──
-        try {
-          this.screenStream = await navigator.mediaDevices.getDisplayMedia({ 
-            video: { cursor: 'always' }, 
-            audio: false 
-          });
-          
-          const screenTrack = this.screenStream.getVideoTracks()[0];
-
-          // Handle when user stops sharing via browser UI
-          screenTrack.onended = () => {
-            this.toggleScreen(); // This will trigger the stop sharing flow
-          };
-
-          // Add the screen track to each peer connection with its OWN stream
-          for (const pc of Object.values(this.peers)) {
-            try {
-              // IMPORTANT: Create a NEW stream for EACH peer connection
-              // This ensures each peer gets their own stream with a unique ID
-              const streamForPeer = new MediaStream([screenTrack]);
-              pc.addTrack(screenTrack, streamForPeer);
-            } catch (e) { 
-              console.warn('addTrack screen failed:', e); 
-            }
-          }
-
-          this.sendWs({ type: 'SCREEN_SHARE_START' });
-          await this.$nextTick(); await this.$nextTick();
-          this.bindAllVideos();
-        } catch (err) {
-          if (err.name !== 'NotAllowedError' && err.name !== 'AbortError') {
-            this.showToast('Screen share failed: ' + err.message, 'error');
-          }
-          this.screenStream = null;
+        // screenSharing state is updated via onParticipantUpdated
+      } catch (err) {
+        if (err.name !== 'NotAllowedError' && err.name !== 'AbortError') {
+          this.showToast('Screen share error: ' + err.message, 'error');
         }
       }
     },
+
+    // ═══════════════════════════════════════════════════════════
+    //  MEETING LIFECYCLE
+    // ═══════════════════════════════════════════════════════════
 
     endMeeting()     { this.showEndModal = true; },
     restartMeeting() { this.showRestartModal = true; },
@@ -1049,44 +836,104 @@ export default {
     async confirmEndMeeting() {
       this.ending = true;
       try {
-        await fetch(`${API}/meetings/end/${this.meetingCode}`, {
-          method: 'POST',
-          headers: { 'Authorization': `Bearer ${this.token}`, 'Content-Type': 'application/json', 'ngrok-skip-browser-warning': 'true' },
-        });
-        this.sendWs({ type: 'MEETING_ENDED', data: { endedBy: this.userName } });
-      } catch (err) { console.error('End meeting error:', err); }
-      setTimeout(() => {
-        this.ending = false; this.showEndModal = false;
-        sessionStorage.removeItem('nova_is_host');
-        sessionStorage.removeItem('nova_meeting_code');
+        // Notify backend
+        if (this.token && this.meetingCode) {
+          fetch(`${BACKEND_API}/meetings/end/${this.meetingCode}`, {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${this.token}`,
+              'Content-Type':  'application/json',
+              'ngrok-skip-browser-warning': 'true',
+            },
+          }).catch(() => {});
+        }
+
+        // Broadcast to all Daily participants
+        if (this.callFrame) {
+          try { this.callFrame.sendAppMessage({ type: 'meeting-ended', endedBy: this.userName }, '*'); } catch (_) {}
+        }
+
+        // Deleting the Daily room kicks everyone out
+        if (this.isHost && this.dailyRoomName) {
+          setTimeout(() => this.deleteDailyRoom(this.dailyRoomName), 1200);
+        }
+
+        this.showEndModal = false;
         this.cleanupAndNavigate();
-      }, 600);
+      } catch (err) {
+        console.error('End meeting error:', err);
+        this.showToast('Failed to end meeting.', 'error');
+      } finally {
+        this.ending = false;
+      }
     },
 
     async confirmRestartMeeting() {
       this.restarting = true;
       try {
-        await fetch(`${API}/meetings/end/${this.meetingCode}`, {
-          method: 'POST', headers: { 'Authorization': `Bearer ${this.token}`, 'Content-Type': 'application/json', 'ngrok-skip-browser-warning': 'true' },
-        }).catch(() => {});
-        await fetch(`${API}/meetings/start/${this.meetingCode}`, {
-          method: 'POST', headers: { 'Authorization': `Bearer ${this.token}`, 'ngrok-skip-browser-warning': 'true' },
-        }).catch(() => {});
+        // Backend: end + restart
+        if (this.token && this.meetingCode) {
+          await fetch(`${BACKEND_API}/meetings/end/${this.meetingCode}`, {
+            method: 'POST', headers: { 'Authorization': `Bearer ${this.token}`, 'ngrok-skip-browser-warning': 'true' },
+          }).catch(() => {});
+          await fetch(`${BACKEND_API}/meetings/start/${this.meetingCode}`, {
+            method: 'POST', headers: { 'Authorization': `Bearer ${this.token}`, 'ngrok-skip-browser-warning': 'true' },
+          }).catch(() => {});
+        }
 
-        this.sendWs({ type: 'MEETING_RESTARTED', data: { restartedBy: this.userName } });
-        this.cleanupPeers();
-        if (this.ws) { this.ws.onclose = null; this.ws.close(); this.ws = null; }
-        this.showRestartModal = false; this.restarting = false;
-        this.messages = [];
+        // Tell everyone to reconnect
+        if (this.callFrame) {
+          try { this.callFrame.sendAppMessage({ type: 'meeting-restarted', restartedBy: this.userName }, '*'); } catch (_) {}
+        }
+
+        this.showRestartModal = false;
         this.showToast('Meeting restarted!');
-        await this.$nextTick();
-        this.connectWebSocket();
+        this.messages = [];
+        this.unreadCount = 0;
+
+        // Host re-joins too
+        setTimeout(async () => {
+          if (this.callFrame) {
+            try { this.callFrame.destroy(); } catch (_) {}
+            this.callFrame = null;
+          }
+          this.dailyLoading = true;
+          await this.joinDailyRoom();
+        }, 1200);
       } catch (err) {
         console.error('Restart error:', err);
-        this.restarting = false;
         this.showToast('Failed to restart meeting.', 'error');
+      } finally {
+        this.restarting = false;
       }
     },
+
+    leave() {
+      const msg = this.isHost
+        ? 'Leave this meeting? Use "End" to close it for everyone.'
+        : 'Leave this meeting?';
+      if (!confirm(msg)) return;
+      this.cleanupAndNavigate();
+    },
+
+    cleanupAndNavigate() {
+      clearInterval(this.clockInterval);
+      if (this.callFrame) {
+        try { this.callFrame.destroy(); } catch (_) {}
+        this.callFrame = null;
+      }
+      MeetingSession.clearMeetingCode();
+      sessionStorage.removeItem('nova_daily_room');
+      sessionStorage.removeItem('nova_daily_name');
+      sessionStorage.removeItem('nova_is_host');
+
+      if (window.history.length > 1) this.$router.go(-1);
+      else this.$router.push(this.isAuthenticated ? '/meeting-dashboard' : '/meetings/join');
+    },
+
+    // ═══════════════════════════════════════════════════════════
+    //  CHAT (via Daily sendAppMessage — no separate WebSocket)
+    // ═══════════════════════════════════════════════════════════
 
     toggleChat() {
       this.chatOpen = !this.chatOpen;
@@ -1094,9 +941,19 @@ export default {
     },
 
     sendMessage() {
-      const text = this.chatMessage.trim(); if (!text) return;
+      const text = this.chatMessage.trim();
+      if (!text) return;
+
       this.addMsg(this.userName, text, true);
-      this.sendWs({ type: 'CHAT_MESSAGE', data: { message: text, senderName: this.userName, timestamp: Date.now() } });
+
+      if (this.callFrame) {
+        try {
+          this.callFrame.sendAppMessage({ type: 'chat', sender: this.userName, text }, '*');
+        } catch (e) {
+          console.warn('sendAppMessage failed:', e);
+        }
+      }
+
       this.chatMessage = '';
     },
 
@@ -1108,8 +965,13 @@ export default {
       });
     },
 
+    // ═══════════════════════════════════════════════════════════
+    //  UTILITIES
+    // ═══════════════════════════════════════════════════════════
+
     copyMeetingCode() {
-      navigator.clipboard.writeText(this.meetingCode).then(() => this.showToast('Code copied!'));
+      navigator.clipboard.writeText(this.meetingCode)
+        .then(() => this.showToast('Code copied!'));
     },
 
     showToast(msg, type = 'success') {
@@ -1117,55 +979,52 @@ export default {
       setTimeout(() => { this.toastVisible = false; }, 2800);
     },
 
+    updateClock() {
+      this.currentTime = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    },
+
+    goToDashboard() {
+      if (window.history.length > 1) this.$router.go(-1);
+      else this.$router.push(this.isAuthenticated ? '/meeting-dashboard' : '/meetings/join');
+    },
+
     goBack() {
       if (window.history.length > 1) this.$router.go(-1);
-      else this.$router.push(this.isAuthenticated ? '/meeting-dashboard' : '/join-meeting');
-    },
-
-    cleanupAndNavigate() {
-      this.localStream?.getTracks().forEach(t => t.stop());
-      this.screenStream?.getTracks().forEach(t => t.stop());
-      this.cleanupPeers();
-      if (this.ws) {
-        this.ws.onclose = null;
-        try { this.sendWs({ type: 'LEAVE' }); } catch (_) {}
-        this.ws.close(); this.ws = null;
-      }
-      sessionStorage.removeItem('nova_meeting_code');
-      sessionStorage.removeItem('nova_is_host');
-      clearInterval(this.clockInterval);
-      if (window.history.length > 1) this.$router.go(-1);
-      else this.$router.push(this.isAuthenticated ? '/meeting-dashboard' : '/join-meeting');
-    },
-
-    leave() {
-      const msg = this.isHost ? 'Leave this meeting? (Use "End" to close for everyone.)' : 'Leave this meeting?';
-      if (!confirm(msg)) return;
-      this.cleanupAndNavigate();
+      else this.$router.push(this.isAuthenticated ? '/meeting-dashboard' : '/meetings/join');
     },
   },
 
   mounted() {
     const forceCreate = this.$route?.query?.create === 'true';
+
     if (forceCreate) {
-      sessionStorage.removeItem('nova_meeting_code');
+      // Clear any lingering session
+      MeetingSession.clearMeetingCode();
       sessionStorage.removeItem('nova_is_host');
+      sessionStorage.removeItem('nova_daily_room');
+      sessionStorage.removeItem('nova_daily_name');
       this.view = 'create';
     } else {
-      const routeCode = this.$route?.params?.code || sessionStorage.getItem('nova_meeting_code');
-      if (routeCode) {
-        this.meetingCode = routeCode;
-        this.isHost = sessionStorage.getItem('nova_is_host') === 'true';
-        this.view = 'meeting';
+      // Join by code: from route prop, route param, or sessionStorage
+      const resolvedCode = this.code
+        || this.$route?.params?.code
+        || MeetingSession.getMeetingCode();
+
+      if (resolvedCode) {
+        this.meetingCode = resolvedCode;
+        this.isHost      = sessionStorage.getItem('nova_is_host') === 'true';
+        this.view        = 'meeting';
         this.$nextTick(() => this.initMeeting());
       }
+      // If no code, stay on create view
     }
 
+    // Keyboard shortcuts (a = toggle audio, d = toggle video)
     this._keyHandler = (e) => {
       if (this.view !== 'meeting') return;
       if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
-      if (e.key === 'd') this.toggleVideo();
       if (e.key === 'a') this.toggleAudio();
+      if (e.key === 'd') this.toggleVideo();
     };
     window.addEventListener('keydown', this._keyHandler);
   },
@@ -1173,10 +1032,10 @@ export default {
   beforeUnmount() {
     window.removeEventListener('keydown', this._keyHandler);
     clearInterval(this.clockInterval);
-    this.localStream?.getTracks().forEach(t => t.stop());
-    this.screenStream?.getTracks().forEach(t => t.stop());
-    this.cleanupPeers();
-    if (this.ws) { this.ws.onclose = null; this.ws.close(); this.ws = null; }
+    if (this.callFrame) {
+      try { this.callFrame.destroy(); } catch (_) {}
+      this.callFrame = null;
+    }
   },
 };
 </script>
@@ -1185,188 +1044,181 @@ export default {
 @import url('https://fonts.googleapis.com/css2?family=Google+Sans:wght@400;500;600&family=Google+Sans+Mono&display=swap');
 
 .nv-root {
-  --c-bg:     #202124; --c-surf:   #292b2f; --c-surf2:  #3c4043;
-  --c-line:   #3c4043; --c-blue:   #1a73e8; --c-blue2:  #174ea6;
-  --c-green:  #34a853; --c-red:    #ea4335; --c-red-bg: rgba(234,67,53,.15);
-  --c-orange: #fa7b17; --c-text:   #e8eaed; --c-text2:  #9aa0a6; --c-r: 8px;
-  font-family: 'Google Sans', system-ui, sans-serif;
+  --c-bg:    #202124; --c-surf:  #292b2f; --c-surf2: #3c4043;
+  --c-line:  #3c4043; --c-blue:  #1a73e8; --c-blue2: #174ea6;
+  --c-green: #34a853; --c-red:   #ea4335; --c-red-bg:rgba(234,67,53,.15);
+  --c-orange:#fa7b17; --c-text:  #e8eaed; --c-text2: #9aa0a6; --c-r:8px;
+  font-family:'Google Sans',system-ui,sans-serif;
 }
 
-/* ── CREATE ───────────────────────────────────────────── */
-.nv-create-wrap { min-height:100vh; background:var(--c-bg); color:var(--c-text); display:flex; flex-direction:column; }
-.nv-cnav { display:flex; align-items:center; justify-content:space-between; padding:14px 32px; background:var(--c-surf); border-bottom:1px solid var(--c-line); }
-.nv-cbrand { display:flex; align-items:center; gap:10px; font-size:17px; font-weight:600; color:var(--c-text); cursor:pointer; }
-.nv-cnav-back { display:flex; align-items:center; gap:7px; padding:7px 16px; border:1px solid var(--c-line); border-radius:var(--c-r); background:transparent; color:var(--c-text2); font-family:inherit; font-size:13px; font-weight:500; cursor:pointer; transition:all .15s; }
-.nv-cnav-back:hover { border-color:var(--c-blue); color:var(--c-text); background:rgba(26,115,232,.08); }
-.nv-cmain { max-width:560px; margin:0 auto; padding:44px 24px 60px; width:100%; }
-.nv-chead { margin-bottom:28px; }
-.nv-ctitle { font-size:26px; font-weight:600; color:var(--c-text); letter-spacing:-.3px; margin-bottom:6px; }
-.nv-csub { font-size:14px; color:var(--c-text2); }
-.nv-card { background:var(--c-surf); border:1px solid var(--c-line); border-radius:16px; padding:32px; box-shadow:0 8px 40px rgba(0,0,0,.4); }
-.nv-success-banner { display:flex; align-items:center; gap:14px; padding:16px 18px; border-radius:12px; background:rgba(52,168,83,.1); border:1px solid rgba(52,168,83,.3); margin-bottom:24px; flex-wrap:wrap; }
-.nv-success-check { width:36px; height:36px; border-radius:50%; background:rgba(52,168,83,.2); border:1px solid rgba(52,168,83,.4); display:flex; align-items:center; justify-content:center; color:#81c995; flex-shrink:0; }
-.nv-success-title { font-size:14px; font-weight:600; color:var(--c-text); }
-.nv-success-sub { font-size:12px; color:var(--c-text2); margin-top:2px; }
-.nv-code-pill { display:flex; align-items:center; gap:7px; margin-left:auto; padding:8px 16px; border-radius:24px; background:rgba(52,168,83,.12); border:1px solid rgba(52,168,83,.3); font-family:'Google Sans Mono',monospace; font-size:15px; font-weight:600; color:#81c995; cursor:pointer; letter-spacing:1px; transition:background .15s; }
-.nv-code-pill:hover { background:rgba(52,168,83,.22); }
-.nv-section-label { font-size:11px; font-weight:600; letter-spacing:.8px; text-transform:uppercase; color:var(--c-text2); margin-bottom:14px; }
-.nv-field { margin-bottom:16px; }
-.nv-flabel { display:block; font-size:13px; font-weight:500; color:var(--c-text2); margin-bottom:7px; }
-.nv-req { color:var(--c-red); } .nv-opt { color:#5f6368; font-weight:400; }
-.nv-finput { width:100%; padding:11px 14px; background:var(--c-surf2); border:1px solid var(--c-line); border-radius:var(--c-r); color:var(--c-text); font-family:inherit; font-size:14px; transition:border-color .15s,box-shadow .15s; box-sizing:border-box; }
-.nv-finput::placeholder { color:#5f6368; }
-.nv-finput:focus { outline:none; border-color:var(--c-blue); box-shadow:0 0 0 3px rgba(26,115,232,.18); }
-.nv-ftextarea { resize:vertical; min-height:70px; line-height:1.5; }
-.nv-row2 { display:grid; grid-template-columns:1fr 1fr; gap:14px; }
-.nv-toggle-list { border:1px solid var(--c-line); border-radius:var(--c-r); overflow:hidden; }
-.nv-trow { display:flex; align-items:center; justify-content:space-between; padding:13px 16px; cursor:pointer; border-bottom:1px solid var(--c-line); transition:background .12s; }
-.nv-trow:last-child { border-bottom:none; }
-.nv-trow:hover { background:rgba(255,255,255,.03); }
-.nv-trow-label { font-size:14px; color:var(--c-text); } .nv-trow-sub { font-size:12px; color:var(--c-text2); margin-top:2px; }
-.nv-switch { width:40px; height:22px; border-radius:22px; background:var(--c-surf2); border:1px solid var(--c-line); position:relative; flex-shrink:0; transition:background .2s,border-color .2s; }
-.nv-switch--on { background:var(--c-blue); border-color:var(--c-blue); }
-.nv-switch-thumb { position:absolute; width:16px; height:16px; border-radius:50%; background:var(--c-text2); top:2px; left:2px; transition:transform .2s,background .2s; }
-.nv-switch--on .nv-switch-thumb { transform:translateX(18px); background:#fff; }
-.nv-btn-primary { width:100%; margin-top:24px; padding:13px 20px; background:var(--c-blue); border:none; border-radius:var(--c-r); color:#fff; font-family:inherit; font-size:15px; font-weight:600; cursor:pointer; display:flex; align-items:center; justify-content:center; gap:8px; transition:background .15s,transform .1s,box-shadow .15s; box-shadow:0 2px 12px rgba(26,115,232,.35); }
-.nv-btn-primary:hover:not(:disabled) { background:var(--c-blue2); transform:translateY(-1px); box-shadow:0 6px 20px rgba(26,115,232,.45); }
-.nv-btn-primary:disabled { opacity:.55; cursor:not-allowed; }
-.nv-btn-go { background:#34a853; box-shadow:0 2px 12px rgba(52,168,83,.35); }
-.nv-btn-go:hover:not(:disabled) { background:#2d9248; }
-.nv-btn-ghost { width:100%; margin-top:10px; padding:12px 20px; background:transparent; border:1px solid var(--c-line); border-radius:var(--c-r); color:var(--c-text2); font-family:inherit; font-size:14px; font-weight:500; cursor:pointer; transition:all .15s; }
-.nv-btn-ghost:hover { border-color:var(--c-blue); color:var(--c-text); background:rgba(26,115,232,.06); }
-.nv-postcreate { margin-top:8px; }
-.nv-alert-error { display:flex; align-items:center; gap:8px; margin-top:14px; padding:11px 14px; border-radius:var(--c-r); background:rgba(234,67,53,.1); border:1px solid rgba(234,67,53,.3); font-size:13px; color:#f28b82; }
-.nv-spinner { display:inline-block; width:14px; height:14px; border:2px solid rgba(255,255,255,.3); border-top-color:#fff; border-radius:50%; animation:nv-spin .65s linear infinite; }
-.nv-spinner--sm { width:13px; height:13px; border:2px solid rgba(255,255,255,.25); border-top-color:currentColor; }
-@keyframes nv-spin { to { transform:rotate(360deg); } }
+/* ── CREATE ─────────────────────────────────────────── */
+.nv-create-wrap{min-height:100vh;background:var(--c-bg);color:var(--c-text);display:flex;flex-direction:column}
+.nv-cnav{display:flex;align-items:center;justify-content:space-between;padding:14px 32px;background:var(--c-surf);border-bottom:1px solid var(--c-line)}
+.nv-cbrand{display:flex;align-items:center;gap:10px;font-size:17px;font-weight:600;color:var(--c-text);cursor:pointer}
+.nv-cnav-back{display:flex;align-items:center;gap:7px;padding:7px 16px;border:1px solid var(--c-line);border-radius:var(--c-r);background:transparent;color:var(--c-text2);font-family:inherit;font-size:13px;font-weight:500;cursor:pointer;transition:all .15s}
+.nv-cnav-back:hover{border-color:var(--c-blue);color:var(--c-text);background:rgba(26,115,232,.08)}
+.nv-cmain{max-width:560px;margin:0 auto;padding:44px 24px 60px;width:100%}
+.nv-chead{margin-bottom:28px}
+.nv-ctitle{font-size:26px;font-weight:600;color:var(--c-text);letter-spacing:-.3px;margin-bottom:6px}
+.nv-csub{font-size:14px;color:var(--c-text2)}
+.nv-card{background:var(--c-surf);border:1px solid var(--c-line);border-radius:16px;padding:32px;box-shadow:0 8px 40px rgba(0,0,0,.4)}
+.nv-success-banner{display:flex;align-items:center;gap:14px;padding:16px 18px;border-radius:12px;background:rgba(52,168,83,.1);border:1px solid rgba(52,168,83,.3);margin-bottom:24px;flex-wrap:wrap}
+.nv-success-check{width:36px;height:36px;border-radius:50%;background:rgba(52,168,83,.2);border:1px solid rgba(52,168,83,.4);display:flex;align-items:center;justify-content:center;color:#81c995;flex-shrink:0}
+.nv-success-title{font-size:14px;font-weight:600;color:var(--c-text)}
+.nv-success-sub{font-size:12px;color:var(--c-text2);margin-top:2px}
+.nv-code-pill{display:flex;align-items:center;gap:7px;margin-left:auto;padding:8px 16px;border-radius:24px;background:rgba(52,168,83,.12);border:1px solid rgba(52,168,83,.3);font-family:'Google Sans Mono',monospace;font-size:15px;font-weight:600;color:#81c995;cursor:pointer;letter-spacing:1px;transition:background .15s}
+.nv-code-pill:hover{background:rgba(52,168,83,.22)}
+.nv-section-label{font-size:11px;font-weight:600;letter-spacing:.8px;text-transform:uppercase;color:var(--c-text2);margin-bottom:14px}
+.nv-field{margin-bottom:16px}
+.nv-flabel{display:block;font-size:13px;font-weight:500;color:var(--c-text2);margin-bottom:7px}
+.nv-req{color:var(--c-red)}.nv-opt{color:#5f6368;font-weight:400}
+.nv-finput{width:100%;padding:11px 14px;background:var(--c-surf2);border:1px solid var(--c-line);border-radius:var(--c-r);color:var(--c-text);font-family:inherit;font-size:14px;transition:border-color .15s,box-shadow .15s;box-sizing:border-box}
+.nv-finput::placeholder{color:#5f6368}
+.nv-finput:focus{outline:none;border-color:var(--c-blue);box-shadow:0 0 0 3px rgba(26,115,232,.18)}
+.nv-ftextarea{resize:vertical;min-height:70px;line-height:1.5}
+.nv-row2{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.nv-toggle-list{border:1px solid var(--c-line);border-radius:var(--c-r);overflow:hidden}
+.nv-trow{display:flex;align-items:center;justify-content:space-between;padding:13px 16px;cursor:pointer;border-bottom:1px solid var(--c-line);transition:background .12s}
+.nv-trow:last-child{border-bottom:none}
+.nv-trow:hover{background:rgba(255,255,255,.03)}
+.nv-trow-label{font-size:14px;color:var(--c-text)}.nv-trow-sub{font-size:12px;color:var(--c-text2);margin-top:2px}
+.nv-switch{width:40px;height:22px;border-radius:22px;background:var(--c-surf2);border:1px solid var(--c-line);position:relative;flex-shrink:0;transition:background .2s,border-color .2s}
+.nv-switch--on{background:var(--c-blue);border-color:var(--c-blue)}
+.nv-switch-thumb{position:absolute;width:16px;height:16px;border-radius:50%;background:var(--c-text2);top:2px;left:2px;transition:transform .2s,background .2s}
+.nv-switch--on .nv-switch-thumb{transform:translateX(18px);background:#fff}
+.nv-btn-primary{width:100%;margin-top:24px;padding:13px 20px;background:var(--c-blue);border:none;border-radius:var(--c-r);color:#fff;font-family:inherit;font-size:15px;font-weight:600;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;transition:background .15s,transform .1s,box-shadow .15s;box-shadow:0 2px 12px rgba(26,115,232,.35)}
+.nv-btn-primary:hover:not(:disabled){background:var(--c-blue2);transform:translateY(-1px);box-shadow:0 6px 20px rgba(26,115,232,.45)}
+.nv-btn-primary:disabled{opacity:.55;cursor:not-allowed}
+.nv-btn-go{background:#34a853;box-shadow:0 2px 12px rgba(52,168,83,.35)}
+.nv-btn-go:hover:not(:disabled){background:#2d9248}
+.nv-btn-ghost{width:100%;margin-top:10px;padding:12px 20px;background:transparent;border:1px solid var(--c-line);border-radius:var(--c-r);color:var(--c-text2);font-family:inherit;font-size:14px;font-weight:500;cursor:pointer;transition:all .15s}
+.nv-btn-ghost:hover{border-color:var(--c-blue);color:var(--c-text);background:rgba(26,115,232,.06)}
+.nv-postcreate{margin-top:8px}
+.nv-alert-error{display:flex;align-items:center;gap:8px;margin-top:14px;padding:11px 14px;border-radius:var(--c-r);background:rgba(234,67,53,.1);border:1px solid rgba(234,67,53,.3);font-size:13px;color:#f28b82}
+.nv-spinner{display:inline-block;width:14px;height:14px;border:2px solid rgba(255,255,255,.3);border-top-color:#fff;border-radius:50%;animation:nv-spin .65s linear infinite}
+.nv-spinner--sm{width:13px;height:13px;border:2px solid rgba(255,255,255,.25);border-top-color:currentColor}
+.nv-spinner--lg{width:36px;height:36px;border-width:3px;border-color:rgba(255,255,255,.2);border-top-color:var(--c-blue)}
+@keyframes nv-spin{to{transform:rotate(360deg)}}
 
-/* ── MEETING ──────────────────────────────────────────── */
-.nv-meet { background:var(--c-bg); color:var(--c-text); display:flex; flex-direction:column; position:fixed; inset:0; z-index:9999; overflow:hidden; }
-.nv-header { height:60px; flex-shrink:0; background:var(--c-bg); border-bottom:1px solid var(--c-line); display:flex; align-items:center; justify-content:space-between; padding:0 20px; z-index:10; }
-.nv-hleft,.nv-hright { display:flex; align-items:center; gap:12px; }
-.nv-brand { display:flex; align-items:center; gap:8px; }
-.nv-brand-name { font-size:16px; font-weight:600; letter-spacing:-.2px; }
-.nv-live-pill { display:flex; align-items:center; gap:5px; font-size:10px; font-weight:600; letter-spacing:.5px; padding:3px 8px; border-radius:20px; background:rgba(234,67,53,.14); border:1px solid rgba(234,67,53,.3); color:#f28b82; }
-.nv-live-dot { width:6px; height:6px; border-radius:50%; background:var(--c-red); animation:nv-pulse 2s ease-in-out infinite; }
-@keyframes nv-pulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:.3;transform:scale(.65)} }
-.nv-host-badge { display:flex; align-items:center; gap:5px; font-size:10px; font-weight:600; padding:3px 9px; border-radius:20px; background:rgba(250,123,23,.14); border:1px solid rgba(250,123,23,.35); color:#fba45c; }
-.nv-code-chip { display:flex; align-items:center; gap:6px; padding:5px 12px; background:var(--c-surf); border:1px solid var(--c-line); border-radius:var(--c-r); color:#8ab4f8; font-family:'Google Sans Mono',monospace; font-size:12px; cursor:pointer; transition:background .15s; }
-.nv-code-chip:hover { background:var(--c-surf2); border-color:#8ab4f8; }
-.nv-pcount { display:flex; align-items:center; gap:6px; font-size:13px; color:var(--c-text2); }
-.nv-clock { font-size:13px; color:var(--c-text2); min-width:42px; text-align:right; }
-.nv-hbtn { display:flex; align-items:center; gap:6px; padding:7px 14px; border:1px solid var(--c-line); border-radius:var(--c-r); background:transparent; color:var(--c-text2); font-family:inherit; font-size:13px; font-weight:500; cursor:pointer; transition:all .15s; position:relative; }
-.nv-hbtn:hover,.nv-hbtn--on { background:var(--c-surf2); color:var(--c-text); border-color:var(--c-surf2); }
-.nv-hbtn--danger { border-color:rgba(234,67,53,.35); color:#f28b82; }
-.nv-hbtn--danger:hover { background:rgba(234,67,53,.14); border-color:var(--c-red); }
-.nv-unread { min-width:17px; height:17px; border-radius:9px; background:var(--c-blue); color:#fff; font-size:10px; font-weight:700; display:inline-flex; align-items:center; justify-content:center; padding:0 4px; }
+/* ── MEETING SHELL ──────────────────────────────────── */
+.nv-meet{background:var(--c-bg);color:var(--c-text);display:flex;flex-direction:column;position:fixed;inset:0;z-index:9999;overflow:hidden}
 
-/* ── GRID ─────────────────────────────────────────────── */
-.nv-grid { flex:1; min-height:0; display:grid; grid-template-columns:repeat(auto-fit,minmax(280px,1fr)); gap:12px; padding:16px; overflow-y:auto; align-content:start; background:var(--c-bg); }
-.nv-grid:has(> .nv-tile:nth-child(2))  { grid-template-columns:repeat(2,1fr); }
-.nv-grid:has(> .nv-tile:nth-child(5))  { grid-template-columns:repeat(3,1fr); }
-.nv-grid:has(> .nv-tile:nth-child(10)) { grid-template-columns:repeat(4,1fr); }
-.nv-grid--presenting { grid-template-columns:1fr 300px; grid-template-rows:1fr; align-content:stretch; gap:12px; }
-.nv-gmain { grid-column:1; grid-row:1; display:flex; align-items:center; justify-content:center; min-height:0; border-radius:16px; overflow:hidden; background:#000; }
-.nv-gsidebar { grid-column:2; grid-row:1; display:flex; flex-direction:column; gap:10px; overflow-y:auto; min-height:0; padding-right:4px; }
-.nv-gsidebar .nv-tile { flex-shrink:0; aspect-ratio:16/9; min-height:100px; }
-.nv-gsidebar::-webkit-scrollbar { width:6px; }
-.nv-gsidebar::-webkit-scrollbar-thumb { background:var(--c-surf2); border-radius:3px; }
-.nv-tile { position:relative; background:var(--c-surf); border-radius:12px; overflow:hidden; aspect-ratio:16/9; border:1px solid var(--c-line); transition:border-color .2s; }
-.nv-tile:hover { border-color:#5f6368; }
-.nv-tile--me { border:2px solid rgba(52,168,83,.4); box-shadow:0 0 0 1px rgba(52,168,83,.2); }
-.nv-tile--me:hover { border-color:var(--c-green); }
-.nv-tile--screen { width:100%; height:100%; aspect-ratio:unset; border:2px solid var(--c-blue); box-shadow:0 0 0 1px rgba(26,115,232,.25); }
-.nv-tile video { width:100%; height:100%; object-fit:cover; display:block; }
-.nv-tile--screen video { object-fit:contain; background:#000; }
-.nv-tilebar { position:absolute; bottom:0; left:0; right:0; padding:22px 10px 9px; background:linear-gradient(to top,rgba(0,0,0,.72) 0%,transparent 100%); display:flex; align-items:flex-end; justify-content:space-between; pointer-events:none; z-index:2; }
-.nv-tilemeta { display:flex; align-items:center; gap:6px; font-size:13px; font-weight:500; color:#fff; text-shadow:0 1px 3px rgba(0,0,0,.5); }
-.nv-tilebadges { display:flex; gap:4px; }
-.nv-you-dot { width:6px; height:6px; border-radius:50%; background:var(--c-green); flex-shrink:0; }
-.nv-badge { width:22px; height:22px; border-radius:5px; display:flex; align-items:center; justify-content:center; backdrop-filter:blur(8px); }
-.nv-badge--red  { background:rgba(234,67,53,.88); }
-.nv-badge--blue { background:rgba(26,115,232,.88); }
-.nv-nocam { position:absolute; inset:0; display:flex; align-items:center; justify-content:center; background:var(--c-surf); z-index:1; }
-.nv-avatar { width:64px; height:64px; border-radius:50%; background:linear-gradient(135deg,#1a73e8,#0d47a1); display:flex; align-items:center; justify-content:center; font-size:24px; font-weight:600; color:#fff; box-shadow:0 4px 16px rgba(26,115,232,.35); }
-.nv-avatar--sm { width:40px; height:40px; font-size:14px; }
+.nv-header{height:60px;flex-shrink:0;background:var(--c-bg);border-bottom:1px solid var(--c-line);display:flex;align-items:center;justify-content:space-between;padding:0 20px;z-index:200}
+.nv-hleft,.nv-hright{display:flex;align-items:center;gap:12px}
+.nv-brand{display:flex;align-items:center;gap:8px}
+.nv-brand-name{font-size:16px;font-weight:600;letter-spacing:-.2px}
+.nv-live-pill{display:flex;align-items:center;gap:5px;font-size:10px;font-weight:600;letter-spacing:.5px;padding:3px 8px;border-radius:20px;background:rgba(234,67,53,.14);border:1px solid rgba(234,67,53,.3);color:#f28b82}
+.nv-live-dot{width:6px;height:6px;border-radius:50%;background:var(--c-red);animation:nv-pulse 2s ease-in-out infinite}
+@keyframes nv-pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.3;transform:scale(.65)}}
+.nv-host-badge{display:flex;align-items:center;gap:5px;font-size:10px;font-weight:600;padding:3px 9px;border-radius:20px;background:rgba(250,123,23,.14);border:1px solid rgba(250,123,23,.35);color:#fba45c}
+.nv-code-chip{display:flex;align-items:center;gap:6px;padding:5px 12px;background:var(--c-surf);border:1px solid var(--c-line);border-radius:var(--c-r);color:#8ab4f8;font-family:'Google Sans Mono',monospace;font-size:12px;cursor:pointer;transition:background .15s}
+.nv-code-chip:hover{background:var(--c-surf2);border-color:#8ab4f8}
+.nv-pcount{display:flex;align-items:center;gap:6px;font-size:13px;color:var(--c-text2)}
+.nv-clock{font-size:13px;color:var(--c-text2);min-width:42px;text-align:right}
+.nv-hbtn{display:flex;align-items:center;gap:6px;padding:7px 14px;border:1px solid var(--c-line);border-radius:var(--c-r);background:transparent;color:var(--c-text2);font-family:inherit;font-size:13px;font-weight:500;cursor:pointer;transition:all .15s;position:relative}
+.nv-hbtn:hover,.nv-hbtn--on{background:var(--c-surf2);color:var(--c-text);border-color:var(--c-surf2)}
+.nv-hbtn--danger{border-color:rgba(234,67,53,.35);color:#f28b82}
+.nv-hbtn--danger:hover{background:rgba(234,67,53,.14);border-color:var(--c-red)}
+.nv-unread{min-width:17px;height:17px;border-radius:9px;background:var(--c-blue);color:#fff;font-size:10px;font-weight:700;display:inline-flex;align-items:center;justify-content:center;padding:0 4px}
 
-/* ── CONTROLS ─────────────────────────────────────────── */
-.nv-controls { height:80px; flex-shrink:0; background:var(--c-bg); border-top:1px solid var(--c-line); display:flex; align-items:center; justify-content:center; }
-.nv-ctrl-row { display:flex; align-items:center; gap:6px; }
-.nv-cslot { display:flex; flex-direction:column; align-items:center; gap:5px; }
-.nv-ctrl { width:48px; height:48px; border-radius:50%; border:none; cursor:pointer; display:flex; align-items:center; justify-content:center; transition:background .15s,transform .1s; color:var(--c-text); }
-.nv-ctrl:hover:not(:disabled) { transform:scale(1.06); }
-.nv-ctrl:disabled { opacity:.5; cursor:not-allowed; }
-.nv-ctrl--on  { background:var(--c-surf2); border:1px solid var(--c-line); }
-.nv-ctrl--on:hover { background:#4e5256; }
-.nv-ctrl--off { background:var(--c-red-bg); color:#f28b82; border:1px solid rgba(234,67,53,.3); }
-.nv-ctrl--off:hover { background:rgba(234,67,53,.25); }
-.nv-ctrl--sharing { background:rgba(26,115,232,.2); color:#8ab4f8; border:1px solid rgba(26,115,232,.3); }
-.nv-ctrl--leave { width:52px; height:52px; background:var(--c-red); color:#fff; box-shadow:0 2px 12px rgba(234,67,53,.4); }
-.nv-ctrl--leave:hover { background:#d33828; }
-.nv-ctrl--end { width:52px; height:52px; background:rgba(234,67,53,.18); color:#f28b82; border:2px solid rgba(234,67,53,.5); }
-.nv-ctrl--end:hover:not(:disabled) { background:var(--c-red); color:#fff; border-color:var(--c-red); }
-.nv-ctrl--restart { background:rgba(250,123,23,.15); color:#fba45c; border:1.5px solid rgba(250,123,23,.4); }
-.nv-ctrl--restart:hover:not(:disabled) { background:rgba(250,123,23,.3); }
-.nv-clabel { font-size:10px; color:var(--c-text2); white-space:nowrap; font-weight:500; }
-.nv-clabel--red    { color:#f28b82; }
-.nv-clabel--orange { color:#fba45c; }
-.nv-cdivider { width:1px; height:32px; background:var(--c-line); margin:0 8px; }
+/* Daily iframe occupies the space between header and controls */
+.nv-daily-wrap{
+  position:absolute;
+  top:60px;
+  bottom:80px;
+  left:0; right:0;
+  transition:right .25s cubic-bezier(.4,0,.2,1);
+  background:#000;
+}
+.nv-daily-wrap.nv-daily--chat-open{right:360px}
+.nv-daily-frame{width:100%;height:100%}
+.nv-daily-loading{
+  position:absolute;inset:0;z-index:5;
+  background:var(--c-bg);
+  display:flex;align-items:center;justify-content:center
+}
+.nv-loading-inner{display:flex;flex-direction:column;align-items:center;gap:16px;color:var(--c-text2);font-size:15px}
 
-/* ── CHAT ─────────────────────────────────────────────── */
-.nv-chat { position:fixed; top:0; right:-380px; height:100%; width:360px; background:var(--c-surf); border-left:1px solid var(--c-line); display:flex; flex-direction:column; z-index:10000; transition:right .25s cubic-bezier(.4,0,.2,1); }
-.nv-chat--open { right:0; }
-.nv-chdr { height:56px; flex-shrink:0; border-bottom:1px solid var(--c-line); display:flex; align-items:center; justify-content:space-between; padding:0 18px; }
-.nv-chdr-title { display:flex; align-items:center; gap:8px; font-size:14px; font-weight:600; }
-.nv-chdr-close { width:32px; height:32px; border:none; background:transparent; border-radius:50%; color:var(--c-text2); cursor:pointer; display:flex; align-items:center; justify-content:center; transition:background .15s; }
-.nv-chdr-close:hover { background:var(--c-surf2); color:var(--c-text); }
-.nv-cmsgs { flex:1; overflow-y:auto; padding:14px; display:flex; flex-direction:column; gap:10px; scrollbar-width:thin; }
-.nv-cempty { display:flex; flex-direction:column; align-items:center; gap:8px; color:var(--c-text2); font-size:13px; padding-top:40px; }
-.nv-cmsg { padding:10px 13px; background:var(--c-surf2); border-radius:10px; }
-.nv-cmsg--self { background:rgba(26,115,232,.18); border:1px solid rgba(26,115,232,.25); }
-.nv-cmsg-who  { font-size:11px; font-weight:600; color:#8ab4f8; margin-bottom:4px; }
-.nv-cmsg-body { font-size:14px; line-height:1.5; word-break:break-word; }
-.nv-cfoot { padding:12px 14px; border-top:1px solid var(--c-line); display:flex; gap:8px; flex-shrink:0; }
-.nv-cinput { flex:1; padding:10px 14px; background:var(--c-surf2); border:1px solid var(--c-line); border-radius:24px; color:var(--c-text); font-family:inherit; font-size:14px; transition:border-color .15s; }
-.nv-cinput::placeholder { color:var(--c-text2); }
-.nv-cinput:focus { outline:none; border-color:var(--c-blue); }
-.nv-csend { width:38px; height:38px; border:none; border-radius:50%; background:var(--c-blue); color:#fff; cursor:pointer; display:flex; align-items:center; justify-content:center; transition:background .15s; flex-shrink:0; }
-.nv-csend:disabled { opacity:.4; cursor:default; }
-.nv-csend:not(:disabled):hover { background:var(--c-blue2); }
+/* Controls bar */
+.nv-controls{
+  position:fixed;bottom:0;left:0;right:0;
+  height:80px;
+  background:var(--c-bg);border-top:1px solid var(--c-line);
+  display:flex;align-items:center;justify-content:center;
+  z-index:201
+}
+.nv-ctrl-row{display:flex;align-items:center;gap:6px}
+.nv-cslot{display:flex;flex-direction:column;align-items:center;gap:5px}
+.nv-ctrl{width:48px;height:48px;border-radius:50%;border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:background .15s,transform .1s;color:var(--c-text)}
+.nv-ctrl:hover:not(:disabled){transform:scale(1.06)}
+.nv-ctrl:disabled{opacity:.5;cursor:not-allowed}
+.nv-ctrl--on{background:var(--c-surf2);border:1px solid var(--c-line)}
+.nv-ctrl--on:hover{background:#4e5256}
+.nv-ctrl--off{background:var(--c-red-bg);color:#f28b82;border:1px solid rgba(234,67,53,.3)}
+.nv-ctrl--off:hover{background:rgba(234,67,53,.25)}
+.nv-ctrl--sharing{background:rgba(26,115,232,.2);color:#8ab4f8;border:1px solid rgba(26,115,232,.3)}
+.nv-ctrl--leave{width:52px;height:52px;background:var(--c-red);color:#fff;box-shadow:0 2px 12px rgba(234,67,53,.4)}
+.nv-ctrl--leave:hover{background:#d33828}
+.nv-ctrl--end{width:52px;height:52px;background:rgba(234,67,53,.18);color:#f28b82;border:2px solid rgba(234,67,53,.5)}
+.nv-ctrl--end:hover:not(:disabled){background:var(--c-red);color:#fff;border-color:var(--c-red)}
+.nv-ctrl--restart{background:rgba(250,123,23,.15);color:#fba45c;border:1.5px solid rgba(250,123,23,.4)}
+.nv-ctrl--restart:hover:not(:disabled){background:rgba(250,123,23,.3)}
+.nv-clabel{font-size:10px;color:var(--c-text2);white-space:nowrap;font-weight:500}
+.nv-clabel--red{color:#f28b82}.nv-clabel--orange{color:#fba45c}
+.nv-cdivider{width:1px;height:32px;background:var(--c-line);margin:0 8px}
 
-/* ── MODALS ───────────────────────────────────────────── */
-.nv-modal-overlay { position:fixed; inset:0; z-index:20000; background:rgba(0,0,0,.65); display:flex; align-items:center; justify-content:center; backdrop-filter:blur(4px); animation:nv-fade-in .18s ease; }
-@keyframes nv-fade-in { from{opacity:0} to{opacity:1} }
-.nv-modal { background:var(--c-surf); border:1px solid var(--c-line); border-radius:20px; padding:36px 32px 28px; width:100%; max-width:420px; text-align:center; box-shadow:0 24px 80px rgba(0,0,0,.6); animation:nv-slide-up .2s cubic-bezier(.34,1.56,.64,1); }
-@keyframes nv-slide-up { from{opacity:0;transform:translateY(20px)} to{opacity:1;transform:translateY(0)} }
-.nv-modal-icon { width:64px; height:64px; border-radius:50%; display:flex; align-items:center; justify-content:center; margin:0 auto 20px; }
-.nv-modal-icon--red  { background:rgba(234,67,53,.15); color:#f28b82; border:1.5px solid rgba(234,67,53,.4); }
-.nv-modal-icon--blue { background:rgba(26,115,232,.15); color:#8ab4f8; border:1.5px solid rgba(26,115,232,.4); }
-.nv-modal-title { font-size:20px; font-weight:600; color:var(--c-text); margin-bottom:12px; }
-.nv-modal-body  { font-size:14px; color:var(--c-text2); line-height:1.6; margin-bottom:28px; }
-.nv-modal-actions { display:flex; gap:10px; justify-content:center; }
-.nv-modal-btn { flex:1; padding:12px 20px; border-radius:var(--c-r); font-family:inherit; font-size:14px; font-weight:600; cursor:pointer; transition:all .15s; display:flex; align-items:center; justify-content:center; gap:7px; max-width:180px; }
-.nv-modal-btn--ghost   { background:transparent; border:1px solid var(--c-line); color:var(--c-text2); }
-.nv-modal-btn--ghost:hover { border-color:var(--c-text2); color:var(--c-text); }
-.nv-modal-btn--danger  { background:var(--c-red); border:none; color:#fff; }
-.nv-modal-btn--danger:hover:not(:disabled) { background:#d33828; }
-.nv-modal-btn--danger:disabled { opacity:.55; cursor:not-allowed; }
-.nv-modal-btn--primary { background:var(--c-blue); border:none; color:#fff; }
-.nv-modal-btn--primary:hover:not(:disabled) { background:var(--c-blue2); }
-.nv-modal-btn--primary:disabled { opacity:.55; cursor:not-allowed; }
+/* Chat panel */
+.nv-chat{position:fixed;top:0;right:-380px;height:100%;width:360px;background:var(--c-surf);border-left:1px solid var(--c-line);display:flex;flex-direction:column;z-index:210;transition:right .25s cubic-bezier(.4,0,.2,1)}
+.nv-chat--open{right:0}
+.nv-chdr{height:56px;flex-shrink:0;border-bottom:1px solid var(--c-line);display:flex;align-items:center;justify-content:space-between;padding:0 18px}
+.nv-chdr-title{display:flex;align-items:center;gap:8px;font-size:14px;font-weight:600}
+.nv-chdr-close{width:32px;height:32px;border:none;background:transparent;border-radius:50%;color:var(--c-text2);cursor:pointer;display:flex;align-items:center;justify-content:center;transition:background .15s}
+.nv-chdr-close:hover{background:var(--c-surf2);color:var(--c-text)}
+.nv-cmsgs{flex:1;overflow-y:auto;padding:14px;display:flex;flex-direction:column;gap:10px;scrollbar-width:thin}
+.nv-cempty{display:flex;flex-direction:column;align-items:center;gap:8px;color:var(--c-text2);font-size:13px;padding-top:40px}
+.nv-cmsg{padding:10px 13px;background:var(--c-surf2);border-radius:10px}
+.nv-cmsg--self{background:rgba(26,115,232,.18);border:1px solid rgba(26,115,232,.25)}
+.nv-cmsg-who{font-size:11px;font-weight:600;color:#8ab4f8;margin-bottom:4px}
+.nv-cmsg-body{font-size:14px;line-height:1.5;word-break:break-word}
+.nv-cfoot{padding:12px 14px;border-top:1px solid var(--c-line);display:flex;gap:8px;flex-shrink:0}
+.nv-cinput{flex:1;padding:10px 14px;background:var(--c-surf2);border:1px solid var(--c-line);border-radius:24px;color:var(--c-text);font-family:inherit;font-size:14px;transition:border-color .15s}
+.nv-cinput::placeholder{color:var(--c-text2)}
+.nv-cinput:focus{outline:none;border-color:var(--c-blue)}
+.nv-csend{width:38px;height:38px;border:none;border-radius:50%;background:var(--c-blue);color:#fff;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:background .15s;flex-shrink:0}
+.nv-csend:disabled{opacity:.4;cursor:default}
+.nv-csend:not(:disabled):hover{background:var(--c-blue2)}
 
-/* ── TOAST ────────────────────────────────────────────── */
-.nv-toast { position:fixed; bottom:96px; left:50%; transform:translateX(-50%); display:flex; align-items:center; gap:8px; padding:10px 20px; border-radius:24px; background:var(--c-surf2); border:1px solid var(--c-line); font-size:13px; font-weight:500; color:#81c995; box-shadow:0 4px 24px rgba(0,0,0,.4); z-index:10001; pointer-events:none; white-space:nowrap; }
-.nv-toast--error { color:#f28b82; border-color:rgba(234,67,53,.35); }
-.nv-toast-fx-enter-active,.nv-toast-fx-leave-active { transition:opacity .2s,transform .2s; }
-.nv-toast-fx-enter-from { opacity:0; transform:translateX(-50%) translateY(10px); }
-.nv-toast-fx-leave-to   { opacity:0; transform:translateX(-50%) translateY(10px); }
+/* Modals */
+.nv-modal-overlay{position:fixed;inset:0;z-index:20000;background:rgba(0,0,0,.65);display:flex;align-items:center;justify-content:center;backdrop-filter:blur(4px);animation:nv-fade-in .18s ease}
+@keyframes nv-fade-in{from{opacity:0}to{opacity:1}}
+.nv-modal{background:var(--c-surf);border:1px solid var(--c-line);border-radius:20px;padding:36px 32px 28px;width:100%;max-width:420px;text-align:center;box-shadow:0 24px 80px rgba(0,0,0,.6);animation:nv-slide-up .2s cubic-bezier(.34,1.56,.64,1)}
+@keyframes nv-slide-up{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:translateY(0)}}
+.nv-modal-icon{width:64px;height:64px;border-radius:50%;display:flex;align-items:center;justify-content:center;margin:0 auto 20px}
+.nv-modal-icon--red{background:rgba(234,67,53,.15);color:#f28b82;border:1.5px solid rgba(234,67,53,.4)}
+.nv-modal-icon--blue{background:rgba(26,115,232,.15);color:#8ab4f8;border:1.5px solid rgba(26,115,232,.4)}
+.nv-modal-title{font-size:20px;font-weight:600;color:var(--c-text);margin-bottom:12px}
+.nv-modal-body{font-size:14px;color:var(--c-text2);line-height:1.6;margin-bottom:28px}
+.nv-modal-actions{display:flex;gap:10px;justify-content:center}
+.nv-modal-btn{flex:1;padding:12px 20px;border-radius:var(--c-r);font-family:inherit;font-size:14px;font-weight:600;cursor:pointer;transition:all .15s;display:flex;align-items:center;justify-content:center;gap:7px;max-width:180px}
+.nv-modal-btn--ghost{background:transparent;border:1px solid var(--c-line);color:var(--c-text2)}
+.nv-modal-btn--ghost:hover{border-color:var(--c-text2);color:var(--c-text)}
+.nv-modal-btn--danger{background:var(--c-red);border:none;color:#fff}
+.nv-modal-btn--danger:hover:not(:disabled){background:#d33828}
+.nv-modal-btn--danger:disabled{opacity:.55;cursor:not-allowed}
+.nv-modal-btn--primary{background:var(--c-blue);border:none;color:#fff}
+.nv-modal-btn--primary:hover:not(:disabled){background:var(--c-blue2)}
+.nv-modal-btn--primary:disabled{opacity:.55;cursor:not-allowed}
 
-@media (max-width:960px) {
-  .nv-grid--presenting { grid-template-columns:1fr; grid-template-rows:1fr auto; }
-  .nv-gmain   { grid-column:1; grid-row:1; }
-  .nv-gsidebar { grid-column:1; grid-row:2; flex-direction:row; max-height:140px; overflow-x:auto; overflow-y:hidden; }
-  .nv-gsidebar .nv-tile { min-width:180px; }
-  .nv-chat { width:100vw; right:-100vw; }
-  .nv-modal { margin:0 16px; }
+/* Toast */
+.nv-toast{position:fixed;bottom:96px;left:50%;transform:translateX(-50%);display:flex;align-items:center;gap:8px;padding:10px 20px;border-radius:24px;background:var(--c-surf2);border:1px solid var(--c-line);font-size:13px;font-weight:500;color:#81c995;box-shadow:0 4px 24px rgba(0,0,0,.4);z-index:30000;pointer-events:none;white-space:nowrap}
+.nv-toast--error{color:#f28b82;border-color:rgba(234,67,53,.35)}
+.nv-toast-fx-enter-active,.nv-toast-fx-leave-active{transition:opacity .2s,transform .2s}
+.nv-toast-fx-enter-from{opacity:0;transform:translateX(-50%) translateY(10px)}
+.nv-toast-fx-leave-to{opacity:0;transform:translateX(-50%) translateY(10px)}
+
+@media(max-width:768px){
+  .nv-daily-wrap.nv-daily--chat-open{right:0}
+  .nv-chat{width:100vw;right:-100vw}
+  .nv-modal{margin:0 16px}
 }
 </style>

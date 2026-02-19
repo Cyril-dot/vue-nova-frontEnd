@@ -210,6 +210,8 @@ const routes = [
     component: () => import('../views/Meeting.vue'),
     meta: { requiresAuth: true, title: 'Meeting | NovaSpace' }
   },
+  { path: '/meeting/:code', component: Meeting, props: true },
+{ path: '/meeting/create', component: Meeting, query: { create: 'true' } },
   {
     path: '/join-meeting',
     name: 'JoinMeeting',
