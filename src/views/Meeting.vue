@@ -925,17 +925,6 @@ export default {
         }
       };
 
-      // onnegotiationneeded fires after addTrack/removeTrack.
-      // We use this.negotiating (reactive) to guard against concurrent negotiations.
-      // IMPORTANT: The initial offer sent below (sendOffer=true) also triggers this event,
-      // but by then this.negotiating[peerId] will already be set by the sendOffer block.
-      pc.onnegotiationneeded = async () => {
-        console.log(`🔄 onnegotiationneeded for ${peerId}, signalingState=${pc.signalingState}, negotiating=${!!this.negotiating[peerId]}`);
-        if (pc.signalingState !== 'stable') return;
-        if (this.negotiating[peerId]) return;   // already sending an offer
-        if (!this.peers[peerId]) return;
-        await this.renegotiate(peerId, pc);
-      };
 
 
       pc.onconnectionstatechange = () => {
@@ -954,9 +943,6 @@ export default {
       this.pendingCandidates[peerId] = [];
 
       if (sendOffer) {
-        // Set negotiating flag BEFORE createOffer so onnegotiationneeded (which fires during addTrack)
-        // doesn't create a competing offer and cause m-line order errors.
-        this.negotiating = { ...this.negotiating, [peerId]: true };
         try {
           const offer = await pc.createOffer({ 
             offerToReceiveAudio: true, 
@@ -972,10 +958,6 @@ export default {
           console.log(`📤 Offer → ${peerId}`);
         } catch (err) {
           console.error('createOffer failed:', err);
-        } finally {
-          const n = { ...this.negotiating };
-          delete n[peerId];
-          this.negotiating = n;
         }
       }
 
@@ -1160,15 +1142,16 @@ export default {
         this.screenStream.getTracks().forEach(t => t.stop());
         this.screenStream = null;
 
-        // Remove screen senders — onnegotiationneeded fires automatically after removeTrack
+        // Remove screen senders and explicitly renegotiate with each peer
         for (const [peerId, sender] of Object.entries(this.screenSenders)) {
           const pc = this.peers[peerId];
           if (pc && sender) {
             try {
               pc.removeTrack(sender);
-              console.log(`Removed screen sender from ${peerId} (onnegotiationneeded will renegotiate)`);
+              console.log(`Removed screen sender from ${peerId}, renegotiating…`);
+              await this.renegotiate(peerId, pc);
             } catch (e) {
-              console.warn('Failed to remove screen sender:', e);
+              console.warn('Failed to remove/renegotiate screen sender:', e);
             }
           }
         }
@@ -1197,16 +1180,17 @@ export default {
             if (this.screenStream) this.toggleScreen();
           };
 
-          // Add screen track to each peer connection.
-          // onnegotiationneeded fires automatically after addTrack and handles renegotiation.
+          // Add screen track to each peer connection then explicitly renegotiate.
+          // We explicitly renegotiate after addTrack for full control over sequencing.
           this.screenSenders = {};
           for (const [peerId, pc] of Object.entries(this.peers)) {
             try {
               const sender = pc.addTrack(screenTrack, this.screenStream);
               this.screenSenders[peerId] = sender;
-              console.log(`📤 Added screen track to ${peerId} (onnegotiationneeded will renegotiate)`);
+              console.log(`📤 Added screen track to ${peerId}, renegotiating…`);
+              await this.renegotiate(peerId, pc);
             } catch (e) { 
-              console.warn(`addTrack screen failed for ${peerId}:`, e); 
+              console.warn(`addTrack/renegotiate failed for ${peerId}:`, e); 
             }
           }
 
@@ -1236,18 +1220,23 @@ export default {
       }
       if (!pc || pc.signalingState === 'closed') return;
       if (pc.signalingState !== 'stable') {
-        console.warn(`🔄 renegotiate skipped: signalingState=${pc.signalingState}`);
-        return;
+        console.log(`⏳ Waiting for stable state before renegotiating ${peerId} (currently: ${pc.signalingState})`);
+        await new Promise((resolve) => {
+          const onStateChange = () => {
+            if (pc.signalingState === 'stable' || pc.signalingState === 'closed') {
+              pc.removeEventListener('signalingstatechange', onStateChange);
+              resolve();
+            }
+          };
+          pc.addEventListener('signalingstatechange', onStateChange);
+          setTimeout(resolve, 3000); // safety timeout
+        });
+        if (pc.signalingState === 'closed' || !this.peers[peerId]) return;
       }
 
       this.negotiating = { ...this.negotiating, [peerId]: true };
       try {
         const offer = await pc.createOffer();
-        // Check again — state can change while createOffer is async
-        if (pc.signalingState !== 'stable') {
-          console.warn(`🔄 renegotiate aborted after createOffer: signalingState=${pc.signalingState}`);
-          return;
-        }
         await pc.setLocalDescription(offer);
         this.sendWs({
           type: 'OFFER',
