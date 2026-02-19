@@ -21,6 +21,10 @@
 //      body: { data, recipient }
 //    POST   /api/meetings/{code}/recording/start → start recording
 //    POST   /api/meetings/{code}/recording/stop  → stop recording
+//
+//  NOTE: Backend returns objects DIRECTLY via ResponseEntity.ok(object).
+//        There is NO { success, data, message } wrapper — read fields from
+//        the parsed JSON root, not from data.data.
 
 import { TokenService } from '@/utils/apiService';
 
@@ -104,11 +108,11 @@ export const MeetingSession = {
   //
   //  Authenticated → POST /api/meetings/{code}/token
   //    body: { isOwner }
-  //    response data: { token, roomUrl, roomName, meetingCode, isOwner }
+  //    response: { token, roomUrl, roomName, isOwner }   ← direct, no wrapper
   //
   //  Guest → POST /api/meetings/join/guest
   //    body: { roomCode, displayName }
-  //    response data: { token, roomUrl, roomName, meetingCode }
+  //    response: { token, roomUrl, roomName }             ← direct, no wrapper
   // ═══════════════════════════════════════════════════════
 
   async fetchDailyToken(meetingCode, isOwner = false) {
@@ -132,21 +136,29 @@ export const MeetingSession = {
       }
 
       const res  = await fetch(url, { method: 'POST', headers: headers(isAuth), body });
+
+      // Backend returns the object directly — no { success, data } wrapper
       const data = await res.json();
 
-      if (!res.ok || data.success === false) {
-        console.warn('⚠️ [MeetingSession] Token error:', data.message || res.status);
+      if (!res.ok) {
+        console.warn('⚠️ [MeetingSession] Token error:', data.message || data.error || res.status);
         return null;
       }
 
-      const td = data.data;
+      // data IS the token object: { token, roomUrl, roomName, isOwner }
+      const td = data;
+
+      if (!td.roomUrl) {
+        console.error('❌ [MeetingSession] Token response missing roomUrl:', td);
+        return null;
+      }
 
       // Cache for quick reconnect
       this.setDailyRoom(td.roomUrl, td.roomName);
       if (td.token) this.setDailyToken(td.token);
 
-      console.log('✅ [MeetingSession] Token received:', isAuth ? '(auth)' : '(guest)');
-      return td; // { token, roomUrl, roomName, meetingCode, isOwner }
+      console.log('✅ [MeetingSession] Token received:', isAuth ? '(auth)' : '(guest)', td);
+      return td; // { token, roomUrl, roomName, isOwner }
 
     } catch (err) {
       console.error('❌ [MeetingSession] fetchDailyToken error:', err.message);
@@ -157,7 +169,7 @@ export const MeetingSession = {
   // ═══════════════════════════════════════════════════════
   //  VALIDATE MEETING CODE
   //  GET /api/meetings/{code}  (public)
-  //  Returns safe room info: { name, url, privacy, created_at }
+  //  Response: { name, url, privacy, created_at }  ← direct, no wrapper
   // ═══════════════════════════════════════════════════════
 
   async validateMeetingCode(code) {
@@ -165,11 +177,18 @@ export const MeetingSession = {
       const res  = await fetch(`${BACKEND_API}/meetings/${encodeURIComponent(code)}`, {
         headers: { 'ngrok-skip-browser-warning': 'true' },
       });
+
+      // 404 → room does not exist
+      if (res.status === 404) {
+        return { valid: false, meeting: null, message: 'Meeting not found.' };
+      }
+
+      // Backend returns safe fields directly: { name, url, privacy, created_at }
       const data = await res.json();
       return {
-        valid:   res.ok && data.success !== false,
-        meeting: data.data || null,
-        message: data.message || null,
+        valid:   res.ok,
+        meeting: res.ok ? data : null,
+        message: res.ok ? null : (data.message || data.error || 'Unknown error'),
       };
     } catch {
       return { valid: false, meeting: null, message: 'Could not reach server.' };
@@ -178,9 +197,7 @@ export const MeetingSession = {
 
   // ═══════════════════════════════════════════════════════
   //  JOIN MEETING (backend registration)
-  //  For authenticated users this is the token fetch above.
-  //  For guests this also serves as the join call.
-  //  Both are handled inside fetchDailyToken.
+  //  Delegates to fetchDailyToken for both auth + guest flows.
   // ═══════════════════════════════════════════════════════
 
   async joinMeeting(meetingCode) {
@@ -191,35 +208,48 @@ export const MeetingSession = {
   //  CREATE MEETING
   //  POST /api/meetings/create
   //  body: { roomName, private }
-  //  Returns: { name, url, privacy, created_at, ... }
+  //  Response: full Daily room object { name, url, privacy, created_at, ... }
+  //            returned DIRECTLY — no { success, data } wrapper
   // ═══════════════════════════════════════════════════════
 
   async createMeeting(roomName, isPrivate = false) {
     const res  = await fetch(`${BACKEND_API}/meetings/create`, {
-      method: 'POST',
+      method:  'POST',
       headers: headers(true),
-      body: JSON.stringify({ roomName, private: isPrivate }),
+      body:    JSON.stringify({ roomName, private: isPrivate }),
     });
+
+    // Backend returns the Daily room object directly
     const data = await res.json();
-    if (!res.ok || data.success === false) {
-      throw new Error(data.message || `Create failed (HTTP ${res.status})`);
+
+    if (!res.ok) {
+      throw new Error(data.message || data.error || `Create failed (HTTP ${res.status})`);
     }
-    return data.data;
+
+    // data IS the room: { name, url, privacy, created_at, ... }
+    if (!data.name) {
+      console.warn('⚠️ [MeetingSession] createMeeting response missing "name":', data);
+    }
+
+    return data;
   },
 
   // ═══════════════════════════════════════════════════════
   //  END / DELETE MEETING
   //  DELETE /api/meetings/{code}
-  //  Permanently deletes the Daily room and ends the meeting.
+  //  Response: { deleted: true, name: "..." }  ← direct, no wrapper
   // ═══════════════════════════════════════════════════════
 
   async endMeeting(code) {
     try {
       const res = await fetch(`${BACKEND_API}/meetings/${encodeURIComponent(code)}`, {
-        method: 'DELETE',
+        method:  'DELETE',
         headers: headers(true),
       });
-      if (!res.ok) console.warn('⚠️ [MeetingSession] End meeting returned:', res.status);
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        console.warn('⚠️ [MeetingSession] End meeting returned:', res.status, err);
+      }
       return res.ok;
     } catch (err) {
       console.error('❌ [MeetingSession] endMeeting error:', err.message);
@@ -241,7 +271,7 @@ export const MeetingSession = {
   // ═══════════════════════════════════════════════════════
   //  PRESENCE
   //  GET /api/meetings/{code}/presence
-  //  Returns live participant snapshot
+  //  Response: presence object (Daily API passthrough)
   // ═══════════════════════════════════════════════════════
 
   async getPresence(code) {
@@ -250,7 +280,8 @@ export const MeetingSession = {
         headers: headers(true),
       });
       const data = await res.json();
-      return data.data || [];
+      // Daily presence shape: { data: [...] } or similar — return as-is
+      return data || [];
     } catch { return []; }
   },
 
@@ -258,67 +289,73 @@ export const MeetingSession = {
   //  EJECT PARTICIPANTS
   //  POST /api/meetings/{code}/eject
   //  body: { participantIds: string[] }
+  //  Response: { ejected: N }  ← direct, no wrapper
   // ═══════════════════════════════════════════════════════
 
   async ejectParticipants(code, participantIds) {
     const res  = await fetch(`${BACKEND_API}/meetings/${encodeURIComponent(code)}/eject`, {
-      method: 'POST',
+      method:  'POST',
       headers: headers(true),
-      body: JSON.stringify({ participantIds }),
+      body:    JSON.stringify({ participantIds }),
     });
     const data = await res.json();
-    if (!res.ok) throw new Error(data.message || 'Eject failed');
-    return data.data;
+    if (!res.ok) throw new Error(data.message || data.error || 'Eject failed');
+    return data; // { ejected: N }
   },
 
   // ═══════════════════════════════════════════════════════
   //  IN-CALL MESSAGE
   //  POST /api/meetings/{code}/message
   //  body: { data: object, recipient?: string }
+  //  Response: { sent: true }  ← direct, no wrapper
   // ═══════════════════════════════════════════════════════
 
   async sendMessage(code, messageData, recipient = null) {
     const body = { data: messageData };
     if (recipient) body.recipient = recipient;
     const res  = await fetch(`${BACKEND_API}/meetings/${encodeURIComponent(code)}/message`, {
-      method: 'POST',
+      method:  'POST',
       headers: headers(true),
-      body: JSON.stringify(body),
+      body:    JSON.stringify(body),
     });
     const data = await res.json();
-    if (!res.ok) throw new Error(data.message || 'Message send failed');
-    return data.data;
+    if (!res.ok) throw new Error(data.message || data.error || 'Message send failed');
+    return data; // { sent: true }
   },
 
   // ═══════════════════════════════════════════════════════
   //  RECORDING
   //  POST /api/meetings/{code}/recording/start
+  //  Response: { recording: "started", room: "..." }  ← direct
+  //
   //  POST /api/meetings/{code}/recording/stop
+  //  Response: { recording: "stopped", room: "..." }  ← direct
   // ═══════════════════════════════════════════════════════
 
   async startRecording(code) {
     const res  = await fetch(`${BACKEND_API}/meetings/${encodeURIComponent(code)}/recording/start`, {
-      method: 'POST',
+      method:  'POST',
       headers: headers(true),
     });
     const data = await res.json();
-    if (!res.ok) throw new Error(data.message || 'Start recording failed');
-    return data.data;
+    if (!res.ok) throw new Error(data.message || data.error || 'Start recording failed');
+    return data; // { recording: "started", room: "..." }
   },
 
   async stopRecording(code) {
     const res  = await fetch(`${BACKEND_API}/meetings/${encodeURIComponent(code)}/recording/stop`, {
-      method: 'POST',
+      method:  'POST',
       headers: headers(true),
     });
     const data = await res.json();
-    if (!res.ok) throw new Error(data.message || 'Stop recording failed');
-    return data.data;
+    if (!res.ok) throw new Error(data.message || data.error || 'Stop recording failed');
+    return data; // { recording: "stopped", room: "..." }
   },
 
   // ═══════════════════════════════════════════════════════
   //  MEETING HISTORY
   //  GET /api/meetings?limit=N&room=X
+  //  Response: Daily meetings object (passthrough)
   // ═══════════════════════════════════════════════════════
 
   async listMeetings(limit = 50, room = null) {
@@ -327,8 +364,9 @@ export const MeetingSession = {
     try {
       const res  = await fetch(`${BACKEND_API}/meetings?${params}`, { headers: headers(true) });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.message || 'List failed');
-      return Array.isArray(data.data) ? data.data : (data.data?.meetings || []);
+      if (!res.ok) throw new Error(data.message || data.error || 'List failed');
+      // Daily returns { total_count, data: [...] } — handle both shapes
+      return Array.isArray(data) ? data : (data.data || data.meetings || []);
     } catch (err) {
       console.error('❌ [MeetingSession] listMeetings error:', err.message);
       return [];
