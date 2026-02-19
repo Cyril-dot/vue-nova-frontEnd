@@ -1,4 +1,4 @@
-<!-- Meeting.vue — SCREEN SHARE FIXED (FIX F + FIX G + RENEGOTIATION) -->
+<!-- Meeting.vue — SCREEN SHARE FIXED (FIX F) -->
 <!--
   FIXES IN THIS VERSION:
   ✅ FIX A: peerStreams uses object spread to stay reactive
@@ -10,12 +10,6 @@
             Uses peerCameraStreamIds map: first stream.id per peer = camera,
             any new stream.id = screen share. Eliminates the old race-condition
             heuristic that checked peerStreams[peerId] existence.
-  ✅ FIX G: SCREEN_SHARE_START re-triggers bindPeerScreenWithRetry once DOM ready.
-  ✅ FIX H: Screen share renegotiation — addTrack() triggers new offer/answer
-            exchange so remote peers actually receive the screen track.
-            Without this, receivers saw a black screen because the SDP had
-            no description for the dynamically-added track.
-            Same renegotiation on stop (removeTrack).
 -->
 <template>
   <div class="nv-root">
@@ -850,21 +844,6 @@ export default {
         }
       };
 
-      // ✅ FIX H: onnegotiationneeded fires automatically whenever tracks are added
-      // or removed (e.g. when screen sharing starts/stops mid-call). This handler
-      // re-runs the offer/answer exchange so remote peers learn about the new track.
-      pc.onnegotiationneeded = async () => {
-        try {
-          if (pc.signalingState !== 'stable') return;
-          console.log(`🔄 onnegotiationneeded for ${peerId} — creating new offer`);
-          const offer = await pc.createOffer();
-          await pc.setLocalDescription(offer);
-          this.sendWs({ type: 'OFFER', toPeerId: peerId, data: pc.localDescription, senderName: this.userName });
-        } catch (err) {
-          console.error('onnegotiationneeded error:', err);
-        }
-      };
-
       this.peers = { ...this.peers, [peerId]: pc };
       this.pendingCandidates[peerId] = [];
 
@@ -1008,8 +987,6 @@ export default {
         this.screenStream.getTracks().forEach(t => t.stop());
         this.screenStream = null;
 
-        // ✅ FIX H: removeTrack() triggers onnegotiationneeded on each PC,
-        // which automatically sends a new offer so receivers know the track is gone.
         for (const pc of Object.values(this.peers)) {
           if (this._screenSenders) {
             for (const sender of this._screenSenders) {
@@ -1022,7 +999,6 @@ export default {
         this.sendWs({ type: 'SCREEN_SHARE_STOP' });
         await this.$nextTick(); await this.$nextTick();
         this.bindAllVideos();
-
       } else {
         // ── START sharing ──
         try {
@@ -1033,21 +1009,12 @@ export default {
           // Add the screen track in its OWN dedicated MediaStream so it gets a unique
           // stream.id. The receiver compares this id against the stored camera stream.id
           // to correctly identify this as the screen track — not the camera.
-          //
-          // ✅ FIX H (sender side):
-          // addTrack() automatically fires onnegotiationneeded on each RTCPeerConnection,
-          // which triggers a new offer → answer exchange. This is what actually delivers
-          // the screen track's SDP description to remote peers. Without renegotiation,
-          // receivers have no SDP entry for the new track and render a black screen.
           this._screenSenders = [];
           for (const pc of Object.values(this.peers)) {
             try {
               const screenOnlyStream = new MediaStream([screenTrack]);
               const sender = pc.addTrack(screenTrack, screenOnlyStream);
               this._screenSenders.push(sender);
-              // NOTE: We intentionally do NOT manually call createOffer() here.
-              // The onnegotiationneeded handler (registered in createPC) handles it
-              // automatically and safely checks signalingState === 'stable' first.
             } catch (e) { console.warn('addTrack screen failed:', e); }
           }
 
