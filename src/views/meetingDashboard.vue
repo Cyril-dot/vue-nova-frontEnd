@@ -95,8 +95,8 @@
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="2" y="7" width="20" height="15" rx="2"/><polygon points="23 7 16 12 23 17 23 7"/></svg>
             </div>
             <div>
-              <div class="md-kpi-num">{{ allMeetings.length }}</div>
-              <div class="md-kpi-lbl">Total Rooms</div>
+              <div class="md-kpi-num">{{ allMeetings.filter(m => m.privacy !== 'private').length }}</div>
+              <div class="md-kpi-lbl">Public Rooms</div>
             </div>
           </div>
           <div class="md-kpi" :class="{ 'md-kpi--live': activeMeetings.length }">
@@ -105,7 +105,7 @@
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="3" fill="currentColor" stroke="none"/></svg>
             </div>
             <div>
-              <div class="md-kpi-num">{{ activeMeetings.length }}</div>
+              <div class="md-kpi-num">{{ activeMeetings.filter(m => m.privacy !== 'private').length }}</div>
               <div class="md-kpi-lbl">Live Now</div>
             </div>
           </div>
@@ -115,7 +115,7 @@
             </div>
             <div>
               <div class="md-kpi-num">{{ privateCount }}</div>
-              <div class="md-kpi-lbl">Private Rooms</div>
+              <div class="md-kpi-lbl">Private (hidden)</div>
             </div>
           </div>
           <div class="md-kpi">
@@ -130,15 +130,15 @@
         </div>
 
         <!-- Active rooms banner -->
-        <div v-if="activeMeetings.length" class="md-live-banner">
+        <div v-if="activeMeetings.filter(m => m.privacy !== 'private').length" class="md-live-banner">
           <div class="md-live-banner-hd">
             <div class="md-live-indicator">
               <span class="md-live-dot"></span>
-              {{ activeMeetings.length }} Active Meeting{{ activeMeetings.length > 1 ? 's' : '' }}
+              {{ activeMeetings.filter(m => m.privacy !== 'private').length }} Active Meeting{{ activeMeetings.filter(m => m.privacy !== 'private').length > 1 ? 's' : '' }}
             </div>
           </div>
           <div class="md-live-list">
-            <div v-for="m in activeMeetings" :key="m.name" class="md-live-row">
+            <div v-for="m in activeMeetings.filter(m => m.privacy !== 'private')" :key="m.name" class="md-live-row">
               <span class="md-live-pulse"></span>
               <div class="md-live-info">
                 <span class="md-live-name">{{ m.name }}</span>
@@ -177,6 +177,13 @@
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 100 .49-4.5"/></svg>
             </button>
           </div>
+        </div>
+
+        <!-- Private meetings notice -->
+        <div v-if="privateCount > 0" class="md-private-notice">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>
+          <span><strong>{{ privateCount }} private meeting{{ privateCount > 1 ? 's' : '' }}</strong> {{ privateCount > 1 ? 'are' : 'is' }} hidden from this list. Private meetings can only be joined using their meeting code.</span>
+          <button class="md-private-join-btn" @click="$router.push('/meetings/join')">Join with code</button>
         </div>
 
         <!-- Empty -->
@@ -296,23 +303,22 @@ export default {
       return this.allMeetings.filter(m => m.created_at && new Date(m.created_at) > cutoff).length;
     },
     tabs() {
-      const all = this.allMeetings.length;
-      const priv = this.privateCount;
+      const pub  = this.allMeetings.filter(m => m.privacy !== 'private').length;
+      const live = this.activeMeetings.filter(m => m.privacy !== 'private').length;
       return [
-        { label: 'All',     value: 'all',     count: all },
-        { label: 'Live',    value: 'live',    count: this.activeMeetings.length },
-        { label: 'Public',  value: 'public',  count: all - priv },
-        { label: 'Private', value: 'private', count: priv },
+        { label: 'All',  value: 'all',  count: pub },
+        { label: 'Live', value: 'live', count: live },
       ];
     },
     filteredMeetings() {
-      let list = [...this.allMeetings];
-      if (this.activeFilter === 'live')    list = list.filter(m => m.active === true);
-      if (this.activeFilter === 'public')  list = list.filter(m => m.privacy !== 'private');
-      if (this.activeFilter === 'private') list = list.filter(m => m.privacy === 'private');
+      // Private meetings are hidden from the public list — they can only be joined via code
+      let list = this.allMeetings.filter(m => m.privacy !== 'private');
+      if (this.activeFilter === 'live')   list = list.filter(m => m.active === true);
+      if (this.activeFilter === 'public') list = list.filter(m => m.privacy !== 'private');
       if (this.search) { const q = this.search.toLowerCase(); list = list.filter(m => (m.name || '').toLowerCase().includes(q)); }
       return list.sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0));
     },
+    publicCount() { return this.allMeetings.filter(m => m.privacy !== 'private').length; },
   },
   methods: {
     async fetchMeetingsData() {
@@ -598,6 +604,25 @@ export default {
 .md-empty-icon { width: 68px; height: 68px; border-radius: 50%; background: var(--white); border: 1.5px solid var(--border); display: flex; align-items: center; justify-content: center; color: var(--ink-m); box-shadow: var(--shadow-sm); }
 .md-empty-title { font-family: var(--fdisp); font-size: 18px; font-weight: 700; color: var(--ink); }
 .md-empty-sub { font-size: 14px; color: var(--ink-m); }
+
+/* Private notice */
+.md-private-notice {
+  display: flex; align-items: center; gap: 10px;
+  padding: 12px 16px;
+  background: var(--purple-s); border: 1.5px solid #ddd6fe; border-radius: var(--r);
+  font-size: 13px; color: #5b21b6; font-weight: 500;
+}
+.md-private-notice strong { font-weight: 700; }
+.md-private-notice svg { flex-shrink: 0; color: var(--purple); }
+.md-private-notice span { flex: 1; }
+.md-private-join-btn {
+  flex-shrink: 0; padding: 6px 14px;
+  background: var(--purple); color: var(--white);
+  border: none; border-radius: 7px;
+  font-family: var(--font); font-size: 12px; font-weight: 700;
+  cursor: pointer; transition: all .15s; white-space: nowrap;
+}
+.md-private-join-btn:hover { background: #7c3aed; }
 
 /* Room grid */
 .md-room-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 14px; }

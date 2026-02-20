@@ -162,14 +162,7 @@
         <transition name="nm-fade">
           <div v-if="loading" class="nm-loading">
             <div class="nm-loader-card">
-              <div class="nm-loader-ring">
-                <div class="nm-loader-inner"></div>
-              </div>
-              <div class="nm-loader-logo">
-                <div class="nm-logo">
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M15 10l4.553-2.276A1 1 0 0121 8.723v6.554a1 1 0 01-1.447.894L15 14M3 8a2 2 0 012-2h10a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2V8z" stroke="white" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
-                </div>
-              </div>
+              <div class="nm-loader-ring"></div>
               <p class="nm-loader-text">{{ loadingStatus }}</p>
               <div class="nm-loader-dots">
                 <span :class="['nm-dot', loadingStep >= 1 ? 'nm-dot--on' : '']"></span>
@@ -790,19 +783,16 @@ export default {
 /* Loading */
 .nm-loading { position: absolute; inset: 0; z-index: 10; background: rgba(248,250,252,.97); display: flex; align-items: center; justify-content: center; }
 .nm-loader-card {
-  display: flex; flex-direction: column; align-items: center; gap: 18px;
-  padding: 48px 40px; background: var(--white); border: 1px solid var(--border);
-  border-radius: 20px; min-width: 280px; box-shadow: var(--shadow-lg);
+  display: flex; flex-direction: column; align-items: center; gap: 20px;
+  padding: 48px 48px 40px; background: var(--white); border: 1px solid var(--border);
+  border-radius: 20px; min-width: 260px; box-shadow: var(--shadow-lg);
 }
 .nm-loader-ring {
-  width: 68px; height: 68px; border-radius: 50%;
+  width: 52px; height: 52px; border-radius: 50%;
   border: 3px solid var(--blue-mid); border-top-color: var(--blue);
-  animation: nm-spin .9s linear infinite;
-  position: relative; display: flex; align-items: center; justify-content: center;
+  animation: nm-spin .8s linear infinite;
 }
-.nm-loader-inner { position: absolute; }
-.nm-loader-logo { position: absolute; }
-.nm-loader-text { font-size: 14px; color: var(--ink-m); font-weight: 500; }
+.nm-loader-text { font-size: 14px; color: var(--ink-m); font-weight: 600; }
 .nm-loader-dots { display: flex; gap: 6px; }
 .nm-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--border); transition: background .3s; }
 .nm-dot--on { background: var(--blue); }
