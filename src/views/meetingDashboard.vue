@@ -15,8 +15,8 @@
           <div class="md-nav-section">NAVIGATION</div>
           <button class="md-nav-item md-nav-item--active">
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="7" width="20" height="15" rx="2"/><polygon points="23 7 16 12 23 17 23 7"/></svg>
-            Meetings
-            <span v-if="activeMeetings.length" class="md-nav-badge">{{ activeMeetings.length }}</span>
+            My Meetings
+            <span v-if="publicActiveMeetings.length" class="md-nav-badge">{{ publicActiveMeetings.length }}</span>
           </button>
           <button class="md-nav-item" @click="$router.push('/dashboard')">
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
@@ -28,12 +28,12 @@
       <div class="md-sb-footer">
         <div class="md-sb-stats">
           <div class="md-stat">
-            <span class="md-stat-val">{{ allMeetings.length }}</span>
+            <span class="md-stat-val">{{ myMeetings.length }}</span>
             <span class="md-stat-lbl">Total</span>
           </div>
           <div class="md-stat-sep"></div>
           <div class="md-stat">
-            <span class="md-stat-val md-stat-val--live">{{ activeMeetings.length }}</span>
+            <span class="md-stat-val md-stat-val--live">{{ publicActiveMeetings.length }}</span>
             <span class="md-stat-lbl">Live</span>
           </div>
           <div class="md-stat-sep"></div>
@@ -51,15 +51,15 @@
       <!-- Header -->
       <header class="md-header">
         <div class="md-header-left">
-          <h1 class="md-page-title">Video Meetings</h1>
-          <p class="md-page-sub">Manage your rooms and monitor live activity</p>
+          <h1 class="md-page-title">My Meetings</h1>
+          <p class="md-page-sub">Your rooms and live sessions</p>
         </div>
         <div class="md-header-actions">
           <button class="md-btn-ghost" @click="$router.push('/meetings/join')">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h4a2 2 0 012 2v14a2 2 0 01-2 2h-4M10 17l5-5-5-5M15 12H3"/></svg>
             Join meeting
           </button>
-          <button class="md-btn-primary" @click="createMeeting">
+          <button class="md-btn-primary" @click="openCreateModal">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
             New meeting
           </button>
@@ -95,17 +95,17 @@
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="2" y="7" width="20" height="15" rx="2"/><polygon points="23 7 16 12 23 17 23 7"/></svg>
             </div>
             <div>
-              <div class="md-kpi-num">{{ allMeetings.filter(m => m.privacy !== 'private').length }}</div>
+              <div class="md-kpi-num">{{ myMeetings.filter(m => m.privacy !== 'private').length }}</div>
               <div class="md-kpi-lbl">Public Rooms</div>
             </div>
           </div>
-          <div class="md-kpi" :class="{ 'md-kpi--live': activeMeetings.length }">
+          <div class="md-kpi" :class="{ 'md-kpi--live': publicActiveMeetings.length }">
             <div class="md-kpi-icon md-kpi-icon--red">
-              <span v-if="activeMeetings.length" class="md-kpi-ring"></span>
+              <span v-if="publicActiveMeetings.length" class="md-kpi-ring"></span>
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="3" fill="currentColor" stroke="none"/></svg>
             </div>
             <div>
-              <div class="md-kpi-num">{{ activeMeetings.filter(m => m.privacy !== 'private').length }}</div>
+              <div class="md-kpi-num">{{ publicActiveMeetings.length }}</div>
               <div class="md-kpi-lbl">Live Now</div>
             </div>
           </div>
@@ -115,7 +115,7 @@
             </div>
             <div>
               <div class="md-kpi-num">{{ privateCount }}</div>
-              <div class="md-kpi-lbl">Private (hidden)</div>
+              <div class="md-kpi-lbl">Private</div>
             </div>
           </div>
           <div class="md-kpi">
@@ -129,22 +129,26 @@
           </div>
         </div>
 
-        <!-- Active rooms banner -->
-        <div v-if="activeMeetings.filter(m => m.privacy !== 'private').length" class="md-live-banner">
+        <!-- Active rooms banner — only my active meetings -->
+        <div v-if="publicActiveMeetings.length" class="md-live-banner">
           <div class="md-live-banner-hd">
             <div class="md-live-indicator">
               <span class="md-live-dot"></span>
-              {{ activeMeetings.filter(m => m.privacy !== 'private').length }} Active Meeting{{ activeMeetings.filter(m => m.privacy !== 'private').length > 1 ? 's' : '' }}
+              {{ publicActiveMeetings.length }} Active Meeting{{ publicActiveMeetings.length > 1 ? 's' : '' }}
             </div>
           </div>
           <div class="md-live-list">
-            <div v-for="m in activeMeetings.filter(m => m.privacy !== 'private')" :key="m.name" class="md-live-row">
+            <div v-for="m in publicActiveMeetings" :key="m.name" class="md-live-row">
               <span class="md-live-pulse"></span>
               <div class="md-live-info">
                 <span class="md-live-name">{{ m.name }}</span>
                 <span class="md-live-meta">{{ getRelativeTime(m.created_at) }} · {{ m.privacy || 'public' }}</span>
               </div>
               <div class="md-live-btns">
+                <button class="md-live-copy" @click="copyCode(m.name)" title="Copy meeting code">
+                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
+                  Copy Code
+                </button>
                 <button class="md-live-join" @click="joinMeetingWithCode(m.name)">
                   <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"/></svg>
                   Join
@@ -174,16 +178,9 @@
               <input class="md-search-input" v-model="search" placeholder="Search rooms…" />
             </div>
             <button class="md-refresh" @click="fetchMeetingsData" :class="{ 'md-refresh--spin': loading }">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 100 .49-4.5"/></svg>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 0.49-4.5"/></svg>
             </button>
           </div>
-        </div>
-
-        <!-- Private meetings notice -->
-        <div v-if="privateCount > 0" class="md-private-notice">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>
-          <span><strong>{{ privateCount }} private meeting{{ privateCount > 1 ? 's' : '' }}</strong> {{ privateCount > 1 ? 'are' : 'is' }} hidden from this list. Private meetings can only be joined using their meeting code.</span>
-          <button class="md-private-join-btn" @click="$router.push('/meetings/join')">Join with code</button>
         </div>
 
         <!-- Empty -->
@@ -191,12 +188,12 @@
           <div class="md-empty-icon">
             <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><rect x="2" y="7" width="20" height="15" rx="2"/><polygon points="23 7 16 12 23 17 23 7"/></svg>
           </div>
-          <p class="md-empty-title">No meetings found</p>
-          <p class="md-empty-sub">Create your first meeting to get started.</p>
-          <button class="md-btn-primary" @click="createMeeting">Create meeting</button>
+          <p class="md-empty-title">No meetings yet</p>
+          <p class="md-empty-sub">Create your first meeting and share the code to invite others.</p>
+          <button class="md-btn-primary" @click="openCreateModal">Create meeting</button>
         </div>
 
-        <!-- Room grid -->
+        <!-- Room grid — only my meetings -->
         <div v-else class="md-room-grid">
           <div v-for="m in filteredMeetings" :key="m.name" class="md-room-card" :class="{ 'md-room-card--live': isRoomActive(m) }">
             <div class="md-room-top">
@@ -208,9 +205,18 @@
                 <span class="md-room-time">{{ formatRoomTime(m) }}</span>
               </div>
               <h3 class="md-room-name">{{ m.name }}</h3>
-              <div class="md-room-code-row" @click="copyCode(m.name)" title="Copy room code">
-                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
-                <code class="md-room-code">{{ m.name }}</code>
+
+              <!-- Meeting code — prominent, copyable -->
+              <div class="md-room-code-block">
+                <div class="md-code-label">Meeting Code</div>
+                <div class="md-code-row" @click="copyCode(m.name)" title="Click to copy">
+                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
+                  <code class="md-room-code">{{ m.name }}</code>
+                  <span class="md-copy-hint">Copy</span>
+                </div>
+                <p class="md-share-hint">
+                  {{ m.privacy === 'private' ? '🔒 Share this code only with invited people' : '🌐 Share this code to let anyone join' }}
+                </p>
               </div>
             </div>
             <div class="md-room-foot">
@@ -219,7 +225,7 @@
                 Join
               </button>
               <button class="md-room-icon-btn md-room-icon-btn--amber" @click="promptRestart(m)" title="Restart">
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 100 .49-4.5"/></svg>
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 0.49-4.5"/></svg>
               </button>
               <button class="md-room-icon-btn md-room-icon-btn--red" @click="promptEnd(m)" title="Delete">
                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/><path d="M10 11v6M14 11v6"/></svg>
@@ -229,6 +235,78 @@
         </div>
       </div>
     </div>
+
+    <!-- ── CREATE MEETING MODAL ──────────────────────────────── -->
+    <transition name="md-modal">
+      <div v-if="createModal.show" class="md-modal-overlay" @click.self="closeCreateModal">
+        <div class="md-modal md-modal--create">
+
+          <div v-if="!createModal.created">
+            <!-- Step 1: Choose type & generate code -->
+            <div class="md-modal-icon md-modal-icon--blue">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="2" y="7" width="20" height="15" rx="2"/><polygon points="23 7 16 12 23 17 23 7"/></svg>
+            </div>
+            <h2 class="md-modal-title">New Meeting</h2>
+            <p class="md-modal-body">Choose a type — a unique code will be auto-generated for you to share.</p>
+
+            <div class="md-type-grid">
+              <button class="md-type-btn" :class="{ 'md-type-btn--active': createModal.type === 'public' }" @click="createModal.type = 'public'">
+                <div class="md-type-icon">🌐</div>
+                <div class="md-type-label">Public</div>
+                <div class="md-type-desc">Anyone with the code can join</div>
+              </button>
+              <button class="md-type-btn" :class="{ 'md-type-btn--active': createModal.type === 'private' }" @click="createModal.type = 'private'">
+                <div class="md-type-icon">🔒</div>
+                <div class="md-type-label">Private</div>
+                <div class="md-type-desc">Invite-only, hidden from others</div>
+              </button>
+            </div>
+
+            <div class="md-modal-actions">
+              <button class="md-btn-ghost" @click="closeCreateModal" :disabled="createModal.loading">Cancel</button>
+              <button class="md-btn-primary" @click="confirmCreate" :disabled="createModal.loading">
+                <span v-if="createModal.loading" class="md-spinner"></span>
+                <template v-else>
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                  Create Meeting
+                </template>
+              </button>
+            </div>
+          </div>
+
+          <div v-else>
+            <!-- Step 2: Show generated code -->
+            <div class="md-success-icon">✅</div>
+            <h2 class="md-modal-title">Meeting Created!</h2>
+            <p class="md-modal-body">Share this code with the people you want to invite.</p>
+
+            <div class="md-generated-code-box">
+              <div class="md-generated-label">Your Meeting Code</div>
+              <div class="md-generated-code">{{ createModal.generatedCode }}</div>
+              <button class="md-copy-btn" @click="copyGeneratedCode">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
+                {{ createModal.copied ? 'Copied!' : 'Copy Code' }}
+              </button>
+            </div>
+
+            <p class="md-type-tag">
+              <span :class="createModal.type === 'private' ? 'md-tag--private' : 'md-tag--public'">
+                {{ createModal.type === 'private' ? '🔒 Private' : '🌐 Public' }} Meeting
+              </span>
+            </p>
+
+            <div class="md-modal-actions">
+              <button class="md-btn-ghost" @click="closeCreateModal">Close</button>
+              <button class="md-btn-primary" @click="joinNewMeeting">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+                Join Now
+              </button>
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </transition>
 
     <!-- End Modal -->
     <transition name="md-modal">
@@ -255,7 +333,7 @@
       <div v-if="modal.show && modal.type === 'restart'" class="md-modal-overlay" @click.self="closeModal">
         <div class="md-modal">
           <div class="md-modal-icon md-modal-icon--amber">
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 100 .49-4.5"/></svg>
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 0.49-4.5"/></svg>
           </div>
           <h2 class="md-modal-title">Restart "{{ modal.meeting?.name }}"?</h2>
           <p class="md-modal-body">The room will be deleted then re-created. Participants can rejoin with the same code.</p>
@@ -285,70 +363,201 @@
 import { TokenService, apiRequest } from '@/utils/apiService';
 import { MeetingSession } from '@/utils/meetingSession';
 
+// Generate a random meeting code like "swift-eagle-4291"
+function generateMeetingCode() {
+  const adjectives = ['swift','brave','calm','bold','keen','bright','quick','sharp','clear','smart','cool','warm','dark','light','pure'];
+  const nouns      = ['eagle','tiger','river','storm','flame','ocean','forest','summit','valley','comet','falcon','cipher','nova','prism','spark'];
+  const adj  = adjectives[Math.floor(Math.random() * adjectives.length)];
+  const noun = nouns[Math.floor(Math.random() * nouns.length)];
+  const num  = Math.floor(1000 + Math.random() * 9000);
+  return `${adj}-${noun}-${num}`;
+}
+
+// Get current user identity from token or sessionStorage
+function getCurrentUserIdentity() {
+  try {
+    const token = TokenService.getAccessToken();
+    if (token) {
+      const payload = JSON.parse(atob(token.split('.')[1]));
+      return payload.sub || payload.email || payload.id || null;
+    }
+  } catch {}
+  try {
+    const u = JSON.parse(sessionStorage.getItem('nova_user') || '{}');
+    return u.email || u.id || u.sub || null;
+  } catch {}
+  return null;
+}
+
 export default {
   name: 'MeetingsDashboard',
   data() {
     return {
-      loading: true, error: null, allMeetings: [], activeMeetings: [],
-      activeFilter: 'all', search: '',
+      loading: true,
+      error: null,
+      allMeetings: [],        // raw from API
+      myMeetings: [],         // filtered to current user's own meetings
+      activeMeetings: [],
+      activeFilter: 'all',
+      search: '',
+      currentUserIdentity: null,
       modal: { show: false, type: null, meeting: null, loading: false },
+      createModal: {
+        show: false,
+        type: 'public',
+        loading: false,
+        created: false,
+        generatedCode: '',
+        copied: false,
+      },
       toast: { show: false, message: '', type: 'success' },
     };
   },
   computed: {
     isAuthenticated() { return TokenService.isAuthenticated(); },
-    privateCount()    { return this.allMeetings.filter(m => m.privacy === 'private').length; },
+
+    privateCount() { return this.myMeetings.filter(m => m.privacy === 'private').length; },
+
+    // Active meetings that are public — shown in live banner
+    publicActiveMeetings() {
+      return this.activeMeetings.filter(m => m.privacy !== 'private');
+    },
+
     recentCount() {
       const cutoff = Date.now() - 7 * 24 * 60 * 60 * 1000;
-      return this.allMeetings.filter(m => m.created_at && new Date(m.created_at) > cutoff).length;
+      return this.myMeetings.filter(m => m.created_at && new Date(m.created_at) > cutoff).length;
     },
+
     tabs() {
-      const pub  = this.allMeetings.filter(m => m.privacy !== 'private').length;
-      const live = this.activeMeetings.filter(m => m.privacy !== 'private').length;
+      const all  = this.myMeetings.length;
+      const live = this.activeMeetings.length;
       return [
-        { label: 'All',  value: 'all',  count: pub },
-        { label: 'Live', value: 'live', count: live },
+        { label: 'All',     value: 'all',     count: all },
+        { label: 'Live',    value: 'live',    count: live },
+        { label: 'Public',  value: 'public',  count: this.myMeetings.filter(m => m.privacy !== 'private').length },
+        { label: 'Private', value: 'private', count: this.privateCount },
       ];
     },
+
     filteredMeetings() {
-      // Private meetings are hidden from the public list — they can only be joined via code
-      let list = this.allMeetings.filter(m => m.privacy !== 'private');
-      if (this.activeFilter === 'live')   list = list.filter(m => m.active === true);
-      if (this.activeFilter === 'public') list = list.filter(m => m.privacy !== 'private');
-      if (this.search) { const q = this.search.toLowerCase(); list = list.filter(m => (m.name || '').toLowerCase().includes(q)); }
+      // Only show the current user's own meetings — never anyone else's
+      let list = [...this.myMeetings];
+      if (this.activeFilter === 'live')    list = list.filter(m => m.active === true);
+      if (this.activeFilter === 'public')  list = list.filter(m => m.privacy !== 'private');
+      if (this.activeFilter === 'private') list = list.filter(m => m.privacy === 'private');
+      if (this.search) {
+        const q = this.search.toLowerCase();
+        list = list.filter(m => (m.name || '').toLowerCase().includes(q));
+      }
       return list.sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0));
     },
-    publicCount() { return this.allMeetings.filter(m => m.privacy !== 'private').length; },
   },
+
   methods: {
     async fetchMeetingsData() {
-      this.loading = true; this.error = null;
+      this.loading = true;
+      this.error = null;
       try {
         if (!TokenService.getAccessToken()) { this.$router.push('/auth'); return; }
+
         const res = await apiRequest('/meetings?limit=100', { method: 'GET' });
         if (!res.ok) throw new Error(`Server returned ${res.status}`);
+
         const body = await res.json();
-        let raw = Array.isArray(body) ? body : (body.data || body.rooms || []);
+        const raw  = Array.isArray(body) ? body : (body.data || body.rooms || []);
+
         this.allMeetings = raw;
-        this.activeMeetings = raw.filter(m => m.active === true);
+
+        // ── Filter to only this user's meetings ──────────────────────────
+        // Try to match by createdBy, owner, userId, or email fields.
+        // Falls back to showing ALL if no ownership field exists (backend should handle it ideally).
+        const identity = this.currentUserIdentity;
+        if (identity) {
+          this.myMeetings = raw.filter(m => {
+            const owner = m.createdBy || m.owner || m.userId || m.creator || m.email || m.created_by;
+            if (!owner) return true; // if backend sends no ownership field, show all (backend should filter)
+            return String(owner).toLowerCase() === String(identity).toLowerCase();
+          });
+        } else {
+          // No identity resolved — show all (backend should be filtering already)
+          this.myMeetings = raw;
+        }
+
+        // Active meetings from MY meetings only
+        this.activeMeetings = this.myMeetings.filter(m => m.active === true);
+
       } catch (e) {
         console.error('[MeetingsDashboard]', e);
         this.error = 'Failed to load meetings. Please try again.';
-      } finally { this.loading = false; }
+      } finally {
+        this.loading = false;
+      }
     },
 
     isRoomActive(m)   { return m.active === true; },
     formatRoomTime(m) { return m.created_at ? this.getRelativeTime(m.created_at) : ''; },
-    createMeeting()   { sessionStorage.removeItem('nova_meeting_code'); this.$router.push({ path: '/meeting', query: { create: 'true' } }); },
 
+    // ── Create meeting flow ──────────────────────────────────────────────
+    openCreateModal() {
+      this.createModal = {
+        show: true,
+        type: 'public',
+        loading: false,
+        created: false,
+        generatedCode: '',
+        copied: false,
+      };
+    },
+
+    closeCreateModal() {
+      this.createModal.show = false;
+      if (this.createModal.created) {
+        // Refresh list after a new meeting was made
+        this.fetchMeetingsData();
+      }
+    },
+
+    async confirmCreate() {
+      this.createModal.loading = true;
+      const code     = generateMeetingCode();
+      const isPrivate = this.createModal.type === 'private';
+      try {
+        await MeetingSession.createMeeting(code, isPrivate);
+        this.createModal.generatedCode = code;
+        this.createModal.created = true;
+      } catch (e) {
+        this.showToast('Failed to create meeting: ' + e.message, 'error');
+      } finally {
+        this.createModal.loading = false;
+      }
+    },
+
+    copyGeneratedCode() {
+      navigator.clipboard.writeText(this.createModal.generatedCode)
+        .then(() => {
+          this.createModal.copied = true;
+          setTimeout(() => { this.createModal.copied = false; }, 2000);
+        })
+        .catch(() => this.showToast('Copy failed', 'error'));
+    },
+
+    joinNewMeeting() {
+      MeetingSession.setMeetingCode(this.createModal.generatedCode);
+      MeetingSession.setIsHost(true);
+      this.createModal.show = false;
+      this.$router.push('/meeting');
+    },
+
+    // ── Join existing meeting ────────────────────────────────────────────
     joinMeetingWithCode(code) {
-      MeetingSession.setMeetingCode(code); MeetingSession.setIsHost(false);
+      MeetingSession.setMeetingCode(code);
+      MeetingSession.setIsHost(false);
       this.$router.push('/meeting');
     },
 
     copyCode(code) {
       navigator.clipboard.writeText(code)
-        .then(() => this.showToast('Code copied!', 'success'))
+        .then(() => this.showToast('Meeting code copied!', 'success'))
         .catch(() => this.showToast('Copy failed', 'error'));
     },
 
@@ -362,7 +571,7 @@ export default {
       try {
         const res = await apiRequest(`/meetings/${encodeURIComponent(code)}`, { method: 'DELETE' });
         if (!res.ok) { const d = await res.json().catch(() => ({})); throw new Error(d.message || `Delete failed (${res.status})`); }
-        this.allMeetings = this.allMeetings.filter(m => m.name !== code);
+        this.myMeetings    = this.myMeetings.filter(m => m.name !== code);
         this.activeMeetings = this.activeMeetings.filter(m => m.name !== code);
         this.showToast(`"${code}" deleted`, 'success');
       } catch (e) { this.showToast('Failed: ' + e.message, 'error'); }
@@ -374,7 +583,10 @@ export default {
       const m = this.modal.meeting;
       try {
         await apiRequest(`/meetings/${encodeURIComponent(m.name)}`, { method: 'DELETE' }).catch(() => {});
-        await apiRequest('/meetings/create', { method: 'POST', body: JSON.stringify({ roomName: m.name, private: m.privacy === 'private' }) });
+        await apiRequest('/meetings/create', {
+          method: 'POST',
+          body: JSON.stringify({ roomName: m.name, private: m.privacy === 'private' }),
+        });
         this.showToast(`"${m.name}" restarted!`, 'success');
         setTimeout(() => this.fetchMeetingsData(), 600);
       } catch (e) { this.showToast('Failed: ' + e.message, 'error'); }
@@ -395,8 +607,10 @@ export default {
       setTimeout(() => { this.toast.show = false; }, 3500);
     },
   },
+
   mounted() {
     if (!this.isAuthenticated) { this.$router.push('/auth'); return; }
+    this.currentUserIdentity = getCurrentUserIdentity();
     this.fetchMeetingsData();
   },
 };
@@ -437,35 +651,22 @@ export default {
   min-height: 100vh;
   display: grid;
   grid-template-columns: var(--sidebar-w) 1fr;
-  grid-template-rows: 1fr;
 }
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
-/* ── Sidebar ──────────────────────────── */
-.md-sidebar {
-  background: var(--white); border-right: 1px solid var(--border);
-  display: flex; flex-direction: column; justify-content: space-between;
-  position: sticky; top: 0; height: 100vh; overflow-y: auto;
-}
+/* ── Sidebar ── */
+.md-sidebar { background: var(--white); border-right: 1px solid var(--border); display: flex; flex-direction: column; justify-content: space-between; position: sticky; top: 0; height: 100vh; overflow-y: auto; }
 .md-sb-top { display: flex; flex-direction: column; }
 .md-sb-brand { display: flex; align-items: center; gap: 10px; padding: 20px 18px 18px; border-bottom: 1px solid var(--border); }
 .md-sb-logo { width: 32px; height: 32px; border-radius: 9px; background: linear-gradient(135deg, var(--blue), #6366f1); display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 12px var(--blue-glow); flex-shrink: 0; }
 .md-sb-name { font-family: var(--fdisp); font-size: 16px; font-weight: 700; color: var(--ink); }
 .md-sb-accent { color: var(--blue); }
-
 .md-sb-nav { padding: 16px 12px; display: flex; flex-direction: column; gap: 2px; }
 .md-nav-section { font-size: 10px; font-weight: 800; letter-spacing: 1.5px; color: var(--ink-m); text-transform: uppercase; padding: 6px 8px 4px; }
-.md-nav-item {
-  display: flex; align-items: center; gap: 9px;
-  padding: 10px 12px; border-radius: 8px;
-  background: transparent; border: none;
-  color: var(--ink-m); font-family: var(--font); font-size: 13px; font-weight: 600;
-  cursor: pointer; transition: all .15s; text-align: left; width: 100%;
-}
+.md-nav-item { display: flex; align-items: center; gap: 9px; padding: 10px 12px; border-radius: 8px; background: transparent; border: none; color: var(--ink-m); font-family: var(--font); font-size: 13px; font-weight: 600; cursor: pointer; transition: all .15s; text-align: left; width: 100%; }
 .md-nav-item:hover { background: var(--bg); color: var(--ink-s); }
 .md-nav-item--active { background: var(--blue-soft); border: 1px solid var(--blue-mid); color: var(--blue); font-weight: 700; }
 .md-nav-badge { margin-left: auto; min-width: 20px; height: 20px; padding: 0 6px; border-radius: 10px; font-size: 10px; font-weight: 800; background: #fef2f2; border: 1px solid #fecaca; color: #dc2626; display: flex; align-items: center; justify-content: center; }
-
 .md-sb-footer { padding: 16px 12px; border-top: 1px solid var(--border); }
 .md-sb-stats { display: flex; align-items: center; justify-content: space-around; background: var(--bg); border: 1px solid var(--border); border-radius: var(--r); padding: 14px; }
 .md-stat { display: flex; flex-direction: column; align-items: center; gap: 2px; }
@@ -474,59 +675,25 @@ export default {
 .md-stat-lbl { font-size: 10px; color: var(--ink-m); font-weight: 600; text-transform: uppercase; letter-spacing: .3px; }
 .md-stat-sep { width: 1px; height: 30px; background: var(--border); }
 
-/* ── Main ─────────────────────────────── */
+/* ── Main ── */
 .md-main { display: flex; flex-direction: column; min-height: 100vh; overflow-y: auto; }
-
-.md-header {
-  height: var(--bar-h); flex-shrink: 0;
-  display: flex; align-items: center; justify-content: space-between;
-  padding: 0 28px;
-  background: var(--white); border-bottom: 1px solid var(--border);
-  box-shadow: var(--shadow-sm);
-  position: sticky; top: 0; z-index: 20;
-}
+.md-header { height: var(--bar-h); flex-shrink: 0; display: flex; align-items: center; justify-content: space-between; padding: 0 28px; background: var(--white); border-bottom: 1px solid var(--border); box-shadow: var(--shadow-sm); position: sticky; top: 0; z-index: 20; }
 .md-page-title { font-family: var(--fdisp); font-size: 20px; font-weight: 700; color: var(--ink); }
 .md-page-sub { font-size: 12px; color: var(--ink-m); margin-top: 2px; font-weight: 500; }
 .md-header-actions { display: flex; align-items: center; gap: 10px; }
 
 /* Buttons */
-.md-btn-primary {
-  display: inline-flex; align-items: center; gap: 7px;
-  padding: 9px 18px; background: var(--blue); color: var(--white);
-  border: none; border-radius: var(--r);
-  font-family: var(--font); font-size: 13px; font-weight: 700;
-  cursor: pointer; transition: all .15s; box-shadow: 0 4px 12px var(--blue-glow);
-}
+.md-btn-primary { display: inline-flex; align-items: center; gap: 7px; padding: 9px 18px; background: var(--blue); color: var(--white); border: none; border-radius: var(--r); font-family: var(--font); font-size: 13px; font-weight: 700; cursor: pointer; transition: all .15s; box-shadow: 0 4px 12px var(--blue-glow); }
 .md-btn-primary:hover { background: var(--blue-dk); transform: translateY(-1px); }
-
-.md-btn-ghost {
-  display: inline-flex; align-items: center; gap: 7px;
-  padding: 9px 16px; background: transparent; border: 1.5px solid var(--border);
-  border-radius: var(--r); color: var(--ink-m);
-  font-family: var(--font); font-size: 13px; font-weight: 600;
-  cursor: pointer; transition: all .15s;
-}
+.md-btn-primary:disabled { opacity: .55; cursor: not-allowed; transform: none; }
+.md-btn-ghost { display: inline-flex; align-items: center; gap: 7px; padding: 9px 16px; background: transparent; border: 1.5px solid var(--border); border-radius: var(--r); color: var(--ink-m); font-family: var(--font); font-size: 13px; font-weight: 600; cursor: pointer; transition: all .15s; }
 .md-btn-ghost:hover { border-color: var(--blue); color: var(--blue); background: var(--blue-soft); }
-
-.md-btn-danger {
-  display: inline-flex; align-items: center; gap: 7px;
-  padding: 10px 20px; background: var(--red); color: var(--white);
-  border: none; border-radius: var(--r);
-  font-family: var(--font); font-size: 13px; font-weight: 700;
-  cursor: pointer; transition: all .15s;
-}
+.md-btn-ghost:disabled { opacity: .55; cursor: not-allowed; }
+.md-btn-danger { display: inline-flex; align-items: center; gap: 7px; padding: 10px 20px; background: var(--red); color: var(--white); border: none; border-radius: var(--r); font-family: var(--font); font-size: 13px; font-weight: 700; cursor: pointer; transition: all .15s; }
 .md-btn-danger:hover:not(:disabled) { background: #dc2626; }
 .md-btn-danger:disabled { opacity: .55; cursor: not-allowed; }
-
-.md-btn-amber {
-  display: inline-flex; align-items: center; gap: 7px;
-  padding: 10px 20px; background: var(--orange); color: var(--white);
-  border: none; border-radius: var(--r);
-  font-family: var(--font); font-size: 13px; font-weight: 700;
-  cursor: pointer; transition: all .15s;
-}
+.md-btn-amber { display: inline-flex; align-items: center; gap: 7px; padding: 10px 20px; background: var(--orange); color: var(--white); border: none; border-radius: var(--r); font-family: var(--font); font-size: 13px; font-weight: 700; cursor: pointer; transition: all .15s; }
 .md-btn-amber:disabled { opacity: .55; cursor: not-allowed; }
-
 .md-spinner { display: inline-block; width: 13px; height: 13px; border: 2px solid rgba(255,255,255,.35); border-top-color: #fff; border-radius: 50%; animation: md-spin .65s linear infinite; }
 @keyframes md-spin { to { transform: rotate(360deg); } }
 
@@ -544,11 +711,7 @@ export default {
 
 /* KPI */
 .md-kpi-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
-.md-kpi {
-  display: flex; align-items: center; gap: 14px;
-  padding: 18px 20px; background: var(--white); border: 1px solid var(--border);
-  border-radius: 14px; transition: all .15s; box-shadow: var(--shadow-sm);
-}
+.md-kpi { display: flex; align-items: center; gap: 14px; padding: 18px 20px; background: var(--white); border: 1px solid var(--border); border-radius: 14px; transition: all .15s; box-shadow: var(--shadow-sm); }
 .md-kpi:hover { border-color: var(--blue-mid); box-shadow: var(--shadow-md); transform: translateY(-1px); }
 .md-kpi--live { border-color: #fecaca; }
 .md-kpi-icon { width: 44px; height: 44px; border-radius: 11px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; position: relative; }
@@ -575,6 +738,8 @@ export default {
 .md-live-name { font-size: 14px; font-weight: 700; color: var(--ink-s); display: block; }
 .md-live-meta { font-size: 11px; color: var(--ink-m); font-weight: 500; }
 .md-live-btns { display: flex; gap: 6px; }
+.md-live-copy { display: flex; align-items: center; gap: 5px; padding: 6px 10px; background: var(--bg); color: var(--ink-m); border: 1.5px solid var(--border); border-radius: 7px; font-family: var(--font); font-size: 12px; font-weight: 600; cursor: pointer; transition: all .15s; }
+.md-live-copy:hover { border-color: var(--blue); color: var(--blue); }
 .md-live-join { display: flex; align-items: center; gap: 5px; padding: 6px 14px; background: var(--blue); color: var(--white); border: none; border-radius: 7px; font-family: var(--font); font-size: 12px; font-weight: 700; cursor: pointer; transition: all .15s; }
 .md-live-join:hover { background: var(--blue-dk); }
 .md-live-end { display: flex; align-items: center; gap: 5px; padding: 6px 10px; background: #fef2f2; color: #dc2626; border: 1.5px solid #fecaca; border-radius: 7px; font-family: var(--font); font-size: 12px; font-weight: 700; cursor: pointer; transition: all .15s; }
@@ -588,7 +753,6 @@ export default {
 .md-tab--active { background: var(--blue-soft); color: var(--blue); border: 1px solid var(--blue-mid); font-weight: 700; }
 .md-tab-count { min-width: 20px; height: 20px; padding: 0 6px; border-radius: 10px; font-size: 10px; font-weight: 800; background: var(--bg); color: var(--ink-m); display: flex; align-items: center; justify-content: center; border: 1px solid var(--border); }
 .md-tab-count--on { background: rgba(74,144,226,.12); color: var(--blue); border-color: var(--blue-mid); }
-
 .md-toolbar-right { display: flex; align-items: center; gap: 8px; }
 .md-search { position: relative; }
 .md-search-icon { position: absolute; left: 10px; top: 50%; transform: translateY(-50%); color: var(--ink-m); pointer-events: none; }
@@ -605,51 +769,30 @@ export default {
 .md-empty-title { font-family: var(--fdisp); font-size: 18px; font-weight: 700; color: var(--ink); }
 .md-empty-sub { font-size: 14px; color: var(--ink-m); }
 
-/* Private notice */
-.md-private-notice {
-  display: flex; align-items: center; gap: 10px;
-  padding: 12px 16px;
-  background: var(--purple-s); border: 1.5px solid #ddd6fe; border-radius: var(--r);
-  font-size: 13px; color: #5b21b6; font-weight: 500;
-}
-.md-private-notice strong { font-weight: 700; }
-.md-private-notice svg { flex-shrink: 0; color: var(--purple); }
-.md-private-notice span { flex: 1; }
-.md-private-join-btn {
-  flex-shrink: 0; padding: 6px 14px;
-  background: var(--purple); color: var(--white);
-  border: none; border-radius: 7px;
-  font-family: var(--font); font-size: 12px; font-weight: 700;
-  cursor: pointer; transition: all .15s; white-space: nowrap;
-}
-.md-private-join-btn:hover { background: #7c3aed; }
-
 /* Room grid */
-.md-room-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 14px; }
-.md-room-card {
-  background: var(--white); border: 1.5px solid var(--border); border-radius: 14px;
-  display: flex; flex-direction: column; overflow: hidden;
-  transition: all .18s; box-shadow: var(--shadow-sm);
-}
+.md-room-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(290px, 1fr)); gap: 14px; }
+.md-room-card { background: var(--white); border: 1.5px solid var(--border); border-radius: 14px; display: flex; flex-direction: column; overflow: hidden; transition: all .18s; box-shadow: var(--shadow-sm); }
 .md-room-card:hover { border-color: var(--blue-mid); transform: translateY(-2px); box-shadow: var(--shadow-md); }
 .md-room-card--live { border-color: #fecaca; }
-
 .md-room-top { padding: 18px; flex: 1; display: flex; flex-direction: column; gap: 10px; }
 .md-room-status-row { display: flex; align-items: center; justify-content: space-between; }
-.md-room-pill {
-  display: inline-flex; align-items: center; gap: 5px;
-  padding: 3px 10px; border-radius: 20px;
-  font-size: 10px; font-weight: 800; letter-spacing: .5px; text-transform: uppercase;
-}
+.md-room-pill { display: inline-flex; align-items: center; gap: 5px; padding: 3px 10px; border-radius: 20px; font-size: 10px; font-weight: 800; letter-spacing: .5px; text-transform: uppercase; }
 .md-room-pill--live    { background: #fef2f2; border: 1px solid #fecaca; color: #dc2626; }
 .md-room-pill--public  { background: #f0fdf4; border: 1px solid #bbf7d0; color: #065f46; }
 .md-room-pill--private { background: var(--purple-s); border: 1px solid #ddd6fe; color: #6d28d9; }
 .md-pill-blink { width: 5px; height: 5px; border-radius: 50%; background: var(--red); animation: md-blink 2s ease-in-out infinite; }
 .md-room-time { font-size: 11px; color: var(--ink-m); font-weight: 500; }
 .md-room-name { font-family: var(--fdisp); font-size: 16px; font-weight: 700; color: var(--ink-s); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.md-room-code-row { display: inline-flex; align-items: center; gap: 6px; align-self: flex-start; padding: 5px 10px; background: var(--bg); border: 1px solid var(--border); border-radius: 6px; cursor: pointer; transition: all .15s; }
-.md-room-code-row:hover { border-color: var(--blue); background: var(--blue-soft); }
-.md-room-code { font-family: 'Courier New', monospace; font-size: 12px; color: var(--blue); font-weight: 700; letter-spacing: .5px; }
+
+/* Meeting code block — prominent */
+.md-room-code-block { background: var(--bg); border: 1px solid var(--border); border-radius: 10px; padding: 12px 14px; display: flex; flex-direction: column; gap: 6px; }
+.md-code-label { font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: .8px; color: var(--ink-m); }
+.md-code-row { display: flex; align-items: center; gap: 7px; cursor: pointer; padding: 6px 10px; background: var(--white); border: 1.5px solid var(--blue-mid); border-radius: 7px; transition: all .15s; }
+.md-code-row:hover { border-color: var(--blue); background: var(--blue-soft); }
+.md-code-row svg { color: var(--blue); flex-shrink: 0; }
+.md-room-code { font-family: 'Courier New', monospace; font-size: 13px; color: var(--blue); font-weight: 700; letter-spacing: .8px; flex: 1; }
+.md-copy-hint { font-size: 10px; color: var(--blue); font-weight: 700; opacity: 0.6; }
+.md-share-hint { font-size: 11px; color: var(--ink-m); font-weight: 500; line-height: 1.4; }
 
 .md-room-foot { display: flex; align-items: center; gap: 6px; padding: 12px 14px; border-top: 1px solid var(--border); background: var(--bg); }
 .md-room-join { display: flex; align-items: center; gap: 5px; padding: 7px 16px; background: var(--blue); color: var(--white); border: none; border-radius: 7px; font-family: var(--font); font-size: 12px; font-weight: 700; cursor: pointer; transition: all .15s; box-shadow: 0 2px 8px var(--blue-glow); }
@@ -660,16 +803,38 @@ export default {
 .md-room-icon-btn--red { background: #fef2f2; border-color: #fecaca; color: #dc2626; }
 .md-room-icon-btn--red:hover { background: var(--red); color: var(--white); border-color: var(--red); }
 
+/* ── Create Meeting Modal ── */
+.md-modal--create { max-width: 460px; }
+.md-success-icon { font-size: 44px; margin-bottom: 12px; }
+
+.md-type-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin: 20px 0 24px; }
+.md-type-btn { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 18px 14px; background: var(--white); border: 2px solid var(--border); border-radius: 12px; cursor: pointer; transition: all .15s; font-family: var(--font); }
+.md-type-btn:hover { border-color: var(--blue-mid); background: var(--blue-soft); }
+.md-type-btn--active { border-color: var(--blue); background: var(--blue-soft); box-shadow: 0 0 0 3px var(--blue-glow); }
+.md-type-icon { font-size: 26px; }
+.md-type-label { font-size: 14px; font-weight: 700; color: var(--ink-s); }
+.md-type-desc { font-size: 11px; color: var(--ink-m); text-align: center; line-height: 1.4; }
+
+.md-generated-code-box { background: var(--bg); border: 2px solid var(--blue-mid); border-radius: 14px; padding: 20px; margin: 20px 0 12px; display: flex; flex-direction: column; align-items: center; gap: 10px; }
+.md-generated-label { font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 1px; color: var(--ink-m); }
+.md-generated-code { font-family: 'Courier New', monospace; font-size: 22px; font-weight: 700; color: var(--blue); letter-spacing: 1px; word-break: break-all; text-align: center; }
+.md-copy-btn { display: inline-flex; align-items: center; gap: 7px; padding: 9px 18px; background: var(--blue); color: var(--white); border: none; border-radius: var(--r); font-family: var(--font); font-size: 13px; font-weight: 700; cursor: pointer; transition: all .15s; }
+.md-copy-btn:hover { background: var(--blue-dk); }
+
+.md-type-tag { text-align: center; margin-bottom: 4px; }
+.md-tag--public  { background: #f0fdf4; border: 1px solid #bbf7d0; color: #065f46; padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: 700; }
+.md-tag--private { background: var(--purple-s); border: 1px solid #ddd6fe; color: #6d28d9; padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: 700; }
+
 /* Modal */
 .md-modal-overlay { position: fixed; inset: 0; z-index: 5000; background: rgba(13,27,54,.5); backdrop-filter: blur(6px); display: flex; align-items: center; justify-content: center; padding: 20px; }
 .md-modal { background: var(--white); border: 1px solid var(--border); border-radius: 20px; padding: 40px 36px 32px; max-width: 420px; width: 100%; text-align: center; box-shadow: var(--shadow-lg); }
 .md-modal-icon { width: 60px; height: 60px; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 20px; }
 .md-modal-icon--red   { background: #fef2f2; border: 1.5px solid #fecaca; color: #dc2626; }
 .md-modal-icon--amber { background: #fffbeb; border: 1.5px solid #fde68a; color: #92400e; }
+.md-modal-icon--blue  { background: var(--blue-soft); border: 1.5px solid var(--blue-mid); color: var(--blue); }
 .md-modal-title { font-family: var(--fdisp); font-size: 20px; font-weight: 700; color: var(--ink); margin-bottom: 10px; }
-.md-modal-body { font-size: 14px; color: var(--ink-m); line-height: 1.65; margin-bottom: 24px; }
-.md-modal-actions { display: flex; gap: 10px; justify-content: center; }
-
+.md-modal-body { font-size: 14px; color: var(--ink-m); line-height: 1.65; margin-bottom: 20px; }
+.md-modal-actions { display: flex; gap: 10px; justify-content: center; margin-top: 20px; }
 .md-modal-enter-active { animation: md-pop .2s cubic-bezier(.34,1.56,.64,1); }
 .md-modal-leave-active { animation: md-pop .15s reverse ease-in; }
 @keyframes md-pop { from{opacity:0;transform:scale(.92)} to{opacity:1;transform:scale(1)} }
@@ -685,5 +850,5 @@ export default {
 /* Responsive */
 @media (max-width: 1024px) { .md-shell { grid-template-columns: 1fr; } .md-sidebar { display: none; } }
 @media (max-width: 768px) { .md-kpi-grid { grid-template-columns: repeat(2, 1fr); } .md-content { padding: 16px; } .md-header { padding: 0 16px; } }
-@media (max-width: 480px) { .md-kpi-grid { grid-template-columns: 1fr; } }
+@media (max-width: 480px) { .md-kpi-grid { grid-template-columns: 1fr; } .md-type-grid { grid-template-columns: 1fr; } }
 </style>
