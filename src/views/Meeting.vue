@@ -1,79 +1,112 @@
 <template>
-  <div class="nc-shell">
+  <div class="nm-shell">
 
     <!-- ═══════════════════ CREATE VIEW ═══════════════════ -->
-    <div v-if="view === 'create'" class="nc-create">
-      <header class="nc-topbar">
-        <div class="nc-topbar-brand" @click="goToDashboard">
-          <div class="nc-logo-mark">
+    <div v-if="view === 'create'" class="nm-create">
+      <header class="nm-topbar">
+        <div class="nm-brand" @click="goToDashboard">
+          <div class="nm-logo">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M15 10l4.553-2.276A1 1 0 0121 8.723v6.554a1 1 0 01-1.447.894L15 14M3 8a2 2 0 012-2h10a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2V8z" stroke="white" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
           </div>
-          <span class="nc-logo-text">Nova<span class="nc-logo-accent">Meet</span></span>
+          <span class="nm-brand-name">Nova<span class="nm-brand-accent">Meet</span></span>
         </div>
-        <button class="nc-ghost-btn" @click="goToDashboard">
+        <button class="nm-back-btn" @click="goToDashboard">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
-          Back
+          Back to Dashboard
         </button>
       </header>
 
-      <div class="nc-create-body">
-        <div class="nc-create-hero">
-          <div class="nc-hero-badge">NEW MEETING</div>
-          <h1 class="nc-hero-title">Start a conference</h1>
-          <p class="nc-hero-sub">Invite your team and collaborate in real time.</p>
-        </div>
-
-        <div class="nc-create-card">
-          <!-- Success state -->
-          <div v-if="created.code" class="nc-created-state">
-            <div class="nc-created-icon">
-              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="20 6 9 17 4 12"/></svg>
+      <div class="nm-create-body">
+        <div class="nm-create-left">
+          <div class="nm-hero-eyebrow">START A MEETING</div>
+          <h1 class="nm-hero-title">Create your<br>conference room</h1>
+          <p class="nm-hero-desc">Set up a secure video meeting and invite your team to collaborate in real time.</p>
+          <div class="nm-hero-features">
+            <div class="nm-feat">
+              <div class="nm-feat-dot"></div>
+              HD video & crystal-clear audio
             </div>
-            <div class="nc-created-info">
-              <div class="nc-created-label">Meeting ready</div>
-              <div class="nc-created-code-row">
-                <code class="nc-code-display">{{ created.code }}</code>
-                <button class="nc-copy-btn" @click="copyCreatedCode" title="Copy code">
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
-                </button>
-              </div>
-              <p class="nc-created-hint">Share this code with participants</p>
+            <div class="nm-feat">
+              <div class="nm-feat-dot"></div>
+              Screen sharing & collaboration
             </div>
-            <div class="nc-created-actions">
-              <button class="nc-primary-btn" @click="enterMeeting">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"/></svg>
-                Launch meeting
-              </button>
-              <button class="nc-ghost-btn nc-ghost-btn--sm" @click="goToDashboard">Cancel</button>
+            <div class="nm-feat">
+              <div class="nm-feat-dot"></div>
+              Secure JWT-authenticated rooms
             </div>
           </div>
+        </div>
 
-          <!-- Form state -->
-          <div v-if="!created.code" class="nc-create-form">
-            <label class="nc-field-label">Room name</label>
-            <div class="nc-input-wrap">
-              <svg class="nc-input-icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="2" y="7" width="20" height="15" rx="2"/><polygon points="23 7 16 12 23 17 23 7"/></svg>
-              <input class="nc-field-input" v-model="form.roomName" type="text" placeholder="e.g. engineering-standup" autocomplete="off" spellcheck="false" @keyup.enter="createMeeting" />
+        <div class="nm-create-right">
+          <div class="nm-card">
+            <div class="nm-card-header">
+              <div class="nm-card-icon">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="2" y="7" width="20" height="15" rx="2"/><polygon points="23 7 16 12 23 17 23 7"/></svg>
+              </div>
+              <div>
+                <div class="nm-card-title">New Meeting</div>
+                <div class="nm-card-sub">Configure your room settings</div>
+              </div>
             </div>
-            <p class="nc-field-hint">Lowercase letters, numbers and hyphens only</p>
 
-            <div class="nc-form-meta">
-              <label class="nc-toggle-wrap">
-                <input type="checkbox" v-model="form.isPrivate" class="nc-toggle-input"/>
-                <span class="nc-toggle-track"><span class="nc-toggle-thumb"></span></span>
-                <span class="nc-toggle-label">Private meeting</span>
+            <!-- Success state -->
+            <div v-if="created.code" class="nm-success">
+              <div class="nm-success-check">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="20 6 9 17 4 12"/></svg>
+              </div>
+              <div class="nm-success-label">Room created successfully</div>
+              <div class="nm-code-block">
+                <div class="nm-code-label">Meeting code</div>
+                <div class="nm-code-row">
+                  <code class="nm-code">{{ created.code }}</code>
+                  <button class="nm-copy-btn" @click="copyCreatedCode">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
+                    Copy
+                  </button>
+                </div>
+                <p class="nm-code-hint">Share this code with your participants</p>
+              </div>
+              <div class="nm-success-actions">
+                <button class="nm-btn-primary" @click="enterMeeting">
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+                  Launch Meeting
+                </button>
+                <button class="nm-btn-ghost" @click="goToDashboard">Cancel</button>
+              </div>
+            </div>
+
+            <!-- Form state -->
+            <div v-if="!created.code" class="nm-form">
+              <div class="nm-field">
+                <label class="nm-label">Room Name</label>
+                <div class="nm-input-wrap">
+                  <svg class="nm-input-icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="2" y="7" width="20" height="15" rx="2"/><polygon points="23 7 16 12 23 17 23 7"/></svg>
+                  <input class="nm-input" v-model="form.roomName" type="text" placeholder="e.g. engineering-standup" autocomplete="off" spellcheck="false" @keyup.enter="createMeeting" />
+                </div>
+                <p class="nm-hint">Lowercase letters, numbers and hyphens only</p>
+              </div>
+
+              <label class="nm-toggle-row">
+                <input type="checkbox" v-model="form.isPrivate" class="nm-toggle-cb"/>
+                <div class="nm-toggle">
+                  <div class="nm-toggle-knob"></div>
+                </div>
+                <div class="nm-toggle-text">
+                  <span class="nm-toggle-label">Private meeting</span>
+                  <span class="nm-toggle-desc">Only invited participants can join</span>
+                </div>
               </label>
-            </div>
 
-            <button class="nc-primary-btn nc-primary-btn--full" @click="createMeeting" :disabled="creating">
-              <span v-if="creating" class="nc-btn-spinner"></span>
-              <svg v-else width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-              {{ creating ? 'Creating…' : 'Create meeting' }}
-            </button>
+              <button class="nm-btn-primary nm-btn-full" @click="createMeeting" :disabled="creating">
+                <span v-if="creating" class="nm-spinner"></span>
+                <svg v-else width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                {{ creating ? 'Creating…' : 'Create Meeting' }}
+              </button>
 
-            <div v-if="createError" class="nc-error-bar">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
-              {{ createError }}
+              <div v-if="createError" class="nm-error">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                {{ createError }}
+              </div>
             </div>
           </div>
         </div>
@@ -81,106 +114,100 @@
     </div>
 
     <!-- ═══════════════════ MEETING VIEW ═══════════════════ -->
-    <div v-if="view === 'meeting'" class="nc-meeting">
+    <div v-if="view === 'meeting'" class="nm-meeting">
 
-      <!-- Top control bar -->
-      <header class="nc-meeting-bar">
-        <div class="nc-bar-left">
-          <div class="nc-bar-brand">
-            <div class="nc-logo-mark nc-logo-mark--sm">
+      <!-- Meeting topbar -->
+      <header class="nm-meeting-bar">
+        <div class="nm-bar-left">
+          <div class="nm-bar-brand">
+            <div class="nm-logo nm-logo--sm">
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none"><path d="M15 10l4.553-2.276A1 1 0 0121 8.723v6.554a1 1 0 01-1.447.894L15 14M3 8a2 2 0 012-2h10a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2V8z" stroke="white" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
             </div>
-            <span class="nc-bar-name">NovaMeet</span>
+            <span class="nm-bar-name">NovaMeet</span>
           </div>
-          <div class="nc-bar-divider"></div>
-          <button class="nc-code-tag" @click="copyMeetingCode" title="Copy code">
+          <div class="nm-bar-sep"></div>
+          <button class="nm-code-chip" @click="copyMeetingCode" title="Copy code">
             <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
             {{ meetingCode }}
           </button>
-          <div class="nc-live-chip">
-            <span class="nc-live-dot"></span>
+          <div class="nm-live-badge">
+            <span class="nm-live-pulse"></span>
             LIVE
           </div>
-          <span v-if="isHost" class="nc-host-chip">HOST</span>
+          <span v-if="isHost" class="nm-host-badge">HOST</span>
         </div>
 
-        <div class="nc-bar-center">
-          <div class="nc-pcount">
+        <div class="nm-bar-center">
+          <div class="nm-participants">
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75"/></svg>
             {{ participantCount }}
           </div>
-          <span class="nc-clock">{{ currentTime }}</span>
+          <span class="nm-clock">{{ currentTime }}</span>
         </div>
 
-        <div class="nc-bar-right">
-          <button v-if="isHost" class="nc-bar-btn nc-bar-btn--warn" @click="endMeeting">
+        <div class="nm-bar-right">
+          <button v-if="isHost" class="nm-bar-btn nm-bar-btn--end" @click="endMeeting">
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="9" y1="9" x2="15" y2="15"/><line x1="15" y1="9" x2="9" y2="15"/></svg>
             End for all
           </button>
-          <button class="nc-bar-btn nc-bar-btn--leave" @click="leave">
+          <button class="nm-bar-btn nm-bar-btn--leave" @click="leave">
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4M16 17l5-5-5-5M21 12H9"/></svg>
             Leave
           </button>
         </div>
       </header>
 
-      <!-- Jitsi frame area -->
-      <div class="nc-frame-wrap">
-        <!-- Loading overlay -->
-        <transition name="nc-fade">
-          <div v-if="loading" class="nc-loading-overlay">
-            <div class="nc-loader-card">
-              <div class="nc-loader-ring">
-                <div class="nc-loader-ring-inner"></div>
+      <!-- Jitsi frame -->
+      <div class="nm-frame-wrap">
+        <transition name="nm-fade">
+          <div v-if="loading" class="nm-loading">
+            <div class="nm-loader-card">
+              <div class="nm-loader-ring">
+                <div class="nm-loader-inner"></div>
               </div>
-              <div class="nc-loader-logo">
-                <div class="nc-logo-mark">
+              <div class="nm-loader-logo">
+                <div class="nm-logo">
                   <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M15 10l4.553-2.276A1 1 0 0121 8.723v6.554a1 1 0 01-1.447.894L15 14M3 8a2 2 0 012-2h10a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2V8z" stroke="white" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
                 </div>
               </div>
-              <p class="nc-loader-status">{{ loadingStatus }}</p>
-              <div class="nc-loader-steps">
-                <span :class="['nc-step', loadingStep >= 1 ? 'nc-step--done' : '']"></span>
-                <span :class="['nc-step', loadingStep >= 2 ? 'nc-step--done' : '']"></span>
-                <span :class="['nc-step', loadingStep >= 3 ? 'nc-step--done' : '']"></span>
-                <span :class="['nc-step', loadingStep >= 4 ? 'nc-step--done' : '']"></span>
+              <p class="nm-loader-text">{{ loadingStatus }}</p>
+              <div class="nm-loader-dots">
+                <span :class="['nm-dot', loadingStep >= 1 ? 'nm-dot--on' : '']"></span>
+                <span :class="['nm-dot', loadingStep >= 2 ? 'nm-dot--on' : '']"></span>
+                <span :class="['nm-dot', loadingStep >= 3 ? 'nm-dot--on' : '']"></span>
+                <span :class="['nm-dot', loadingStep >= 4 ? 'nm-dot--on' : '']"></span>
               </div>
             </div>
           </div>
         </transition>
 
-        <!-- Error state -->
-        <div v-if="joinError && !loading" class="nc-error-overlay">
-          <div class="nc-error-card">
-            <div class="nc-error-icon-wrap">
+        <div v-if="joinError && !loading" class="nm-error-overlay">
+          <div class="nm-error-card">
+            <div class="nm-error-icon">
               <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
             </div>
-            <h3 class="nc-error-title">Connection failed</h3>
-            <p class="nc-error-msg">{{ joinError }}</p>
-            <button class="nc-primary-btn" @click="initMeeting">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 100 .49-4.5"/></svg>
-              Retry
-            </button>
+            <h3 class="nm-error-title">Connection failed</h3>
+            <p class="nm-error-msg">{{ joinError }}</p>
+            <button class="nm-btn-primary" @click="initMeeting">Retry</button>
           </div>
         </div>
 
-        <!-- Jitsi mounts here -->
-        <div id="nc-jitsi" ref="jitsiContainer" class="nc-jitsi-frame"></div>
+        <div id="nc-jitsi" ref="jitsiContainer" class="nm-jitsi"></div>
       </div>
 
       <!-- End meeting modal -->
-      <transition name="nc-modal-pop">
-        <div v-if="showEndModal" class="nc-modal-overlay" @click.self="showEndModal = false">
-          <div class="nc-modal">
-            <div class="nc-modal-icon nc-modal-icon--danger">
-              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="9" y1="9" x2="15" y2="15"/><line x1="15" y1="9" x2="9" y2="15"/></svg>
+      <transition name="nm-modal">
+        <div v-if="showEndModal" class="nm-modal-overlay" @click.self="showEndModal = false">
+          <div class="nm-modal">
+            <div class="nm-modal-icon nm-modal-icon--red">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="9" y1="9" x2="15" y2="15"/><line x1="15" y1="9" x2="9" y2="15"/></svg>
             </div>
-            <h2 class="nc-modal-title">End meeting for everyone?</h2>
-            <p class="nc-modal-body">All participants will be disconnected and the room will be removed.</p>
-            <div class="nc-modal-actions">
-              <button class="nc-ghost-btn" @click="showEndModal = false">Cancel</button>
-              <button class="nc-danger-btn" @click="confirmEndMeeting" :disabled="ending">
-                <span v-if="ending" class="nc-btn-spinner"></span>
+            <h2 class="nm-modal-title">End meeting for everyone?</h2>
+            <p class="nm-modal-body">All participants will be disconnected and the room will be removed.</p>
+            <div class="nm-modal-actions">
+              <button class="nm-btn-ghost" @click="showEndModal = false">Cancel</button>
+              <button class="nm-btn-danger" @click="confirmEndMeeting" :disabled="ending">
+                <span v-if="ending" class="nm-spinner"></span>
                 End for everyone
               </button>
             </div>
@@ -190,8 +217,8 @@
     </div>
 
     <!-- Toast -->
-    <transition name="nc-toast-pop">
-      <div v-if="toastVisible" class="nc-toast" :class="'nc-toast--' + toastType">
+    <transition name="nm-toast">
+      <div v-if="toastVisible" class="nm-toast" :class="'nm-toast--' + toastType">
         <svg v-if="toastType === 'success'" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="20 6 9 17 4 12"/></svg>
         <svg v-else width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
         {{ toastMessage }}
@@ -252,8 +279,6 @@ export default {
   },
 
   methods: {
-
-    // ── Create ──────────────────────────────────────────────────────────────
     async createMeeting() {
       this.createError = '';
       const name = this.form.roomName.trim().toLowerCase()
@@ -280,8 +305,7 @@ export default {
 
     copyCreatedCode() {
       if (!this.created.code) return;
-      navigator.clipboard.writeText(this.created.code)
-        .then(() => this.showToast('Code copied!'));
+      navigator.clipboard.writeText(this.created.code).then(() => this.showToast('Code copied!'));
     },
 
     enterMeeting() {
@@ -293,14 +317,10 @@ export default {
       this.$nextTick(() => this.initMeeting());
     },
 
-    // ── Init Meeting ────────────────────────────────────────────────────────
     async initMeeting() {
       log('════ initMeeting() ════');
-
       if (!this.meetingCode) {
-        this.meetingCode = this.code
-          || this.$route?.params?.code
-          || MeetingSession.getMeetingCode();
+        this.meetingCode = this.code || this.$route?.params?.code || MeetingSession.getMeetingCode();
       }
       if (!this.meetingCode) { this.$router.push('/meetings/join'); return; }
 
@@ -315,22 +335,16 @@ export default {
         this.loadingStep = 2;
         this.loadingStatus = 'Fetching room token…';
         const tokenData = await MeetingSession.fetchMeetingToken(this.meetingCode, this.isHost);
-
-        // Pick up domain/appId from backend response if available
         if (tokenData?.domain) this.jitsiDomain = tokenData.domain;
-        if (tokenData?.appId)  this.jitsiAppId  = tokenData.appId;
-
+        if (tokenData?.appId) this.jitsiAppId = tokenData.appId;
         this.loadingStep = 3;
         this.loadingStatus = 'Loading JaaS SDK…';
         await this.loadJaaSSDK();
-
         this.updateClock();
         this.clockInterval = setInterval(this.updateClock, 10_000);
-
         this.loadingStep = 4;
         this.loadingStatus = 'Joining room…';
         this.launchJitsi(tokenData?.token || null);
-
       } catch (e) {
         err('initMeeting() error:', e);
         this.joinError = e.message || 'Failed to join meeting.';
@@ -338,100 +352,58 @@ export default {
       }
     },
 
-    // ── Load JaaS SDK ───────────────────────────────────────────────────────
     loadJaaSSDK() {
       return new Promise((resolve, reject) => {
         if (window.JitsiMeetExternalAPI) { resolve(); return; }
         const s = document.createElement('script');
         s.src = `https://8x8.vc/${this.jitsiAppId}/external_api.js`;
-        s.onload  = () => { log('JaaS SDK loaded ✅'); resolve(); };
+        s.onload = () => { log('JaaS SDK loaded ✅'); resolve(); };
         s.onerror = () => reject(new Error('Failed to load JaaS SDK'));
         document.head.appendChild(s);
       });
     },
 
-    // ── Launch Jitsi ────────────────────────────────────────────────────────
     launchJitsi(token = null) {
       try {
-        if (this.jitsiApi) {
-          try { this.jitsiApi.dispose(); } catch (_) {}
-          this.jitsiApi = null;
-        }
-
+        if (this.jitsiApi) { try { this.jitsiApi.dispose(); } catch (_) {} this.jitsiApi = null; }
         const container = this.$refs.jitsiContainer;
         if (!container) throw new Error('Jitsi container not found.');
-
-        // JaaS room name format: AppID/roomCode
         const roomName = `${this.jitsiAppId}/${this.meetingCode}`;
-
         const options = {
-          roomName,
-          width:      '100%',
-          height:     '100%',
-          parentNode: container,
-          jwt:        token,
-
+          roomName, width: '100%', height: '100%', parentNode: container, jwt: token,
           userInfo: { displayName: this.userName },
-
           configOverwrite: {
-            prejoinPageEnabled:           false,
-            prejoinConfig:                { enabled: false },
-            enableInsecureRoomNameWarning: false,
-            requireDisplayName:           false,
-            enableLobbyChat:              false,
-            startWithAudioMuted:          false,
-            startWithVideoMuted:          false,
-            disableDeepLinking:           true,
-            disableInviteFunctions:       true,
-            doNotStoreRoom:               true,
-            notifications:                [],
-            disableNotifications:         true,
-            enableUserRolesBasedOnToken:  true,
-            // Screen sharing enabled
-            desktopSharingChromeExtId:    null,
-            desktopSharingChromeDisabled: false,
+            prejoinPageEnabled: false, prejoinConfig: { enabled: false },
+            enableInsecureRoomNameWarning: false, requireDisplayName: false,
+            enableLobbyChat: false, startWithAudioMuted: false, startWithVideoMuted: false,
+            disableDeepLinking: true, disableInviteFunctions: true, doNotStoreRoom: true,
+            notifications: [], disableNotifications: true, enableUserRolesBasedOnToken: true,
+            desktopSharingChromeExtId: null, desktopSharingChromeDisabled: false,
             desktopSharingFirefoxDisabled: false,
-            toolbarButtons: [
-              'microphone', 'camera', 'desktop', 'chat',
-              'raisehand', 'participants-pane', 'tileview',
-              'fullscreen', 'settings', 'hangup',
-            ],
+            toolbarButtons: ['microphone','camera','desktop','chat','raisehand','participants-pane','tileview','fullscreen','settings','hangup'],
           },
-
           interfaceConfigOverwrite: {
-            SHOW_JITSI_WATERMARK:             false,
-            SHOW_WATERMARK_FOR_GUESTS:        false,
-            SHOW_BRAND_WATERMARK:             false,
-            SHOW_POWERED_BY:                  false,
-            SHOW_PROMOTIONAL_CLOSE_PAGE:      false,
-            SHOW_CHROME_EXTENSION_BANNER:     false,
-            HIDE_INVITE_MORE_HEADER:          true,
-            DISABLE_JOIN_LEAVE_NOTIFICATIONS: true,
-            MOBILE_APP_PROMO:                 false,
-            TOOLBAR_BUTTONS: [
-              'microphone', 'camera', 'desktop', 'chat',
-              'raisehand', 'participants-pane', 'tileview',
-              'fullscreen', 'settings', 'hangup',
-            ],
+            SHOW_JITSI_WATERMARK: false, SHOW_WATERMARK_FOR_GUESTS: false,
+            SHOW_BRAND_WATERMARK: false, SHOW_POWERED_BY: false,
+            SHOW_PROMOTIONAL_CLOSE_PAGE: false, SHOW_CHROME_EXTENSION_BANNER: false,
+            HIDE_INVITE_MORE_HEADER: true, DISABLE_JOIN_LEAVE_NOTIFICATIONS: true,
+            MOBILE_APP_PROMO: false,
+            TOOLBAR_BUTTONS: ['microphone','camera','desktop','chat','raisehand','participants-pane','tileview','fullscreen','settings','hangup'],
           },
         };
-
         log('launchJitsi() creating JitsiMeetExternalAPI | room:', roomName);
         this.jitsiApi = new window.JitsiMeetExternalAPI(this.jitsiDomain, options);
-
         this.jitsiApi.addEventListeners({
-          readyToClose:           this.onJitsiReadyToClose,
-          participantJoined:      this.onParticipantJoined,
-          participantLeft:        this.onParticipantLeft,
-          videoConferenceJoined:  this.onConferenceJoined,
-          videoConferenceLeft:    this.onConferenceLeft,
-          errorOccurred:          this.onJitsiError,
+          readyToClose: this.onJitsiReadyToClose,
+          participantJoined: this.onParticipantJoined,
+          participantLeft: this.onParticipantLeft,
+          videoConferenceJoined: this.onConferenceJoined,
+          videoConferenceLeft: this.onConferenceLeft,
+          errorOccurred: this.onJitsiError,
           screenSharingStatusChanged: this.onScreenShareChanged,
         });
-
         this.participantInterval = setInterval(this.syncParticipantCount, 5000);
         log('launchJitsi() ✅');
-
       } catch (e) {
         err('launchJitsi() error:', e);
         this.joinError = e.message || 'Failed to launch meeting.';
@@ -439,45 +411,20 @@ export default {
       }
     },
 
-    // ── Jitsi Events ────────────────────────────────────────────────────────
-    onConferenceJoined(event) {
-      log('videoConferenceJoined', event);
-      this.loading = false;
-      this.joinError = '';
-      this.syncParticipantCount();
-    },
-
-    onConferenceLeft(event) {
-      log('videoConferenceLeft', event);
-      this.cleanupAndNavigate();
-    },
-
-    onParticipantJoined(event) {
-      this.syncParticipantCount();
-      if (event?.displayName) this.showToast(`${event.displayName} joined`, 'success');
-    },
-
+    onConferenceJoined(event) { log('videoConferenceJoined', event); this.loading = false; this.joinError = ''; this.syncParticipantCount(); },
+    onConferenceLeft(event) { log('videoConferenceLeft', event); this.cleanupAndNavigate(); },
+    onParticipantJoined(event) { this.syncParticipantCount(); if (event?.displayName) this.showToast(`${event.displayName} joined`, 'success'); },
     onParticipantLeft() { this.syncParticipantCount(); },
-
     onJitsiReadyToClose() { this.cleanupAndNavigate(); },
-
     onJitsiError(event) {
       err('Jitsi error:', event);
       const msg = event?.error?.message || '';
       if (msg.includes('membersOnly') || msg.includes('members-only')) return;
       this.showToast('Connection issue: ' + (msg || 'Unknown error'), 'error');
     },
+    onScreenShareChanged(event) { if (event?.on) this.showToast('Screen sharing started', 'success'); },
+    syncParticipantCount() { if (!this.jitsiApi) return; try { this.participantCount = this.jitsiApi.getNumberOfParticipants(); } catch (_) {} },
 
-    onScreenShareChanged(event) {
-      if (event?.on) this.showToast('Screen sharing started', 'success');
-    },
-
-    syncParticipantCount() {
-      if (!this.jitsiApi) return;
-      try { this.participantCount = this.jitsiApi.getNumberOfParticipants(); } catch (_) {}
-    },
-
-    // ── Leave / End ──────────────────────────────────────────────────────────
     leave() {
       if (!confirm('Leave this meeting?')) return;
       if (this.jitsiApi) { try { this.jitsiApi.executeCommand('hangup'); } catch (_) {} }
@@ -510,17 +457,12 @@ export default {
       else this.$router.push(this.isAuthenticated ? '/meeting-dashboard' : '/meetings/join');
     },
 
-    // ── Utilities ────────────────────────────────────────────────────────────
     copyMeetingCode() {
-      navigator.clipboard.writeText(this.meetingCode)
-        .then(() => this.showToast('Code copied!'))
-        .catch(() => this.showToast('Copy failed', 'error'));
+      navigator.clipboard.writeText(this.meetingCode).then(() => this.showToast('Code copied!')).catch(() => this.showToast('Copy failed', 'error'));
     },
 
     showToast(msg, type = 'success') {
-      this.toastMessage = msg;
-      this.toastType = type;
-      this.toastVisible = true;
+      this.toastMessage = msg; this.toastType = type; this.toastVisible = true;
       setTimeout(() => { this.toastVisible = false; }, 3000);
     },
 
@@ -537,7 +479,6 @@ export default {
   mounted() {
     log('mounted() code:', this.code, 'query:', this.$route?.query);
     const forceCreate = this.$route?.query?.create === 'true';
-
     if (forceCreate) {
       MeetingSession.clearMeetingData();
       this.view = 'create';
@@ -565,407 +506,361 @@ export default {
 </script>
 
 <style scoped>
-@import url('https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;1,9..40,400&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Manrope:wght@300;400;500;600;700;800&family=Space+Grotesk:wght@400;500;600;700&display=swap');
 
-/* ── Root ─────────────────────────────────────────────────── */
-.nc-shell {
-  --nc-bg:       #0a0c10;
-  --nc-surf:     #111318;
-  --nc-surf2:    #181c24;
-  --nc-surf3:    #1f2330;
-  --nc-border:   rgba(255,255,255,.07);
-  --nc-border2:  rgba(255,255,255,.12);
-  --nc-blue:     #3b8eea;
-  --nc-blue-dk:  #2464c4;
-  --nc-blue-glow:rgba(59,142,234,.3);
-  --nc-green:    #22c55e;
-  --nc-red:      #ef4444;
-  --nc-amber:    #f59e0b;
-  --nc-text:     #e6eaf2;
-  --nc-text2:    #8892a4;
-  --nc-text3:    #525c6e;
-  --nc-r:        10px;
-  font-family: 'DM Sans', system-ui, sans-serif;
-  background: var(--nc-bg);
-  color: var(--nc-text);
+.nm-shell {
+  --blue:      #4a90e2;
+  --blue-dk:   #2c6fbd;
+  --blue-soft: #e8f2fc;
+  --blue-mid:  #c9dff5;
+  --blue-glow: rgba(74,144,226,0.18);
+  --ink:       #0d1b36;
+  --ink-s:     #2d3748;
+  --ink-m:     #64748b;
+  --white:     #ffffff;
+  --border:    #e2ecf6;
+  --bg:        #f8fafc;
+  --green:     #10b981;
+  --red:       #ef4444;
+  --orange:    #f59e0b;
+  --font:      'Manrope', sans-serif;
+  --fdisp:     'Space Grotesk', sans-serif;
+  --r:         10px;
+  --shadow-sm: 0 1px 3px rgba(0,0,0,0.06);
+  --shadow-md: 0 4px 12px rgba(0,0,0,0.08);
+  --shadow-lg: 0 12px 32px rgba(0,0,0,0.1);
+
+  font-family: var(--font);
+  background: var(--bg);
+  color: var(--ink);
   min-height: 100vh;
-  display: flex;
-  flex-direction: column;
 }
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
-/* ── Logo ─────────────────────────────────────────────────── */
-.nc-logo-mark {
-  width: 32px; height: 32px;
-  background: linear-gradient(135deg, var(--nc-blue), #5b6df8);
-  border-radius: 9px;
+/* ── Logo ─────────────────────────── */
+.nm-logo {
+  width: 34px; height: 34px; border-radius: 9px;
+  background: linear-gradient(135deg, var(--blue), #6366f1);
   display: flex; align-items: center; justify-content: center;
-  box-shadow: 0 4px 16px var(--nc-blue-glow);
-  flex-shrink: 0;
+  box-shadow: 0 4px 12px var(--blue-glow); flex-shrink: 0;
 }
-.nc-logo-mark--sm { width: 26px; height: 26px; border-radius: 7px; }
-.nc-logo-text {
-  font-family: 'Syne', sans-serif;
-  font-weight: 700; font-size: 18px; color: var(--nc-text);
-}
-.nc-logo-accent { color: var(--nc-blue); }
+.nm-logo--sm { width: 28px; height: 28px; border-radius: 7px; }
+.nm-brand-name { font-family: var(--fdisp); font-size: 18px; font-weight: 700; color: var(--ink); }
+.nm-brand-accent { color: var(--blue); }
 
-/* ── Topbar ───────────────────────────────────────────────── */
-.nc-topbar {
-  height: 60px;
+/* ── Create ───────────────────────── */
+.nm-create { display: flex; flex-direction: column; min-height: 100vh; background: var(--bg); }
+
+.nm-topbar {
+  height: 64px;
   display: flex; align-items: center; justify-content: space-between;
-  padding: 0 28px;
-  background: var(--nc-surf);
-  border-bottom: 1px solid var(--nc-border);
+  padding: 0 32px;
+  background: var(--white);
+  border-bottom: 1px solid var(--border);
   position: sticky; top: 0; z-index: 50;
+  box-shadow: var(--shadow-sm);
 }
-.nc-topbar-brand { display: flex; align-items: center; gap: 10px; cursor: pointer; }
+.nm-brand { display: flex; align-items: center; gap: 10px; cursor: pointer; }
+.nm-back-btn {
+  display: flex; align-items: center; gap: 7px;
+  padding: 8px 16px;
+  background: var(--bg); border: 1px solid var(--border); border-radius: 8px;
+  color: var(--ink-m); font-family: var(--font); font-size: 13px; font-weight: 500;
+  cursor: pointer; transition: all .15s;
+}
+.nm-back-btn:hover { border-color: var(--blue); color: var(--blue); background: var(--blue-soft); }
 
-/* ── Create body ──────────────────────────────────────────── */
-.nc-create {
-  display: flex; flex-direction: column; min-height: 100vh;
-  background: var(--nc-bg);
-}
-.nc-create-body {
+.nm-create-body {
   flex: 1;
-  display: flex; flex-direction: column; align-items: center; justify-content: center;
-  padding: 48px 20px;
-  gap: 36px;
-}
-.nc-create-hero { text-align: center; }
-.nc-hero-badge {
-  display: inline-block;
-  font-family: 'Syne', sans-serif;
-  font-size: 10px; font-weight: 700; letter-spacing: 2px;
-  color: var(--nc-blue);
-  background: rgba(59,142,234,.12);
-  border: 1px solid rgba(59,142,234,.25);
-  padding: 5px 12px; border-radius: 20px;
-  margin-bottom: 16px;
-}
-.nc-hero-title {
-  font-family: 'Syne', sans-serif;
-  font-size: clamp(28px, 5vw, 44px);
-  font-weight: 800; color: var(--nc-text);
-  line-height: 1.1; margin-bottom: 12px;
-}
-.nc-hero-sub { font-size: 15px; color: var(--nc-text2); }
-
-/* ── Create card ──────────────────────────────────────────── */
-.nc-create-card {
-  width: 100%; max-width: 440px;
-  background: var(--nc-surf);
-  border: 1px solid var(--nc-border2);
-  border-radius: 18px;
-  padding: 32px;
-  box-shadow: 0 24px 60px rgba(0,0,0,.5);
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 64px 32px;
+  gap: 80px;
+  align-items: center;
+  width: 100%;
 }
 
-/* ── Form ─────────────────────────────────────────────────── */
-.nc-create-form { display: flex; flex-direction: column; gap: 0; }
-.nc-field-label {
-  font-size: 12px; font-weight: 600; letter-spacing: .5px;
-  color: var(--nc-text2); text-transform: uppercase;
-  margin-bottom: 8px; display: block;
+.nm-hero-eyebrow {
+  font-family: var(--fdisp); font-size: 11px; font-weight: 700;
+  letter-spacing: 2px; color: var(--blue);
+  background: var(--blue-soft); border: 1px solid var(--blue-mid);
+  display: inline-block; padding: 5px 12px; border-radius: 20px;
+  margin-bottom: 20px;
 }
-.nc-input-wrap {
-  position: relative;
+.nm-hero-title {
+  font-family: var(--fdisp); font-size: clamp(32px, 4vw, 48px);
+  font-weight: 700; color: var(--ink); line-height: 1.12; margin-bottom: 16px;
 }
-.nc-input-icon {
-  position: absolute; left: 14px; top: 50%; transform: translateY(-50%);
-  color: var(--nc-text3); pointer-events: none;
-}
-.nc-field-input {
-  width: 100%; padding: 12px 14px 12px 40px;
-  background: var(--nc-surf2);
-  border: 1px solid var(--nc-border2);
-  border-radius: var(--nc-r);
-  color: var(--nc-text); font-family: 'DM Sans', sans-serif; font-size: 14px;
-  transition: border-color .15s, box-shadow .15s;
-}
-.nc-field-input::placeholder { color: var(--nc-text3); }
-.nc-field-input:focus {
-  outline: none;
-  border-color: var(--nc-blue);
-  box-shadow: 0 0 0 3px rgba(59,142,234,.15);
-}
-.nc-field-hint { font-size: 11px; color: var(--nc-text3); margin-top: 6px; margin-bottom: 16px; }
+.nm-hero-desc { font-size: 16px; color: var(--ink-m); line-height: 1.7; margin-bottom: 32px; }
+.nm-hero-features { display: flex; flex-direction: column; gap: 12px; }
+.nm-feat { display: flex; align-items: center; gap: 10px; font-size: 14px; color: var(--ink-s); font-weight: 500; }
+.nm-feat-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--blue); flex-shrink: 0; }
 
-/* Toggle */
-.nc-form-meta { margin-bottom: 24px; }
-.nc-toggle-wrap { display: flex; align-items: center; gap: 10px; cursor: pointer; }
-.nc-toggle-input { display: none; }
-.nc-toggle-track {
-  width: 38px; height: 21px;
-  background: var(--nc-surf3); border-radius: 12px;
-  border: 1px solid var(--nc-border2);
-  position: relative; transition: background .2s;
-  flex-shrink: 0;
+/* Card */
+.nm-card {
+  background: var(--white); border: 1px solid var(--border); border-radius: 16px;
+  padding: 32px; box-shadow: var(--shadow-lg);
 }
-.nc-toggle-thumb {
-  width: 15px; height: 15px;
-  background: var(--nc-text3); border-radius: 50%;
-  position: absolute; top: 2px; left: 2px;
-  transition: transform .2s, background .2s;
+.nm-card-header { display: flex; align-items: center; gap: 14px; margin-bottom: 28px; }
+.nm-card-icon {
+  width: 44px; height: 44px; border-radius: 10px;
+  background: var(--blue-soft); border: 1px solid var(--blue-mid);
+  display: flex; align-items: center; justify-content: center; color: var(--blue); flex-shrink: 0;
 }
-.nc-toggle-input:checked ~ .nc-toggle-track { background: var(--nc-blue); border-color: var(--nc-blue); }
-.nc-toggle-input:checked ~ .nc-toggle-track .nc-toggle-thumb { transform: translateX(17px); background: #fff; }
-.nc-toggle-label { font-size: 13px; font-weight: 500; color: var(--nc-text2); }
+.nm-card-title { font-family: var(--fdisp); font-size: 17px; font-weight: 700; color: var(--ink); }
+.nm-card-sub { font-size: 12px; color: var(--ink-m); margin-top: 2px; }
 
-/* Buttons */
-.nc-primary-btn {
-  display: inline-flex; align-items: center; justify-content: center; gap: 8px;
-  padding: 12px 24px;
-  background: var(--nc-blue); color: #fff;
-  border: none; border-radius: var(--nc-r);
-  font-family: 'DM Sans', sans-serif; font-size: 14px; font-weight: 600;
-  cursor: pointer; transition: background .15s, transform .15s, box-shadow .15s;
-  box-shadow: 0 4px 16px var(--nc-blue-glow);
-}
-.nc-primary-btn:hover:not(:disabled) { background: var(--nc-blue-dk); transform: translateY(-1px); box-shadow: 0 6px 20px var(--nc-blue-glow); }
-.nc-primary-btn:disabled { opacity: .5; cursor: not-allowed; }
-.nc-primary-btn--full { width: 100%; }
-
-.nc-ghost-btn {
-  display: inline-flex; align-items: center; gap: 7px;
-  padding: 9px 18px;
-  background: transparent;
-  border: 1px solid var(--nc-border2);
-  border-radius: var(--nc-r);
-  color: var(--nc-text2); font-family: 'DM Sans', sans-serif;
-  font-size: 13px; font-weight: 500; cursor: pointer;
+/* Form */
+.nm-form { display: flex; flex-direction: column; gap: 20px; }
+.nm-field { display: flex; flex-direction: column; gap: 0; }
+.nm-label { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .5px; color: var(--ink-m); margin-bottom: 8px; }
+.nm-input-wrap { position: relative; }
+.nm-input-icon { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: var(--ink-m); pointer-events: none; }
+.nm-input {
+  width: 100%; padding: 12px 12px 12px 38px;
+  background: var(--bg); border: 1.5px solid var(--border); border-radius: var(--r);
+  color: var(--ink); font-family: var(--font); font-size: 14px; font-weight: 500;
   transition: all .15s;
 }
-.nc-ghost-btn:hover { border-color: var(--nc-blue); color: var(--nc-text); background: rgba(59,142,234,.06); }
-.nc-ghost-btn--sm { padding: 7px 14px; font-size: 12px; }
+.nm-input::placeholder { color: #a0aec0; font-weight: 400; }
+.nm-input:focus { outline: none; border-color: var(--blue); background: var(--white); box-shadow: 0 0 0 3px var(--blue-glow); }
+.nm-hint { font-size: 11px; color: #a0aec0; margin-top: 6px; }
 
-.nc-danger-btn {
-  display: inline-flex; align-items: center; gap: 8px;
-  padding: 12px 24px;
-  background: var(--nc-red); color: #fff;
-  border: none; border-radius: var(--nc-r);
-  font-family: 'DM Sans', sans-serif; font-size: 14px; font-weight: 600;
-  cursor: pointer; transition: all .15s;
-  box-shadow: 0 4px 16px rgba(239,68,68,.3);
+/* Toggle */
+.nm-toggle-row { display: flex; align-items: center; gap: 12px; cursor: pointer; }
+.nm-toggle-cb { display: none; }
+.nm-toggle {
+  width: 40px; height: 22px; border-radius: 11px;
+  background: var(--border); border: 1.5px solid #cbd5e0;
+  position: relative; flex-shrink: 0; transition: all .2s;
 }
-.nc-danger-btn:hover:not(:disabled) { background: #dc2626; }
-.nc-danger-btn:disabled { opacity: .55; cursor: not-allowed; }
+.nm-toggle-knob {
+  width: 16px; height: 16px; border-radius: 50%; background: var(--white);
+  position: absolute; top: 1px; left: 1px;
+  transition: transform .2s; box-shadow: 0 1px 3px rgba(0,0,0,.15);
+}
+.nm-toggle-cb:checked ~ .nm-toggle { background: var(--blue); border-color: var(--blue); }
+.nm-toggle-cb:checked ~ .nm-toggle .nm-toggle-knob { transform: translateX(18px); }
+.nm-toggle-label { font-size: 14px; font-weight: 600; color: var(--ink-s); }
+.nm-toggle-desc { font-size: 12px; color: var(--ink-m); margin-top: 1px; }
 
-/* Error bar */
-.nc-error-bar {
+/* Buttons */
+.nm-btn-primary {
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+  padding: 12px 24px;
+  background: var(--blue); color: var(--white);
+  border: none; border-radius: var(--r);
+  font-family: var(--font); font-size: 14px; font-weight: 700;
+  cursor: pointer; transition: all .15s;
+  box-shadow: 0 4px 14px var(--blue-glow);
+}
+.nm-btn-primary:hover:not(:disabled) { background: var(--blue-dk); transform: translateY(-1px); box-shadow: 0 6px 20px var(--blue-glow); }
+.nm-btn-primary:disabled { opacity: .5; cursor: not-allowed; }
+.nm-btn-full { width: 100%; }
+
+.nm-btn-ghost {
+  display: inline-flex; align-items: center; gap: 7px;
+  padding: 10px 18px;
+  background: transparent; border: 1.5px solid var(--border); border-radius: var(--r);
+  color: var(--ink-m); font-family: var(--font); font-size: 13px; font-weight: 600;
+  cursor: pointer; transition: all .15s;
+}
+.nm-btn-ghost:hover { border-color: var(--blue); color: var(--blue); background: var(--blue-soft); }
+
+.nm-btn-danger {
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: 11px 22px;
+  background: var(--red); color: var(--white);
+  border: none; border-radius: var(--r);
+  font-family: var(--font); font-size: 14px; font-weight: 700;
+  cursor: pointer; transition: all .15s;
+}
+.nm-btn-danger:hover:not(:disabled) { background: #dc2626; }
+.nm-btn-danger:disabled { opacity: .55; cursor: not-allowed; }
+
+/* Error */
+.nm-error {
   display: flex; align-items: center; gap: 8px;
-  margin-top: 14px; padding: 11px 14px;
-  background: rgba(239,68,68,.08);
-  border: 1px solid rgba(239,68,68,.2);
-  border-radius: var(--nc-r);
-  font-size: 13px; color: #f87171;
+  padding: 11px 14px;
+  background: #fef2f2; border: 1px solid #fecaca; border-radius: var(--r);
+  font-size: 13px; color: #dc2626;
 }
 
 /* Spinner */
-.nc-btn-spinner {
-  display: inline-block; width: 13px; height: 13px;
+.nm-spinner {
+  display: inline-block; width: 14px; height: 14px;
   border: 2px solid rgba(255,255,255,.3); border-top-color: #fff;
-  border-radius: 50%; animation: nc-spin .6s linear infinite;
+  border-radius: 50%; animation: nm-spin .6s linear infinite;
 }
-@keyframes nc-spin { to { transform: rotate(360deg); } }
+@keyframes nm-spin { to { transform: rotate(360deg); } }
 
-/* ── Created state ────────────────────────────────────────── */
-.nc-created-state { display: flex; flex-direction: column; gap: 20px; }
-.nc-created-icon {
+/* Success */
+.nm-success { display: flex; flex-direction: column; gap: 20px; }
+.nm-success-check {
   width: 52px; height: 52px; border-radius: 50%;
-  background: rgba(34,197,94,.1); border: 1px solid rgba(34,197,94,.25);
-  display: flex; align-items: center; justify-content: center; color: var(--nc-green);
+  background: #ecfdf5; border: 1px solid #6ee7b7;
+  display: flex; align-items: center; justify-content: center; color: var(--green);
 }
-.nc-created-label { font-size: 11px; font-weight: 600; letter-spacing: .8px; color: var(--nc-text2); text-transform: uppercase; margin-bottom: 6px; }
-.nc-created-code-row { display: flex; align-items: center; gap: 10px; margin-bottom: 4px; }
-.nc-code-display {
-  font-family: 'DM Mono', 'Courier New', monospace;
-  font-size: 17px; font-weight: 600; color: var(--nc-green);
-  background: rgba(34,197,94,.08); border: 1px solid rgba(34,197,94,.2);
-  padding: 6px 14px; border-radius: 8px; letter-spacing: 1px;
+.nm-success-label { font-family: var(--fdisp); font-size: 16px; font-weight: 700; color: var(--ink); }
+.nm-code-block { background: var(--bg); border: 1.5px solid var(--border); border-radius: var(--r); padding: 16px; }
+.nm-code-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .5px; color: var(--ink-m); margin-bottom: 8px; }
+.nm-code-row { display: flex; align-items: center; gap: 10px; margin-bottom: 6px; }
+.nm-code {
+  font-family: 'Courier New', monospace; font-size: 18px; font-weight: 700; color: var(--blue);
+  background: var(--blue-soft); border: 1px solid var(--blue-mid);
+  padding: 6px 14px; border-radius: 7px; letter-spacing: 1px;
 }
-.nc-copy-btn {
-  width: 32px; height: 32px;
-  background: var(--nc-surf2); border: 1px solid var(--nc-border2);
-  border-radius: 8px; display: flex; align-items: center; justify-content: center;
-  color: var(--nc-text2); cursor: pointer; transition: all .15s;
+.nm-copy-btn {
+  display: flex; align-items: center; gap: 5px;
+  padding: 7px 12px; background: var(--white); border: 1.5px solid var(--border);
+  border-radius: 7px; color: var(--ink-m); font-family: var(--font); font-size: 12px; font-weight: 600;
+  cursor: pointer; transition: all .15s;
 }
-.nc-copy-btn:hover { border-color: var(--nc-blue); color: var(--nc-blue); }
-.nc-created-hint { font-size: 12px; color: var(--nc-text3); }
-.nc-created-actions { display: flex; flex-direction: column; gap: 8px; }
+.nm-copy-btn:hover { border-color: var(--blue); color: var(--blue); }
+.nm-code-hint { font-size: 12px; color: var(--ink-m); }
+.nm-success-actions { display: flex; flex-direction: column; gap: 8px; }
 
-/* ── Meeting layout ───────────────────────────────────────── */
-.nc-meeting {
+/* ── Meeting View ─────────────────── */
+.nm-meeting {
   display: flex; flex-direction: column;
   position: fixed; inset: 0; z-index: 9999;
-  background: #050608;
-  overflow: hidden;
+  background: #1a1a2e;
 }
 
-/* ── Meeting bar ──────────────────────────────────────────── */
-.nc-meeting-bar {
+.nm-meeting-bar {
   height: 56px; flex-shrink: 0;
   display: flex; align-items: center; justify-content: space-between;
-  padding: 0 18px;
-  background: rgba(10,12,16,.95);
-  border-bottom: 1px solid var(--nc-border);
-  backdrop-filter: blur(12px);
+  padding: 0 16px;
+  background: #ffffff;
+  border-bottom: 1px solid var(--border);
+  box-shadow: var(--shadow-sm);
   z-index: 100;
 }
-.nc-bar-left, .nc-bar-right { display: flex; align-items: center; gap: 10px; flex: 1; }
-.nc-bar-right { justify-content: flex-end; }
-.nc-bar-center { display: flex; align-items: center; gap: 14px; }
-.nc-bar-brand { display: flex; align-items: center; gap: 8px; }
-.nc-bar-name { font-family: 'Syne', sans-serif; font-size: 14px; font-weight: 700; color: var(--nc-text); }
-.nc-bar-divider { width: 1px; height: 18px; background: var(--nc-border2); }
+.nm-bar-left, .nm-bar-right { display: flex; align-items: center; gap: 10px; flex: 1; }
+.nm-bar-right { justify-content: flex-end; }
+.nm-bar-center { display: flex; align-items: center; gap: 14px; }
+.nm-bar-brand { display: flex; align-items: center; gap: 8px; }
+.nm-bar-name { font-family: var(--fdisp); font-size: 14px; font-weight: 700; color: var(--ink); }
+.nm-bar-sep { width: 1px; height: 18px; background: var(--border); }
 
-.nc-code-tag {
+.nm-code-chip {
   display: flex; align-items: center; gap: 6px;
   padding: 5px 11px;
-  background: var(--nc-surf); border: 1px solid var(--nc-border2);
-  border-radius: 7px;
-  font-family: 'DM Mono', 'Courier New', monospace; font-size: 11px; font-weight: 600;
-  color: #8ab4f8; cursor: pointer; transition: all .15s; letter-spacing: .5px;
+  background: var(--blue-soft); border: 1.5px solid var(--blue-mid); border-radius: 7px;
+  font-family: 'Courier New', monospace; font-size: 11px; font-weight: 700;
+  color: var(--blue); cursor: pointer; transition: all .15s;
 }
-.nc-code-tag:hover { border-color: var(--nc-blue); background: rgba(59,142,234,.08); }
+.nm-code-chip:hover { background: var(--blue-mid); }
 
-.nc-live-chip {
-  display: flex; align-items: center; gap: 5px;
-  padding: 3px 9px; border-radius: 20px;
-  background: rgba(239,68,68,.1); border: 1px solid rgba(239,68,68,.25);
-  font-size: 9px; font-weight: 800; letter-spacing: 1px; color: #f87171;
-}
-.nc-live-dot {
-  width: 5px; height: 5px; border-radius: 50%; background: var(--nc-red);
-  animation: nc-pulse 2s ease-in-out infinite;
-}
-@keyframes nc-pulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:.3;transform:scale(.6)} }
-
-.nc-host-chip {
-  padding: 3px 9px; border-radius: 20px;
-  background: rgba(59,142,234,.12); border: 1px solid rgba(59,142,234,.3);
-  font-size: 9px; font-weight: 800; letter-spacing: 1px; color: var(--nc-blue);
-}
-.nc-pcount {
-  display: flex; align-items: center; gap: 5px;
-  font-size: 13px; color: var(--nc-text2); font-weight: 500;
-}
-.nc-clock { font-size: 13px; color: var(--nc-text2); font-weight: 500; min-width: 40px; text-align: center; }
-
-.nc-bar-btn {
+.nm-live-badge {
   display: flex; align-items: center; gap: 6px;
-  padding: 7px 14px;
-  border-radius: 8px;
-  font-family: 'DM Sans', sans-serif; font-size: 12px; font-weight: 600;
-  cursor: pointer; border: 1px solid; transition: all .15s;
+  padding: 4px 10px; border-radius: 20px;
+  background: #fef2f2; border: 1px solid #fecaca;
+  font-size: 9px; font-weight: 800; letter-spacing: 1px; color: #dc2626;
 }
-.nc-bar-btn--warn {
-  background: rgba(245,158,11,.08); border-color: rgba(245,158,11,.3); color: #fbbf24;
-}
-.nc-bar-btn--warn:hover { background: rgba(245,158,11,.15); }
-.nc-bar-btn--leave {
-  background: rgba(239,68,68,.08); border-color: rgba(239,68,68,.3); color: #f87171;
-}
-.nc-bar-btn--leave:hover { background: var(--nc-red); color: #fff; border-color: var(--nc-red); }
+.nm-live-pulse { width: 6px; height: 6px; border-radius: 50%; background: var(--red); animation: nm-blink 2s ease-in-out infinite; }
+@keyframes nm-blink { 0%,100%{opacity:1} 50%{opacity:.3} }
 
-/* ── Frame ────────────────────────────────────────────────── */
-.nc-frame-wrap { flex: 1; position: relative; background: #050608; overflow: hidden; }
-.nc-jitsi-frame { width: 100%; height: 100%; }
-.nc-jitsi-frame iframe { width: 100% !important; height: 100% !important; border: none !important; }
+.nm-host-badge {
+  padding: 4px 10px; border-radius: 20px;
+  background: var(--blue-soft); border: 1px solid var(--blue-mid);
+  font-size: 9px; font-weight: 800; letter-spacing: 1px; color: var(--blue);
+}
+.nm-participants { display: flex; align-items: center; gap: 5px; font-size: 13px; color: var(--ink-m); font-weight: 600; }
+.nm-clock { font-size: 13px; color: var(--ink-m); font-weight: 600; }
 
-/* ── Loading overlay ──────────────────────────────────────── */
-.nc-loading-overlay {
-  position: absolute; inset: 0; z-index: 10;
-  background: rgba(5,6,8,.96);
-  display: flex; align-items: center; justify-content: center;
+.nm-bar-btn {
+  display: flex; align-items: center; gap: 6px;
+  padding: 7px 14px; border-radius: 8px;
+  font-family: var(--font); font-size: 12px; font-weight: 700;
+  cursor: pointer; border: 1.5px solid; transition: all .15s;
 }
-.nc-loader-card {
-  display: flex; flex-direction: column; align-items: center; gap: 20px;
-  padding: 48px 40px;
-  background: var(--nc-surf); border: 1px solid var(--nc-border2);
-  border-radius: 20px; min-width: 280px;
-  box-shadow: 0 40px 80px rgba(0,0,0,.6);
+.nm-bar-btn--end { background: #fffbeb; border-color: #fde68a; color: #92400e; }
+.nm-bar-btn--end:hover { background: var(--orange); color: var(--white); border-color: var(--orange); }
+.nm-bar-btn--leave { background: #fef2f2; border-color: #fecaca; color: #dc2626; }
+.nm-bar-btn--leave:hover { background: var(--red); color: var(--white); border-color: var(--red); }
+
+/* Frame */
+.nm-frame-wrap { flex: 1; position: relative; background: #1a1a2e; overflow: hidden; }
+.nm-jitsi { width: 100%; height: 100%; }
+.nm-jitsi iframe { width: 100% !important; height: 100% !important; border: none !important; }
+
+/* Loading */
+.nm-loading { position: absolute; inset: 0; z-index: 10; background: rgba(248,250,252,.97); display: flex; align-items: center; justify-content: center; }
+.nm-loader-card {
+  display: flex; flex-direction: column; align-items: center; gap: 18px;
+  padding: 48px 40px; background: var(--white); border: 1px solid var(--border);
+  border-radius: 20px; min-width: 280px; box-shadow: var(--shadow-lg);
 }
-.nc-loader-ring {
-  width: 72px; height: 72px; border-radius: 50%;
-  border: 2px solid rgba(59,142,234,.15); border-top-color: var(--nc-blue);
-  animation: nc-spin .9s linear infinite;
+.nm-loader-ring {
+  width: 68px; height: 68px; border-radius: 50%;
+  border: 3px solid var(--blue-mid); border-top-color: var(--blue);
+  animation: nm-spin .9s linear infinite;
   position: relative; display: flex; align-items: center; justify-content: center;
 }
-.nc-loader-logo {
-  position: absolute;
-}
-.nc-loader-status { font-size: 14px; color: var(--nc-text2); font-weight: 500; }
-.nc-loader-steps { display: flex; gap: 6px; }
-.nc-step {
-  width: 6px; height: 6px; border-radius: 50%;
-  background: var(--nc-surf3); border: 1px solid var(--nc-border2);
-  transition: background .3s;
-}
-.nc-step--done { background: var(--nc-blue); border-color: var(--nc-blue); }
+.nm-loader-inner { position: absolute; }
+.nm-loader-logo { position: absolute; }
+.nm-loader-text { font-size: 14px; color: var(--ink-m); font-weight: 500; }
+.nm-loader-dots { display: flex; gap: 6px; }
+.nm-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--border); transition: background .3s; }
+.nm-dot--on { background: var(--blue); }
 
-/* ── Error overlay ────────────────────────────────────────── */
-.nc-error-overlay {
-  position: absolute; inset: 0; z-index: 10;
-  background: rgba(5,6,8,.96);
-  display: flex; align-items: center; justify-content: center;
-}
-.nc-error-card {
+/* Error overlay */
+.nm-error-overlay { position: absolute; inset: 0; z-index: 10; background: rgba(248,250,252,.97); display: flex; align-items: center; justify-content: center; }
+.nm-error-card {
   display: flex; flex-direction: column; align-items: center; gap: 14px;
-  padding: 48px 40px; text-align: center;
-  background: var(--nc-surf); border: 1px solid rgba(239,68,68,.2);
-  border-radius: 20px; max-width: 360px;
-  box-shadow: 0 40px 80px rgba(0,0,0,.6);
+  padding: 48px 40px; text-align: center; background: var(--white);
+  border: 1px solid #fecaca; border-radius: 20px; max-width: 360px; box-shadow: var(--shadow-lg);
 }
-.nc-error-icon-wrap {
-  width: 64px; height: 64px; border-radius: 50%;
-  background: rgba(239,68,68,.1); border: 1px solid rgba(239,68,68,.25);
-  display: flex; align-items: center; justify-content: center; color: #f87171;
-}
-.nc-error-title { font-family: 'Syne', sans-serif; font-size: 20px; font-weight: 700; color: var(--nc-text); }
-.nc-error-msg { font-size: 14px; color: var(--nc-text2); line-height: 1.6; }
+.nm-error-icon { width: 60px; height: 60px; border-radius: 50%; background: #fef2f2; border: 1px solid #fecaca; display: flex; align-items: center; justify-content: center; color: #dc2626; }
+.nm-error-title { font-family: var(--fdisp); font-size: 20px; font-weight: 700; color: var(--ink); }
+.nm-error-msg { font-size: 14px; color: var(--ink-m); line-height: 1.6; }
 
-/* ── Modal ────────────────────────────────────────────────── */
-.nc-modal-overlay {
+/* Modal */
+.nm-modal-overlay {
   position: fixed; inset: 0; z-index: 20000;
-  background: rgba(0,0,0,.75); backdrop-filter: blur(6px);
+  background: rgba(13,27,54,.5); backdrop-filter: blur(6px);
   display: flex; align-items: center; justify-content: center; padding: 20px;
 }
-.nc-modal {
-  background: var(--nc-surf); border: 1px solid var(--nc-border2);
-  border-radius: 20px; padding: 40px 36px 32px;
-  max-width: 420px; width: 100%; text-align: center;
-  box-shadow: 0 40px 100px rgba(0,0,0,.7);
+.nm-modal {
+  background: var(--white); border: 1px solid var(--border); border-radius: 20px;
+  padding: 40px 36px 32px; max-width: 420px; width: 100%; text-align: center;
+  box-shadow: var(--shadow-lg);
 }
-.nc-modal-icon {
+.nm-modal-icon {
   width: 60px; height: 60px; border-radius: 50%;
-  display: flex; align-items: center; justify-content: center;
-  margin: 0 auto 20px;
+  display: flex; align-items: center; justify-content: center; margin: 0 auto 20px;
 }
-.nc-modal-icon--danger { background: rgba(239,68,68,.12); border: 1.5px solid rgba(239,68,68,.3); color: #f87171; }
-.nc-modal-title { font-family: 'Syne', sans-serif; font-size: 20px; font-weight: 700; color: var(--nc-text); margin-bottom: 10px; }
-.nc-modal-body { font-size: 14px; color: var(--nc-text2); line-height: 1.65; margin-bottom: 28px; }
-.nc-modal-actions { display: flex; gap: 10px; justify-content: center; }
+.nm-modal-icon--red { background: #fef2f2; border: 1.5px solid #fecaca; color: #dc2626; }
+.nm-modal-title { font-family: var(--fdisp); font-size: 20px; font-weight: 700; color: var(--ink); margin-bottom: 10px; }
+.nm-modal-body { font-size: 14px; color: var(--ink-m); line-height: 1.65; margin-bottom: 28px; }
+.nm-modal-actions { display: flex; gap: 10px; justify-content: center; }
 
-/* ── Toast ────────────────────────────────────────────────── */
-.nc-toast {
-  position: fixed; bottom: 28px; right: 28px; z-index: 30000;
+/* Toast */
+.nm-toast {
+  position: fixed; bottom: 24px; right: 24px; z-index: 30000;
   display: flex; align-items: center; gap: 8px;
-  padding: 11px 18px; border-radius: 12px;
-  font-size: 13px; font-weight: 600;
-  box-shadow: 0 8px 32px rgba(0,0,0,.4);
-  pointer-events: none;
+  padding: 11px 18px; border-radius: 10px;
+  font-size: 13px; font-weight: 700;
+  box-shadow: var(--shadow-lg); pointer-events: none;
 }
-.nc-toast--success { background: rgba(34,197,94,.1); border: 1px solid rgba(34,197,94,.25); color: #4ade80; }
-.nc-toast--error   { background: rgba(239,68,68,.1);  border: 1px solid rgba(239,68,68,.25);  color: #f87171; }
+.nm-toast--success { background: var(--white); border: 1.5px solid #6ee7b7; color: #065f46; }
+.nm-toast--error { background: var(--white); border: 1.5px solid #fca5a5; color: #7f1d1d; }
 
-/* ── Transitions ──────────────────────────────────────────── */
-.nc-fade-enter-active, .nc-fade-leave-active { transition: opacity .3s; }
-.nc-fade-enter-from, .nc-fade-leave-to { opacity: 0; }
-.nc-modal-pop-enter-active { animation: nc-pop-in .22s cubic-bezier(.34,1.56,.64,1); }
-.nc-modal-pop-leave-active { animation: nc-pop-in .15s reverse ease-in; }
-@keyframes nc-pop-in { from { opacity:0; transform: scale(.92); } to { opacity:1; transform: scale(1); } }
-.nc-toast-pop-enter-active, .nc-toast-pop-leave-active { transition: opacity .2s, transform .2s; }
-.nc-toast-pop-enter-from { opacity:0; transform: translateY(12px); }
-.nc-toast-pop-leave-to { opacity:0; transform: translateY(12px); }
+/* Transitions */
+.nm-fade-enter-active, .nm-fade-leave-active { transition: opacity .3s; }
+.nm-fade-enter-from, .nm-fade-leave-to { opacity: 0; }
+.nm-modal-enter-active { animation: nm-pop .22s cubic-bezier(.34,1.56,.64,1); }
+.nm-modal-leave-active { animation: nm-pop .15s reverse ease-in; }
+@keyframes nm-pop { from{opacity:0;transform:scale(.93)} to{opacity:1;transform:scale(1)} }
+.nm-toast-enter-active, .nm-toast-leave-active { transition: opacity .2s, transform .2s; }
+.nm-toast-enter-from { opacity:0; transform:translateY(12px); }
+.nm-toast-leave-to { opacity:0; }
+
+@media (max-width: 768px) {
+  .nm-create-body { grid-template-columns: 1fr; padding: 32px 20px; gap: 40px; }
+  .nm-create-left { display: none; }
+}
 </style>
