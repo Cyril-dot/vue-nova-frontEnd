@@ -1,403 +1,499 @@
 <template>
-  <div class="md-shell">
+  <div class="nm-shell">
 
-    <!-- Sidebar -->
-    <aside class="md-sidebar">
-      <div class="md-sb-top">
-        <div class="md-sb-brand">
-          <div class="md-sb-logo">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M15 10l4.553-2.276A1 1 0 0121 8.723v6.554a1 1 0 01-1.447.894L15 14M3 8a2 2 0 012-2h10a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2V8z" stroke="white" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    <!-- ═══════════════════ CREATE VIEW ═══════════════════ -->
+    <div v-if="view === 'create'" class="nm-create">
+      <header class="nm-topbar">
+        <div class="nm-brand" @click="goToDashboard">
+          <div class="nm-logo">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M15 10l4.553-2.276A1 1 0 0121 8.723v6.554a1 1 0 01-1.447.894L15 14M3 8a2 2 0 012-2h10a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2V8z" stroke="white" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
           </div>
-          <span class="md-sb-name">Nova<span class="md-sb-accent">Meet</span></span>
+          <span class="nm-brand-name">Nova<span class="nm-brand-accent">Meet</span></span>
         </div>
-
-        <nav class="md-sb-nav">
-          <div class="md-nav-section">NAVIGATION</div>
-          <button class="md-nav-item md-nav-item--active">
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="7" width="20" height="15" rx="2"/><polygon points="23 7 16 12 23 17 23 7"/></svg>
-            Meetings
-            <span v-if="activeMeetings.length" class="md-nav-badge">{{ activeMeetings.length }}</span>
-          </button>
-          <button class="md-nav-item" @click="$router.push('/dashboard')">
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
-            Dashboard
-          </button>
-        </nav>
-      </div>
-
-      <div class="md-sb-footer">
-        <div class="md-sb-stats">
-          <div class="md-stat">
-            <span class="md-stat-val">{{ allMeetings.length }}</span>
-            <span class="md-stat-lbl">Total</span>
-          </div>
-          <div class="md-stat-sep"></div>
-          <div class="md-stat">
-            <span class="md-stat-val md-stat-val--live">{{ activeMeetings.length }}</span>
-            <span class="md-stat-lbl">Live</span>
-          </div>
-          <div class="md-stat-sep"></div>
-          <div class="md-stat">
-            <span class="md-stat-val">{{ privateCount }}</span>
-            <span class="md-stat-lbl">Private</span>
-          </div>
-        </div>
-      </div>
-    </aside>
-
-    <!-- Main -->
-    <div class="md-main">
-
-      <!-- Header -->
-      <header class="md-header">
-        <div class="md-header-left">
-          <h1 class="md-page-title">Video Meetings</h1>
-          <p class="md-page-sub">Manage your rooms and monitor live activity</p>
-        </div>
-        <div class="md-header-actions">
-          <button class="md-btn-ghost" @click="$router.push('/meetings/join')">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h4a2 2 0 012 2v14a2 2 0 01-2 2h-4M10 17l5-5-5-5M15 12H3"/></svg>
-            Join meeting
-          </button>
-          <button class="md-btn-primary" @click="createMeeting">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-            New meeting
-          </button>
-        </div>
+        <button class="nm-back-btn" @click="goToDashboard">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+          Back to Dashboard
+        </button>
       </header>
 
-      <!-- Loading -->
-      <div v-if="loading" class="md-center">
-        <div class="md-loader-wrap">
-          <div class="md-loader-ring"></div>
-          <p class="md-loader-text">Loading your meetings…</p>
-        </div>
-      </div>
-
-      <!-- Error -->
-      <div v-else-if="error" class="md-center">
-        <div class="md-error-box">
-          <div class="md-error-icon">
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
-          </div>
-          <p class="md-error-text">{{ error }}</p>
-          <button class="md-btn-primary" @click="fetchMeetingsData">Try again</button>
-        </div>
-      </div>
-
-      <!-- Content -->
-      <div v-else class="md-content">
-
-        <!-- KPI strip -->
-        <div class="md-kpi-grid">
-          <div class="md-kpi">
-            <div class="md-kpi-icon md-kpi-icon--blue">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="2" y="7" width="20" height="15" rx="2"/><polygon points="23 7 16 12 23 17 23 7"/></svg>
+      <div class="nm-create-body">
+        <div class="nm-create-left">
+          <div class="nm-hero-eyebrow">START A MEETING</div>
+          <h1 class="nm-hero-title">Create your<br>conference room</h1>
+          <p class="nm-hero-desc">Set up a secure video meeting and invite your team to collaborate in real time.</p>
+          <div class="nm-hero-features">
+            <div class="nm-feat">
+              <div class="nm-feat-dot"></div>
+              HD video & crystal-clear audio
             </div>
-            <div>
-              <div class="md-kpi-num">{{ allMeetings.filter(m => m.privacy !== 'private').length }}</div>
-              <div class="md-kpi-lbl">Public Rooms</div>
+            <div class="nm-feat">
+              <div class="nm-feat-dot"></div>
+              Screen sharing & collaboration
             </div>
-          </div>
-          <div class="md-kpi" :class="{ 'md-kpi--live': activeMeetings.length }">
-            <div class="md-kpi-icon md-kpi-icon--red">
-              <span v-if="activeMeetings.length" class="md-kpi-ring"></span>
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="3" fill="currentColor" stroke="none"/></svg>
-            </div>
-            <div>
-              <div class="md-kpi-num">{{ activeMeetings.filter(m => m.privacy !== 'private').length }}</div>
-              <div class="md-kpi-lbl">Live Now</div>
-            </div>
-          </div>
-          <div class="md-kpi">
-            <div class="md-kpi-icon md-kpi-icon--purple">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>
-            </div>
-            <div>
-              <div class="md-kpi-num">{{ privateCount }}</div>
-              <div class="md-kpi-lbl">Private (hidden)</div>
-            </div>
-          </div>
-          <div class="md-kpi">
-            <div class="md-kpi-icon md-kpi-icon--orange">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
-            </div>
-            <div>
-              <div class="md-kpi-num">{{ recentCount }}</div>
-              <div class="md-kpi-lbl">This Week</div>
+            <div class="nm-feat">
+              <div class="nm-feat-dot"></div>
+              Secure JWT-authenticated rooms
             </div>
           </div>
         </div>
 
-        <!-- Active rooms banner -->
-        <div v-if="activeMeetings.filter(m => m.privacy !== 'private').length" class="md-live-banner">
-          <div class="md-live-banner-hd">
-            <div class="md-live-indicator">
-              <span class="md-live-dot"></span>
-              {{ activeMeetings.filter(m => m.privacy !== 'private').length }} Active Meeting{{ activeMeetings.filter(m => m.privacy !== 'private').length > 1 ? 's' : '' }}
-            </div>
-          </div>
-          <div class="md-live-list">
-            <div v-for="m in activeMeetings.filter(m => m.privacy !== 'private')" :key="m.name" class="md-live-row">
-              <span class="md-live-pulse"></span>
-              <div class="md-live-info">
-                <span class="md-live-name">{{ m.name }}</span>
-                <span class="md-live-meta">{{ getRelativeTime(m.created_at) }} · {{ m.privacy || 'public' }}</span>
+        <div class="nm-create-right">
+          <div class="nm-card">
+            <div class="nm-card-header">
+              <div class="nm-card-icon">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="2" y="7" width="20" height="15" rx="2"/><polygon points="23 7 16 12 23 17 23 7"/></svg>
               </div>
-              <div class="md-live-btns">
-                <button class="md-live-join" @click="joinMeetingWithCode(m.name)">
-                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"/></svg>
-                  Join
+              <div>
+                <div class="nm-card-title">New Meeting</div>
+                <div class="nm-card-sub">Configure your room settings</div>
+              </div>
+            </div>
+
+            <!-- Success state -->
+            <div v-if="created.code" class="nm-success">
+              <div class="nm-success-check">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="20 6 9 17 4 12"/></svg>
+              </div>
+              <div class="nm-success-label">Room created successfully</div>
+              <div class="nm-code-block">
+                <div class="nm-code-label">Meeting code</div>
+                <div class="nm-code-row">
+                  <code class="nm-code">{{ created.code }}</code>
+                  <button class="nm-copy-btn" @click="copyCreatedCode">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
+                    Copy
+                  </button>
+                </div>
+                <p class="nm-code-hint">Share this code with your participants</p>
+              </div>
+              <div class="nm-success-actions">
+                <button class="nm-btn-primary" @click="enterMeeting">
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+                  Launch Meeting
                 </button>
-                <button class="md-live-end" @click="promptEnd(m)">
-                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="9" y1="9" x2="15" y2="15"/><line x1="15" y1="9" x2="9" y2="15"/></svg>
-                  End
-                </button>
+                <button class="nm-btn-ghost" @click="goToDashboard">Cancel</button>
               </div>
             </div>
-          </div>
-        </div>
 
-        <!-- Toolbar -->
-        <div class="md-toolbar">
-          <div class="md-tabs">
-            <button v-for="tab in tabs" :key="tab.value"
-              class="md-tab" :class="{ 'md-tab--active': activeFilter === tab.value }"
-              @click="activeFilter = tab.value">
-              {{ tab.label }}
-              <span class="md-tab-count" :class="{ 'md-tab-count--on': activeFilter === tab.value }">{{ tab.count }}</span>
-            </button>
-          </div>
-          <div class="md-toolbar-right">
-            <div class="md-search">
-              <svg class="md-search-icon" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
-              <input class="md-search-input" v-model="search" placeholder="Search rooms…" />
-            </div>
-            <button class="md-refresh" @click="fetchMeetingsData" :class="{ 'md-refresh--spin': loading }">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 100 .49-4.5"/></svg>
-            </button>
-          </div>
-        </div>
-
-        <!-- Private meetings notice -->
-        <div v-if="privateCount > 0" class="md-private-notice">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>
-          <span><strong>{{ privateCount }} private meeting{{ privateCount > 1 ? 's' : '' }}</strong> {{ privateCount > 1 ? 'are' : 'is' }} hidden from this list. Private meetings can only be joined using their meeting code.</span>
-          <button class="md-private-join-btn" @click="$router.push('/meetings/join')">Join with code</button>
-        </div>
-
-        <!-- Empty -->
-        <div v-if="filteredMeetings.length === 0" class="md-empty">
-          <div class="md-empty-icon">
-            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><rect x="2" y="7" width="20" height="15" rx="2"/><polygon points="23 7 16 12 23 17 23 7"/></svg>
-          </div>
-          <p class="md-empty-title">No meetings found</p>
-          <p class="md-empty-sub">Create your first meeting to get started.</p>
-          <button class="md-btn-primary" @click="createMeeting">Create meeting</button>
-        </div>
-
-        <!-- Room grid -->
-        <div v-else class="md-room-grid">
-          <div v-for="m in filteredMeetings" :key="m.name" class="md-room-card" :class="{ 'md-room-card--live': isRoomActive(m) }">
-            <div class="md-room-top">
-              <div class="md-room-status-row">
-                <span class="md-room-pill" :class="isRoomActive(m) ? 'md-room-pill--live' : m.privacy === 'private' ? 'md-room-pill--private' : 'md-room-pill--public'">
-                  <span v-if="isRoomActive(m)" class="md-pill-blink"></span>
-                  {{ isRoomActive(m) ? 'Live' : m.privacy === 'private' ? 'Private' : 'Public' }}
-                </span>
-                <span class="md-room-time">{{ formatRoomTime(m) }}</span>
+            <!-- Form state -->
+            <div v-if="!created.code" class="nm-form">
+              <div class="nm-field">
+                <label class="nm-label">Room Name</label>
+                <div class="nm-input-wrap">
+                  <svg class="nm-input-icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="2" y="7" width="20" height="15" rx="2"/><polygon points="23 7 16 12 23 17 23 7"/></svg>
+                  <input class="nm-input" v-model="form.roomName" type="text" placeholder="e.g. engineering-standup" autocomplete="off" spellcheck="false" @keyup.enter="createMeeting" />
+                </div>
+                <p class="nm-hint">Lowercase letters, numbers and hyphens only</p>
               </div>
-              <h3 class="md-room-name">{{ m.name }}</h3>
-              <div class="md-room-code-row" @click="copyCode(m.name)" title="Copy room code">
-                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
-                <code class="md-room-code">{{ m.name }}</code>
+
+              <label class="nm-toggle-row">
+                <input type="checkbox" v-model="form.isPrivate" class="nm-toggle-cb"/>
+                <div class="nm-toggle">
+                  <div class="nm-toggle-knob"></div>
+                </div>
+                <div class="nm-toggle-text">
+                  <span class="nm-toggle-label">Private meeting</span>
+                  <span class="nm-toggle-desc">Only invited participants can join</span>
+                </div>
+              </label>
+
+              <button class="nm-btn-primary nm-btn-full" @click="createMeeting" :disabled="creating">
+                <span v-if="creating" class="nm-spinner"></span>
+                <svg v-else width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                {{ creating ? 'Creating…' : 'Create Meeting' }}
+              </button>
+
+              <div v-if="createError" class="nm-error">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                {{ createError }}
               </div>
-            </div>
-            <div class="md-room-foot">
-              <button class="md-room-join" @click="joinMeetingWithCode(m.name)">
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"/></svg>
-                Join
-              </button>
-              <button class="md-room-icon-btn md-room-icon-btn--amber" @click="promptRestart(m)" title="Restart">
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 100 .49-4.5"/></svg>
-              </button>
-              <button class="md-room-icon-btn md-room-icon-btn--red" @click="promptEnd(m)" title="Delete">
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/><path d="M10 11v6M14 11v6"/></svg>
-              </button>
             </div>
           </div>
         </div>
       </div>
     </div>
 
-    <!-- End Modal -->
-    <transition name="md-modal">
-      <div v-if="modal.show && modal.type === 'end'" class="md-modal-overlay" @click.self="closeModal">
-        <div class="md-modal">
-          <div class="md-modal-icon md-modal-icon--red">
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/></svg>
-          </div>
-          <h2 class="md-modal-title">Delete "{{ modal.meeting?.name }}"?</h2>
-          <p class="md-modal-body">This room will be permanently removed and all participants disconnected.</p>
-          <div class="md-modal-actions">
-            <button class="md-btn-ghost" @click="closeModal" :disabled="modal.loading">Cancel</button>
-            <button class="md-btn-danger" @click="confirmEnd" :disabled="modal.loading">
-              <span v-if="modal.loading" class="md-spinner"></span>
-              Delete room
-            </button>
-          </div>
-        </div>
-      </div>
-    </transition>
+    <!-- ═══════════════════ MEETING VIEW ═══════════════════ -->
+    <div v-if="view === 'meeting'" class="nm-meeting">
 
-    <!-- Restart Modal -->
-    <transition name="md-modal">
-      <div v-if="modal.show && modal.type === 'restart'" class="md-modal-overlay" @click.self="closeModal">
-        <div class="md-modal">
-          <div class="md-modal-icon md-modal-icon--amber">
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 100 .49-4.5"/></svg>
+      <!-- Meeting topbar -->
+      <header class="nm-meeting-bar">
+        <div class="nm-bar-left">
+          <div class="nm-bar-brand">
+            <div class="nm-logo nm-logo--sm">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none"><path d="M15 10l4.553-2.276A1 1 0 0121 8.723v6.554a1 1 0 01-1.447.894L15 14M3 8a2 2 0 012-2h10a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2V8z" stroke="white" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </div>
+            <span class="nm-bar-name">NovaMeet</span>
           </div>
-          <h2 class="md-modal-title">Restart "{{ modal.meeting?.name }}"?</h2>
-          <p class="md-modal-body">The room will be deleted then re-created. Participants can rejoin with the same code.</p>
-          <div class="md-modal-actions">
-            <button class="md-btn-ghost" @click="closeModal" :disabled="modal.loading">Cancel</button>
-            <button class="md-btn-amber" @click="confirmRestart" :disabled="modal.loading">
-              <span v-if="modal.loading" class="md-spinner"></span>
-              Restart meeting
-            </button>
+          <div class="nm-bar-sep"></div>
+          <button class="nm-code-chip" @click="copyMeetingCode" title="Copy code">
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
+            {{ meetingCode }}
+          </button>
+          <div class="nm-live-badge">
+            <span class="nm-live-pulse"></span>
+            LIVE
+          </div>
+          <span v-if="isHost" class="nm-host-badge">HOST</span>
+        </div>
+
+        <div class="nm-bar-center">
+          <div class="nm-participants">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75"/></svg>
+            {{ participantCount }}
+          </div>
+          <span class="nm-clock">{{ currentTime }}</span>
+        </div>
+
+        <div class="nm-bar-right">
+          <button v-if="isHost" class="nm-bar-btn nm-bar-btn--end" @click="endMeeting">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="9" y1="9" x2="15" y2="15"/><line x1="15" y1="9" x2="9" y2="15"/></svg>
+            End for all
+          </button>
+          <button class="nm-bar-btn nm-bar-btn--leave" @click="leave">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4M16 17l5-5-5-5M21 12H9"/></svg>
+            Leave
+          </button>
+        </div>
+      </header>
+
+      <!-- Jitsi frame -->
+      <div class="nm-frame-wrap">
+        <transition name="nm-fade">
+          <div v-if="loading" class="nm-loading">
+            <div class="nm-loader-card">
+              <div class="nm-loader-ring"></div>
+              <p class="nm-loader-text">{{ loadingStatus }}</p>
+              <div class="nm-loader-dots">
+                <span :class="['nm-dot', loadingStep >= 1 ? 'nm-dot--on' : '']"></span>
+                <span :class="['nm-dot', loadingStep >= 2 ? 'nm-dot--on' : '']"></span>
+                <span :class="['nm-dot', loadingStep >= 3 ? 'nm-dot--on' : '']"></span>
+                <span :class="['nm-dot', loadingStep >= 4 ? 'nm-dot--on' : '']"></span>
+              </div>
+            </div>
+          </div>
+        </transition>
+
+        <div v-if="joinError && !loading" class="nm-error-overlay">
+          <div class="nm-error-card">
+            <div class="nm-error-icon">
+              <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+            </div>
+            <h3 class="nm-error-title">Connection failed</h3>
+            <p class="nm-error-msg">{{ joinError }}</p>
+            <button class="nm-btn-primary" @click="initMeeting">Retry</button>
           </div>
         </div>
+
+        <div id="nc-jitsi" ref="jitsiContainer" class="nm-jitsi"></div>
       </div>
-    </transition>
+
+      <!-- End meeting modal -->
+      <transition name="nm-modal">
+        <div v-if="showEndModal" class="nm-modal-overlay" @click.self="showEndModal = false">
+          <div class="nm-modal">
+            <div class="nm-modal-icon nm-modal-icon--red">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="9" y1="9" x2="15" y2="15"/><line x1="15" y1="9" x2="9" y2="15"/></svg>
+            </div>
+            <h2 class="nm-modal-title">End meeting for everyone?</h2>
+            <p class="nm-modal-body">All participants will be disconnected and the room will be removed.</p>
+            <div class="nm-modal-actions">
+              <button class="nm-btn-ghost" @click="showEndModal = false">Cancel</button>
+              <button class="nm-btn-danger" @click="confirmEndMeeting" :disabled="ending">
+                <span v-if="ending" class="nm-spinner"></span>
+                End for everyone
+              </button>
+            </div>
+          </div>
+        </div>
+      </transition>
+    </div>
 
     <!-- Toast -->
-    <transition name="md-toast">
-      <div v-if="toast.show" class="md-toast" :class="'md-toast--' + toast.type">
-        <svg v-if="toast.type === 'success'" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="20 6 9 17 4 12"/></svg>
+    <transition name="nm-toast">
+      <div v-if="toastVisible" class="nm-toast" :class="'nm-toast--' + toastType">
+        <svg v-if="toastType === 'success'" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="20 6 9 17 4 12"/></svg>
         <svg v-else width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
-        <span>{{ toast.message }}</span>
+        {{ toastMessage }}
       </div>
     </transition>
   </div>
 </template>
 
 <script>
-import { TokenService, apiRequest } from '@/utils/apiService';
+import { TokenService } from '@/utils/apiService';
 import { MeetingSession } from '@/utils/meetingSession';
 
+const JAAS_APP_ID = 'vpaas-magic-cookie-7eca117a3c424c7bb5c5787891573dbf';
+
+const log = (...a) => console.log('[NovaMeet]', ...a);
+const err = (...a) => console.error('[NovaMeet]', ...a);
+
 export default {
-  name: 'MeetingsDashboard',
+  name: 'Meeting',
+  props: { code: { type: String, default: null } },
+
   data() {
     return {
-      loading: true, error: null, allMeetings: [], activeMeetings: [],
-      activeFilter: 'all', search: '',
-      modal: { show: false, type: null, meeting: null, loading: false },
-      toast: { show: false, message: '', type: 'success' },
+      view: 'create',
+      form: { roomName: '', isPrivate: false },
+      creating: false,
+      createError: '',
+      created: { code: null },
+
+      meetingCode: '',
+      jitsiApi: null,
+      loading: true,
+      loadingStatus: 'Initialising…',
+      loadingStep: 0,
+      joinError: '',
+
+      participantCount: 1,
+      isHost: false,
+      userName: 'Guest',
+      jitsiDomain: '8x8.vc',
+      jitsiAppId: JAAS_APP_ID,
+
+      showEndModal: false,
+      ending: false,
+
+      toastVisible: false,
+      toastMessage: '',
+      toastType: 'success',
+
+      currentTime: '',
+      clockInterval: null,
+      participantInterval: null,
     };
   },
+
   computed: {
     isAuthenticated() { return TokenService.isAuthenticated(); },
-    privateCount()    { return this.allMeetings.filter(m => m.privacy === 'private').length; },
-    recentCount() {
-      const cutoff = Date.now() - 7 * 24 * 60 * 60 * 1000;
-      return this.allMeetings.filter(m => m.created_at && new Date(m.created_at) > cutoff).length;
-    },
-    tabs() {
-      const pub  = this.allMeetings.filter(m => m.privacy !== 'private').length;
-      const live = this.activeMeetings.filter(m => m.privacy !== 'private').length;
-      return [
-        { label: 'All',  value: 'all',  count: pub },
-        { label: 'Live', value: 'live', count: live },
-      ];
-    },
-    filteredMeetings() {
-      // Private meetings are hidden from the public list — they can only be joined via code
-      let list = this.allMeetings.filter(m => m.privacy !== 'private');
-      if (this.activeFilter === 'live')   list = list.filter(m => m.active === true);
-      if (this.activeFilter === 'public') list = list.filter(m => m.privacy !== 'private');
-      if (this.search) { const q = this.search.toLowerCase(); list = list.filter(m => (m.name || '').toLowerCase().includes(q)); }
-      return list.sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0));
-    },
-    publicCount() { return this.allMeetings.filter(m => m.privacy !== 'private').length; },
   },
+
   methods: {
-    async fetchMeetingsData() {
-      this.loading = true; this.error = null;
+    async createMeeting() {
+      this.createError = '';
+      const name = this.form.roomName.trim().toLowerCase()
+        .replace(/[^a-z0-9-]/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '');
+      if (!name) { this.createError = 'Please enter a valid room name.'; return; }
+      if (!this.isAuthenticated) { this.createError = 'You must be signed in to create a meeting.'; return; }
+
+      this.creating = true;
       try {
-        if (!TokenService.getAccessToken()) { this.$router.push('/auth'); return; }
-        const res = await apiRequest('/meetings?limit=100', { method: 'GET' });
-        if (!res.ok) throw new Error(`Server returned ${res.status}`);
-        const body = await res.json();
-        let raw = Array.isArray(body) ? body : (body.data || body.rooms || []);
-        this.allMeetings = raw;
-        this.activeMeetings = raw.filter(m => m.active === true);
+        const roomData = await MeetingSession.createMeeting(name, this.form.isPrivate);
+        log('createMeeting() roomData:', roomData);
+        const code = roomData?.name || name;
+        MeetingSession.setMeetingCode(code);
+        if (roomData?.url) MeetingSession.setJitsiRoom(roomData.url, code);
+        this.created = { code };
+        this.showToast('Meeting created!', 'success');
       } catch (e) {
-        console.error('[MeetingsDashboard]', e);
-        this.error = 'Failed to load meetings. Please try again.';
-      } finally { this.loading = false; }
+        err('createMeeting() error:', e);
+        this.createError = e.message || 'Failed to create meeting.';
+      } finally {
+        this.creating = false;
+      }
     },
 
-    isRoomActive(m)   { return m.active === true; },
-    formatRoomTime(m) { return m.created_at ? this.getRelativeTime(m.created_at) : ''; },
-    createMeeting()   { sessionStorage.removeItem('nova_meeting_code'); this.$router.push({ path: '/meeting', query: { create: 'true' } }); },
-
-    joinMeetingWithCode(code) {
-      MeetingSession.setMeetingCode(code); MeetingSession.setIsHost(false);
-      this.$router.push('/meeting');
+    copyCreatedCode() {
+      if (!this.created.code) return;
+      navigator.clipboard.writeText(this.created.code).then(() => this.showToast('Code copied!'));
     },
 
-    copyCode(code) {
-      navigator.clipboard.writeText(code)
-        .then(() => this.showToast('Code copied!', 'success'))
-        .catch(() => this.showToast('Copy failed', 'error'));
+    enterMeeting() {
+      if (!this.created.code) return;
+      this.meetingCode = this.created.code;
+      this.isHost = true;
+      MeetingSession.setIsHost(true);
+      this.view = 'meeting';
+      this.$nextTick(() => this.initMeeting());
     },
 
-    promptEnd(m)     { this.modal = { show: true, type: 'end',     meeting: m, loading: false }; },
-    promptRestart(m) { this.modal = { show: true, type: 'restart', meeting: m, loading: false }; },
-    closeModal()     { this.modal = { show: false, type: null, meeting: null, loading: false }; },
+    async initMeeting() {
+      log('════ initMeeting() ════');
+      if (!this.meetingCode) {
+        this.meetingCode = this.code || this.$route?.params?.code || MeetingSession.getMeetingCode();
+      }
+      if (!this.meetingCode) { this.$router.push('/meetings/join'); return; }
 
-    async confirmEnd() {
-      this.modal.loading = true;
-      const code = this.modal.meeting.name;
+      this.joinError = '';
+      this.loading = true;
+      this.loadingStep = 1;
+      this.loadingStatus = 'Authenticating…';
+      this.userName = MeetingSession.getUserDisplayName() || 'Nova User';
+      this.isHost = this.isHost || MeetingSession.isHost();
+
       try {
-        const res = await apiRequest(`/meetings/${encodeURIComponent(code)}`, { method: 'DELETE' });
-        if (!res.ok) { const d = await res.json().catch(() => ({})); throw new Error(d.message || `Delete failed (${res.status})`); }
-        this.allMeetings = this.allMeetings.filter(m => m.name !== code);
-        this.activeMeetings = this.activeMeetings.filter(m => m.name !== code);
-        this.showToast(`"${code}" deleted`, 'success');
-      } catch (e) { this.showToast('Failed: ' + e.message, 'error'); }
-      finally { this.modal.loading = false; this.closeModal(); }
+        this.loadingStep = 2;
+        this.loadingStatus = 'Fetching room token…';
+        const tokenData = await MeetingSession.fetchMeetingToken(this.meetingCode, this.isHost);
+        if (tokenData?.domain) this.jitsiDomain = tokenData.domain;
+        if (tokenData?.appId) this.jitsiAppId = tokenData.appId;
+        this.loadingStep = 3;
+        this.loadingStatus = 'Loading JaaS SDK…';
+        await this.loadJaaSSDK();
+        this.updateClock();
+        this.clockInterval = setInterval(this.updateClock, 10_000);
+        this.loadingStep = 4;
+        this.loadingStatus = 'Joining room…';
+        this.launchJitsi(tokenData?.token || null);
+      } catch (e) {
+        err('initMeeting() error:', e);
+        this.joinError = e.message || 'Failed to join meeting.';
+        this.loading = false;
+      }
     },
 
-    async confirmRestart() {
-      this.modal.loading = true;
-      const m = this.modal.meeting;
+    loadJaaSSDK() {
+      return new Promise((resolve, reject) => {
+        if (window.JitsiMeetExternalAPI) { resolve(); return; }
+        const s = document.createElement('script');
+        s.src = `https://8x8.vc/${this.jitsiAppId}/external_api.js`;
+        s.onload = () => { log('JaaS SDK loaded ✅'); resolve(); };
+        s.onerror = () => reject(new Error('Failed to load JaaS SDK'));
+        document.head.appendChild(s);
+      });
+    },
+
+    launchJitsi(token = null) {
       try {
-        await apiRequest(`/meetings/${encodeURIComponent(m.name)}`, { method: 'DELETE' }).catch(() => {});
-        await apiRequest('/meetings/create', { method: 'POST', body: JSON.stringify({ roomName: m.name, private: m.privacy === 'private' }) });
-        this.showToast(`"${m.name}" restarted!`, 'success');
-        setTimeout(() => this.fetchMeetingsData(), 600);
-      } catch (e) { this.showToast('Failed: ' + e.message, 'error'); }
-      finally { this.modal.loading = false; this.closeModal(); }
+        if (this.jitsiApi) { try { this.jitsiApi.dispose(); } catch (_) {} this.jitsiApi = null; }
+        const container = this.$refs.jitsiContainer;
+        if (!container) throw new Error('Jitsi container not found.');
+        const roomName = `${this.jitsiAppId}/${this.meetingCode}`;
+        const options = {
+          roomName, width: '100%', height: '100%', parentNode: container, jwt: token,
+          userInfo: { displayName: this.userName },
+          configOverwrite: {
+            prejoinPageEnabled: false, prejoinConfig: { enabled: false },
+            enableInsecureRoomNameWarning: false, requireDisplayName: false,
+            enableLobbyChat: false, startWithAudioMuted: false, startWithVideoMuted: false,
+            disableDeepLinking: true, disableInviteFunctions: true, doNotStoreRoom: true,
+            notifications: [], disableNotifications: true, enableUserRolesBasedOnToken: true,
+            desktopSharingChromeExtId: null, desktopSharingChromeDisabled: false,
+            desktopSharingFirefoxDisabled: false,
+            toolbarButtons: ['microphone','camera','desktop','chat','raisehand','participants-pane','tileview','fullscreen','settings','hangup'],
+          },
+          interfaceConfigOverwrite: {
+            SHOW_JITSI_WATERMARK: false, SHOW_WATERMARK_FOR_GUESTS: false,
+            SHOW_BRAND_WATERMARK: false, SHOW_POWERED_BY: false,
+            SHOW_PROMOTIONAL_CLOSE_PAGE: false, SHOW_CHROME_EXTENSION_BANNER: false,
+            HIDE_INVITE_MORE_HEADER: true, DISABLE_JOIN_LEAVE_NOTIFICATIONS: true,
+            MOBILE_APP_PROMO: false,
+            TOOLBAR_BUTTONS: ['microphone','camera','desktop','chat','raisehand','participants-pane','tileview','fullscreen','settings','hangup'],
+          },
+        };
+        log('launchJitsi() creating JitsiMeetExternalAPI | room:', roomName);
+        this.jitsiApi = new window.JitsiMeetExternalAPI(this.jitsiDomain, options);
+        this.jitsiApi.addEventListeners({
+          readyToClose: this.onJitsiReadyToClose,
+          participantJoined: this.onParticipantJoined,
+          participantLeft: this.onParticipantLeft,
+          videoConferenceJoined: this.onConferenceJoined,
+          videoConferenceLeft: this.onConferenceLeft,
+          errorOccurred: this.onJitsiError,
+          screenSharingStatusChanged: this.onScreenShareChanged,
+        });
+        this.participantInterval = setInterval(this.syncParticipantCount, 5000);
+        log('launchJitsi() ✅');
+      } catch (e) {
+        err('launchJitsi() error:', e);
+        this.joinError = e.message || 'Failed to launch meeting.';
+        this.loading = false;
+      }
     },
 
-    getRelativeTime(ds) {
-      if (!ds) return '';
-      const d = Math.floor((Date.now() - new Date(ds)) / 1000);
-      if (d < 60) return 'just now';
-      if (d < 3600) return `${Math.floor(d/60)}m ago`;
-      if (d < 86400) return `${Math.floor(d/3600)}h ago`;
-      return `${Math.floor(d/86400)}d ago`;
+    onConferenceJoined(event) { log('videoConferenceJoined', event); this.loading = false; this.joinError = ''; this.syncParticipantCount(); },
+    onConferenceLeft(event) { log('videoConferenceLeft', event); this.cleanupAndNavigate(); },
+    onParticipantJoined(event) { this.syncParticipantCount(); if (event?.displayName) this.showToast(`${event.displayName} joined`, 'success'); },
+    onParticipantLeft() { this.syncParticipantCount(); },
+    onJitsiReadyToClose() { this.cleanupAndNavigate(); },
+    onJitsiError(event) {
+      err('Jitsi error:', event);
+      const msg = event?.error?.message || '';
+      if (msg.includes('membersOnly') || msg.includes('members-only')) return;
+      this.showToast('Connection issue: ' + (msg || 'Unknown error'), 'error');
+    },
+    onScreenShareChanged(event) { if (event?.on) this.showToast('Screen sharing started', 'success'); },
+    syncParticipantCount() { if (!this.jitsiApi) return; try { this.participantCount = this.jitsiApi.getNumberOfParticipants(); } catch (_) {} },
+
+    leave() {
+      if (!confirm('Leave this meeting?')) return;
+      if (this.jitsiApi) { try { this.jitsiApi.executeCommand('hangup'); } catch (_) {} }
+      this.cleanupAndNavigate();
+    },
+
+    endMeeting() { this.showEndModal = true; },
+
+    async confirmEndMeeting() {
+      this.ending = true;
+      try {
+        if (this.jitsiApi) { try { this.jitsiApi.executeCommand('hangup'); } catch (_) {} }
+        await MeetingSession.endMeeting(this.meetingCode);
+        this.showEndModal = false;
+        this.cleanupAndNavigate();
+      } catch (e) {
+        err('confirmEndMeeting() error:', e);
+        this.showToast('Failed to end meeting.', 'error');
+      } finally {
+        this.ending = false;
+      }
+    },
+
+    cleanupAndNavigate() {
+      clearInterval(this.clockInterval);
+      clearInterval(this.participantInterval);
+      if (this.jitsiApi) { try { this.jitsiApi.dispose(); } catch (_) {} this.jitsiApi = null; }
+      MeetingSession.clearMeetingData();
+      if (window.history.length > 1) this.$router.go(-1);
+      else this.$router.push(this.isAuthenticated ? '/meeting-dashboard' : '/meetings/join');
+    },
+
+    copyMeetingCode() {
+      navigator.clipboard.writeText(this.meetingCode).then(() => this.showToast('Code copied!')).catch(() => this.showToast('Copy failed', 'error'));
     },
 
     showToast(msg, type = 'success') {
-      this.toast = { show: true, message: msg, type };
-      setTimeout(() => { this.toast.show = false; }, 3500);
+      this.toastMessage = msg; this.toastType = type; this.toastVisible = true;
+      setTimeout(() => { this.toastVisible = false; }, 3000);
+    },
+
+    updateClock() {
+      this.currentTime = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    },
+
+    goToDashboard() {
+      if (window.history.length > 1) this.$router.go(-1);
+      else this.$router.push(this.isAuthenticated ? '/meeting-dashboard' : '/meetings/join');
     },
   },
+
   mounted() {
-    if (!this.isAuthenticated) { this.$router.push('/auth'); return; }
-    this.fetchMeetingsData();
+    log('mounted() code:', this.code, 'query:', this.$route?.query);
+    const forceCreate = this.$route?.query?.create === 'true';
+    if (forceCreate) {
+      MeetingSession.clearMeetingData();
+      this.view = 'create';
+      this.loading = false;
+    } else {
+      const resolvedCode = this.code || this.$route?.params?.code || MeetingSession.getMeetingCode();
+      if (resolvedCode) {
+        this.meetingCode = resolvedCode;
+        this.isHost = MeetingSession.isHost();
+        this.view = 'meeting';
+        this.$nextTick(() => this.initMeeting());
+      } else {
+        this.view = 'create';
+        this.loading = false;
+      }
+    }
+  },
+
+  beforeUnmount() {
+    clearInterval(this.clockInterval);
+    clearInterval(this.participantInterval);
+    if (this.jitsiApi) { try { this.jitsiApi.dispose(); } catch (_) {} this.jitsiApi = null; }
   },
 };
 </script>
@@ -405,7 +501,7 @@ export default {
 <style scoped>
 @import url('https://fonts.googleapis.com/css2?family=Manrope:wght@300;400;500;600;700;800&family=Space+Grotesk:wght@400;500;600;700&display=swap');
 
-.md-shell {
+.nm-shell {
   --blue:      #4a90e2;
   --blue-dk:   #2c6fbd;
   --blue-soft: #e8f2fc;
@@ -417,8 +513,6 @@ export default {
   --white:     #ffffff;
   --border:    #e2ecf6;
   --bg:        #f8fafc;
-  --purple:    #8b5cf6;
-  --purple-s:  #f5f3ff;
   --green:     #10b981;
   --red:       #ef4444;
   --orange:    #f59e0b;
@@ -428,262 +522,335 @@ export default {
   --shadow-sm: 0 1px 3px rgba(0,0,0,0.06);
   --shadow-md: 0 4px 12px rgba(0,0,0,0.08);
   --shadow-lg: 0 12px 32px rgba(0,0,0,0.1);
-  --sidebar-w: 240px;
-  --bar-h:     64px;
 
   font-family: var(--font);
   background: var(--bg);
   color: var(--ink);
   min-height: 100vh;
-  display: grid;
-  grid-template-columns: var(--sidebar-w) 1fr;
-  grid-template-rows: 1fr;
 }
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
-/* ── Sidebar ──────────────────────────── */
-.md-sidebar {
-  background: var(--white); border-right: 1px solid var(--border);
-  display: flex; flex-direction: column; justify-content: space-between;
-  position: sticky; top: 0; height: 100vh; overflow-y: auto;
+/* ── Logo ─────────────────────────── */
+.nm-logo {
+  width: 34px; height: 34px; border-radius: 9px;
+  background: linear-gradient(135deg, var(--blue), #6366f1);
+  display: flex; align-items: center; justify-content: center;
+  box-shadow: 0 4px 12px var(--blue-glow); flex-shrink: 0;
 }
-.md-sb-top { display: flex; flex-direction: column; }
-.md-sb-brand { display: flex; align-items: center; gap: 10px; padding: 20px 18px 18px; border-bottom: 1px solid var(--border); }
-.md-sb-logo { width: 32px; height: 32px; border-radius: 9px; background: linear-gradient(135deg, var(--blue), #6366f1); display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 12px var(--blue-glow); flex-shrink: 0; }
-.md-sb-name { font-family: var(--fdisp); font-size: 16px; font-weight: 700; color: var(--ink); }
-.md-sb-accent { color: var(--blue); }
+.nm-logo--sm { width: 28px; height: 28px; border-radius: 7px; }
+.nm-brand-name { font-family: var(--fdisp); font-size: 18px; font-weight: 700; color: var(--ink); }
+.nm-brand-accent { color: var(--blue); }
 
-.md-sb-nav { padding: 16px 12px; display: flex; flex-direction: column; gap: 2px; }
-.md-nav-section { font-size: 10px; font-weight: 800; letter-spacing: 1.5px; color: var(--ink-m); text-transform: uppercase; padding: 6px 8px 4px; }
-.md-nav-item {
-  display: flex; align-items: center; gap: 9px;
-  padding: 10px 12px; border-radius: 8px;
-  background: transparent; border: none;
-  color: var(--ink-m); font-family: var(--font); font-size: 13px; font-weight: 600;
-  cursor: pointer; transition: all .15s; text-align: left; width: 100%;
-}
-.md-nav-item:hover { background: var(--bg); color: var(--ink-s); }
-.md-nav-item--active { background: var(--blue-soft); border: 1px solid var(--blue-mid); color: var(--blue); font-weight: 700; }
-.md-nav-badge { margin-left: auto; min-width: 20px; height: 20px; padding: 0 6px; border-radius: 10px; font-size: 10px; font-weight: 800; background: #fef2f2; border: 1px solid #fecaca; color: #dc2626; display: flex; align-items: center; justify-content: center; }
+/* ── Create ───────────────────────── */
+.nm-create { display: flex; flex-direction: column; min-height: 100vh; background: var(--bg); }
 
-.md-sb-footer { padding: 16px 12px; border-top: 1px solid var(--border); }
-.md-sb-stats { display: flex; align-items: center; justify-content: space-around; background: var(--bg); border: 1px solid var(--border); border-radius: var(--r); padding: 14px; }
-.md-stat { display: flex; flex-direction: column; align-items: center; gap: 2px; }
-.md-stat-val { font-family: var(--fdisp); font-size: 20px; font-weight: 700; color: var(--ink); }
-.md-stat-val--live { color: var(--red); }
-.md-stat-lbl { font-size: 10px; color: var(--ink-m); font-weight: 600; text-transform: uppercase; letter-spacing: .3px; }
-.md-stat-sep { width: 1px; height: 30px; background: var(--border); }
-
-/* ── Main ─────────────────────────────── */
-.md-main { display: flex; flex-direction: column; min-height: 100vh; overflow-y: auto; }
-
-.md-header {
-  height: var(--bar-h); flex-shrink: 0;
+.nm-topbar {
+  height: 64px;
   display: flex; align-items: center; justify-content: space-between;
-  padding: 0 28px;
-  background: var(--white); border-bottom: 1px solid var(--border);
+  padding: 0 32px;
+  background: var(--white);
+  border-bottom: 1px solid var(--border);
+  position: sticky; top: 0; z-index: 50;
   box-shadow: var(--shadow-sm);
-  position: sticky; top: 0; z-index: 20;
 }
-.md-page-title { font-family: var(--fdisp); font-size: 20px; font-weight: 700; color: var(--ink); }
-.md-page-sub { font-size: 12px; color: var(--ink-m); margin-top: 2px; font-weight: 500; }
-.md-header-actions { display: flex; align-items: center; gap: 10px; }
+.nm-brand { display: flex; align-items: center; gap: 10px; cursor: pointer; }
+.nm-back-btn {
+  display: flex; align-items: center; gap: 7px;
+  padding: 8px 16px;
+  background: var(--bg); border: 1px solid var(--border); border-radius: 8px;
+  color: var(--ink-m); font-family: var(--font); font-size: 13px; font-weight: 500;
+  cursor: pointer; transition: all .15s;
+}
+.nm-back-btn:hover { border-color: var(--blue); color: var(--blue); background: var(--blue-soft); }
+
+.nm-create-body {
+  flex: 1;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 64px 32px;
+  gap: 80px;
+  align-items: center;
+  width: 100%;
+}
+
+.nm-hero-eyebrow {
+  font-family: var(--fdisp); font-size: 11px; font-weight: 700;
+  letter-spacing: 2px; color: var(--blue);
+  background: var(--blue-soft); border: 1px solid var(--blue-mid);
+  display: inline-block; padding: 5px 12px; border-radius: 20px;
+  margin-bottom: 20px;
+}
+.nm-hero-title {
+  font-family: var(--fdisp); font-size: clamp(32px, 4vw, 48px);
+  font-weight: 700; color: var(--ink); line-height: 1.12; margin-bottom: 16px;
+}
+.nm-hero-desc { font-size: 16px; color: var(--ink-m); line-height: 1.7; margin-bottom: 32px; }
+.nm-hero-features { display: flex; flex-direction: column; gap: 12px; }
+.nm-feat { display: flex; align-items: center; gap: 10px; font-size: 14px; color: var(--ink-s); font-weight: 500; }
+.nm-feat-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--blue); flex-shrink: 0; }
+
+/* Card */
+.nm-card {
+  background: var(--white); border: 1px solid var(--border); border-radius: 16px;
+  padding: 32px; box-shadow: var(--shadow-lg);
+}
+.nm-card-header { display: flex; align-items: center; gap: 14px; margin-bottom: 28px; }
+.nm-card-icon {
+  width: 44px; height: 44px; border-radius: 10px;
+  background: var(--blue-soft); border: 1px solid var(--blue-mid);
+  display: flex; align-items: center; justify-content: center; color: var(--blue); flex-shrink: 0;
+}
+.nm-card-title { font-family: var(--fdisp); font-size: 17px; font-weight: 700; color: var(--ink); }
+.nm-card-sub { font-size: 12px; color: var(--ink-m); margin-top: 2px; }
+
+/* Form */
+.nm-form { display: flex; flex-direction: column; gap: 20px; }
+.nm-field { display: flex; flex-direction: column; gap: 0; }
+.nm-label { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .5px; color: var(--ink-m); margin-bottom: 8px; }
+.nm-input-wrap { position: relative; }
+.nm-input-icon { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: var(--ink-m); pointer-events: none; }
+.nm-input {
+  width: 100%; padding: 12px 12px 12px 38px;
+  background: var(--bg); border: 1.5px solid var(--border); border-radius: var(--r);
+  color: var(--ink); font-family: var(--font); font-size: 14px; font-weight: 500;
+  transition: all .15s;
+}
+.nm-input::placeholder { color: #a0aec0; font-weight: 400; }
+.nm-input:focus { outline: none; border-color: var(--blue); background: var(--white); box-shadow: 0 0 0 3px var(--blue-glow); }
+.nm-hint { font-size: 11px; color: #a0aec0; margin-top: 6px; }
+
+/* Toggle */
+.nm-toggle-row { display: flex; align-items: center; gap: 12px; cursor: pointer; }
+.nm-toggle-cb { display: none; }
+.nm-toggle {
+  width: 40px; height: 22px; border-radius: 11px;
+  background: var(--border); border: 1.5px solid #cbd5e0;
+  position: relative; flex-shrink: 0; transition: all .2s;
+}
+.nm-toggle-knob {
+  width: 16px; height: 16px; border-radius: 50%; background: var(--white);
+  position: absolute; top: 1px; left: 1px;
+  transition: transform .2s; box-shadow: 0 1px 3px rgba(0,0,0,.15);
+}
+.nm-toggle-cb:checked ~ .nm-toggle { background: var(--blue); border-color: var(--blue); }
+.nm-toggle-cb:checked ~ .nm-toggle .nm-toggle-knob { transform: translateX(18px); }
+.nm-toggle-label { font-size: 14px; font-weight: 600; color: var(--ink-s); }
+.nm-toggle-desc { font-size: 12px; color: var(--ink-m); margin-top: 1px; }
 
 /* Buttons */
-.md-btn-primary {
-  display: inline-flex; align-items: center; gap: 7px;
-  padding: 9px 18px; background: var(--blue); color: var(--white);
+.nm-btn-primary {
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+  padding: 12px 24px;
+  background: var(--blue); color: var(--white);
   border: none; border-radius: var(--r);
-  font-family: var(--font); font-size: 13px; font-weight: 700;
-  cursor: pointer; transition: all .15s; box-shadow: 0 4px 12px var(--blue-glow);
+  font-family: var(--font); font-size: 14px; font-weight: 700;
+  cursor: pointer; transition: all .15s;
+  box-shadow: 0 4px 14px var(--blue-glow);
 }
-.md-btn-primary:hover { background: var(--blue-dk); transform: translateY(-1px); }
+.nm-btn-primary:hover:not(:disabled) { background: var(--blue-dk); transform: translateY(-1px); box-shadow: 0 6px 20px var(--blue-glow); }
+.nm-btn-primary:disabled { opacity: .5; cursor: not-allowed; }
+.nm-btn-full { width: 100%; }
 
-.md-btn-ghost {
+.nm-btn-ghost {
   display: inline-flex; align-items: center; gap: 7px;
-  padding: 9px 16px; background: transparent; border: 1.5px solid var(--border);
-  border-radius: var(--r); color: var(--ink-m);
-  font-family: var(--font); font-size: 13px; font-weight: 600;
+  padding: 10px 18px;
+  background: transparent; border: 1.5px solid var(--border); border-radius: var(--r);
+  color: var(--ink-m); font-family: var(--font); font-size: 13px; font-weight: 600;
   cursor: pointer; transition: all .15s;
 }
-.md-btn-ghost:hover { border-color: var(--blue); color: var(--blue); background: var(--blue-soft); }
+.nm-btn-ghost:hover { border-color: var(--blue); color: var(--blue); background: var(--blue-soft); }
 
-.md-btn-danger {
-  display: inline-flex; align-items: center; gap: 7px;
-  padding: 10px 20px; background: var(--red); color: var(--white);
+.nm-btn-danger {
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: 11px 22px;
+  background: var(--red); color: var(--white);
   border: none; border-radius: var(--r);
-  font-family: var(--font); font-size: 13px; font-weight: 700;
+  font-family: var(--font); font-size: 14px; font-weight: 700;
   cursor: pointer; transition: all .15s;
 }
-.md-btn-danger:hover:not(:disabled) { background: #dc2626; }
-.md-btn-danger:disabled { opacity: .55; cursor: not-allowed; }
+.nm-btn-danger:hover:not(:disabled) { background: #dc2626; }
+.nm-btn-danger:disabled { opacity: .55; cursor: not-allowed; }
 
-.md-btn-amber {
-  display: inline-flex; align-items: center; gap: 7px;
-  padding: 10px 20px; background: var(--orange); color: var(--white);
-  border: none; border-radius: var(--r);
-  font-family: var(--font); font-size: 13px; font-weight: 700;
+/* Error */
+.nm-error {
+  display: flex; align-items: center; gap: 8px;
+  padding: 11px 14px;
+  background: #fef2f2; border: 1px solid #fecaca; border-radius: var(--r);
+  font-size: 13px; color: #dc2626;
+}
+
+/* Spinner */
+.nm-spinner {
+  display: inline-block; width: 14px; height: 14px;
+  border: 2px solid rgba(255,255,255,.3); border-top-color: #fff;
+  border-radius: 50%; animation: nm-spin .6s linear infinite;
+}
+@keyframes nm-spin { to { transform: rotate(360deg); } }
+
+/* Success */
+.nm-success { display: flex; flex-direction: column; gap: 20px; }
+.nm-success-check {
+  width: 52px; height: 52px; border-radius: 50%;
+  background: #ecfdf5; border: 1px solid #6ee7b7;
+  display: flex; align-items: center; justify-content: center; color: var(--green);
+}
+.nm-success-label { font-family: var(--fdisp); font-size: 16px; font-weight: 700; color: var(--ink); }
+.nm-code-block { background: var(--bg); border: 1.5px solid var(--border); border-radius: var(--r); padding: 16px; }
+.nm-code-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .5px; color: var(--ink-m); margin-bottom: 8px; }
+.nm-code-row { display: flex; align-items: center; gap: 10px; margin-bottom: 6px; }
+.nm-code {
+  font-family: 'Courier New', monospace; font-size: 18px; font-weight: 700; color: var(--blue);
+  background: var(--blue-soft); border: 1px solid var(--blue-mid);
+  padding: 6px 14px; border-radius: 7px; letter-spacing: 1px;
+}
+.nm-copy-btn {
+  display: flex; align-items: center; gap: 5px;
+  padding: 7px 12px; background: var(--white); border: 1.5px solid var(--border);
+  border-radius: 7px; color: var(--ink-m); font-family: var(--font); font-size: 12px; font-weight: 600;
   cursor: pointer; transition: all .15s;
 }
-.md-btn-amber:disabled { opacity: .55; cursor: not-allowed; }
+.nm-copy-btn:hover { border-color: var(--blue); color: var(--blue); }
+.nm-code-hint { font-size: 12px; color: var(--ink-m); }
+.nm-success-actions { display: flex; flex-direction: column; gap: 8px; }
 
-.md-spinner { display: inline-block; width: 13px; height: 13px; border: 2px solid rgba(255,255,255,.35); border-top-color: #fff; border-radius: 50%; animation: md-spin .65s linear infinite; }
-@keyframes md-spin { to { transform: rotate(360deg); } }
-
-/* Center states */
-.md-center { flex: 1; display: flex; align-items: center; justify-content: center; padding: 48px; }
-.md-loader-wrap { display: flex; flex-direction: column; align-items: center; gap: 16px; }
-.md-loader-ring { width: 48px; height: 48px; border-radius: 50%; border: 3px solid var(--blue-mid); border-top-color: var(--blue); animation: md-spin .8s linear infinite; }
-.md-loader-text { font-size: 14px; color: var(--ink-m); font-weight: 500; }
-.md-error-box { display: flex; flex-direction: column; align-items: center; gap: 14px; padding: 48px; background: var(--white); border: 1px solid #fecaca; border-radius: 20px; text-align: center; box-shadow: var(--shadow-lg); }
-.md-error-icon { width: 56px; height: 56px; border-radius: 50%; background: #fef2f2; border: 1px solid #fecaca; display: flex; align-items: center; justify-content: center; color: #dc2626; }
-.md-error-text { font-size: 14px; color: var(--ink-m); }
-
-/* Content */
-.md-content { flex: 1; padding: 24px 28px; display: flex; flex-direction: column; gap: 20px; }
-
-/* KPI */
-.md-kpi-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
-.md-kpi {
-  display: flex; align-items: center; gap: 14px;
-  padding: 18px 20px; background: var(--white); border: 1px solid var(--border);
-  border-radius: 14px; transition: all .15s; box-shadow: var(--shadow-sm);
+/* ── Meeting View ─────────────────── */
+.nm-meeting {
+  display: flex; flex-direction: column;
+  position: fixed; inset: 0; z-index: 9999;
+  background: #1a1a2e;
 }
-.md-kpi:hover { border-color: var(--blue-mid); box-shadow: var(--shadow-md); transform: translateY(-1px); }
-.md-kpi--live { border-color: #fecaca; }
-.md-kpi-icon { width: 44px; height: 44px; border-radius: 11px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; position: relative; }
-.md-kpi-icon--blue   { background: var(--blue-soft); color: var(--blue); }
-.md-kpi-icon--red    { background: #fef2f2; color: var(--red); }
-.md-kpi-icon--purple { background: var(--purple-s); color: var(--purple); }
-.md-kpi-icon--orange { background: #fffbeb; color: var(--orange); }
-.md-kpi-ring { position: absolute; inset: -4px; border-radius: 50%; border: 2px solid rgba(239,68,68,.2); animation: md-ring 2s ease-out infinite; }
-@keyframes md-ring { 0%{opacity:.8;transform:scale(1)} 100%{opacity:0;transform:scale(1.5)} }
-.md-kpi-num { font-family: var(--fdisp); font-size: 26px; font-weight: 700; color: var(--ink); line-height: 1; }
-.md-kpi-lbl { font-size: 11px; color: var(--ink-m); font-weight: 600; text-transform: uppercase; letter-spacing: .3px; margin-top: 2px; }
 
-/* Live banner */
-.md-live-banner { background: var(--white); border: 1.5px solid #fecaca; border-radius: 14px; overflow: hidden; box-shadow: var(--shadow-sm); }
-.md-live-banner-hd { padding: 14px 18px; border-bottom: 1px solid #fef2f2; background: #fef2f2; }
-.md-live-indicator { display: flex; align-items: center; gap: 8px; font-family: var(--fdisp); font-size: 14px; font-weight: 700; color: #dc2626; }
-.md-live-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--red); animation: md-blink 2s ease-in-out infinite; }
-@keyframes md-blink { 0%,100%{opacity:1} 50%{opacity:.3} }
-.md-live-list { display: flex; flex-direction: column; }
-.md-live-row { display: flex; align-items: center; gap: 12px; padding: 12px 18px; border-bottom: 1px solid var(--border); }
-.md-live-row:last-child { border-bottom: none; }
-.md-live-pulse { width: 8px; height: 8px; border-radius: 50%; background: var(--red); flex-shrink: 0; animation: md-blink 1.5s ease-in-out infinite; }
-.md-live-info { flex: 1; }
-.md-live-name { font-size: 14px; font-weight: 700; color: var(--ink-s); display: block; }
-.md-live-meta { font-size: 11px; color: var(--ink-m); font-weight: 500; }
-.md-live-btns { display: flex; gap: 6px; }
-.md-live-join { display: flex; align-items: center; gap: 5px; padding: 6px 14px; background: var(--blue); color: var(--white); border: none; border-radius: 7px; font-family: var(--font); font-size: 12px; font-weight: 700; cursor: pointer; transition: all .15s; }
-.md-live-join:hover { background: var(--blue-dk); }
-.md-live-end { display: flex; align-items: center; gap: 5px; padding: 6px 10px; background: #fef2f2; color: #dc2626; border: 1.5px solid #fecaca; border-radius: 7px; font-family: var(--font); font-size: 12px; font-weight: 700; cursor: pointer; transition: all .15s; }
-.md-live-end:hover { background: var(--red); color: var(--white); border-color: var(--red); }
-
-/* Toolbar */
-.md-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
-.md-tabs { display: flex; gap: 2px; background: var(--white); border: 1px solid var(--border); border-radius: 10px; padding: 3px; box-shadow: var(--shadow-sm); }
-.md-tab { display: flex; align-items: center; gap: 7px; padding: 7px 14px; border: none; background: transparent; border-radius: 7px; color: var(--ink-m); font-family: var(--font); font-size: 13px; font-weight: 600; cursor: pointer; transition: all .15s; }
-.md-tab:hover { color: var(--ink-s); background: var(--bg); }
-.md-tab--active { background: var(--blue-soft); color: var(--blue); border: 1px solid var(--blue-mid); font-weight: 700; }
-.md-tab-count { min-width: 20px; height: 20px; padding: 0 6px; border-radius: 10px; font-size: 10px; font-weight: 800; background: var(--bg); color: var(--ink-m); display: flex; align-items: center; justify-content: center; border: 1px solid var(--border); }
-.md-tab-count--on { background: rgba(74,144,226,.12); color: var(--blue); border-color: var(--blue-mid); }
-
-.md-toolbar-right { display: flex; align-items: center; gap: 8px; }
-.md-search { position: relative; }
-.md-search-icon { position: absolute; left: 10px; top: 50%; transform: translateY(-50%); color: var(--ink-m); pointer-events: none; }
-.md-search-input { padding: 8px 10px 8px 30px; background: var(--white); border: 1px solid var(--border); border-radius: var(--r); color: var(--ink); font-family: var(--font); font-size: 13px; width: 200px; transition: all .15s; }
-.md-search-input::placeholder { color: #a0aec0; }
-.md-search-input:focus { outline: none; border-color: var(--blue); width: 240px; box-shadow: 0 0 0 2px var(--blue-glow); }
-.md-refresh { width: 34px; height: 34px; border-radius: var(--r); background: var(--white); border: 1px solid var(--border); display: flex; align-items: center; justify-content: center; color: var(--ink-m); cursor: pointer; transition: all .15s; }
-.md-refresh:hover { border-color: var(--blue); color: var(--blue); }
-.md-refresh--spin svg { animation: md-spin .8s linear infinite; }
-
-/* Empty */
-.md-empty { display: flex; flex-direction: column; align-items: center; gap: 12px; padding: 64px 20px; text-align: center; }
-.md-empty-icon { width: 68px; height: 68px; border-radius: 50%; background: var(--white); border: 1.5px solid var(--border); display: flex; align-items: center; justify-content: center; color: var(--ink-m); box-shadow: var(--shadow-sm); }
-.md-empty-title { font-family: var(--fdisp); font-size: 18px; font-weight: 700; color: var(--ink); }
-.md-empty-sub { font-size: 14px; color: var(--ink-m); }
-
-/* Private notice */
-.md-private-notice {
-  display: flex; align-items: center; gap: 10px;
-  padding: 12px 16px;
-  background: var(--purple-s); border: 1.5px solid #ddd6fe; border-radius: var(--r);
-  font-size: 13px; color: #5b21b6; font-weight: 500;
+.nm-meeting-bar {
+  height: 56px; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 0 16px;
+  background: #ffffff;
+  border-bottom: 1px solid var(--border);
+  box-shadow: var(--shadow-sm);
+  z-index: 100;
 }
-.md-private-notice strong { font-weight: 700; }
-.md-private-notice svg { flex-shrink: 0; color: var(--purple); }
-.md-private-notice span { flex: 1; }
-.md-private-join-btn {
-  flex-shrink: 0; padding: 6px 14px;
-  background: var(--purple); color: var(--white);
-  border: none; border-radius: 7px;
+.nm-bar-left, .nm-bar-right { display: flex; align-items: center; gap: 10px; flex: 1; }
+.nm-bar-right { justify-content: flex-end; }
+.nm-bar-center { display: flex; align-items: center; gap: 14px; }
+.nm-bar-brand { display: flex; align-items: center; gap: 8px; }
+.nm-bar-name { font-family: var(--fdisp); font-size: 14px; font-weight: 700; color: var(--ink); }
+.nm-bar-sep { width: 1px; height: 18px; background: var(--border); }
+
+.nm-code-chip {
+  display: flex; align-items: center; gap: 6px;
+  padding: 5px 11px;
+  background: var(--blue-soft); border: 1.5px solid var(--blue-mid); border-radius: 7px;
+  font-family: 'Courier New', monospace; font-size: 11px; font-weight: 700;
+  color: var(--blue); cursor: pointer; transition: all .15s;
+}
+.nm-code-chip:hover { background: var(--blue-mid); }
+
+.nm-live-badge {
+  display: flex; align-items: center; gap: 6px;
+  padding: 4px 10px; border-radius: 20px;
+  background: #fef2f2; border: 1px solid #fecaca;
+  font-size: 9px; font-weight: 800; letter-spacing: 1px; color: #dc2626;
+}
+.nm-live-pulse { width: 6px; height: 6px; border-radius: 50%; background: var(--red); animation: nm-blink 2s ease-in-out infinite; }
+@keyframes nm-blink { 0%,100%{opacity:1} 50%{opacity:.3} }
+
+.nm-host-badge {
+  padding: 4px 10px; border-radius: 20px;
+  background: var(--blue-soft); border: 1px solid var(--blue-mid);
+  font-size: 9px; font-weight: 800; letter-spacing: 1px; color: var(--blue);
+}
+.nm-participants { display: flex; align-items: center; gap: 5px; font-size: 13px; color: var(--ink-m); font-weight: 600; }
+.nm-clock { font-size: 13px; color: var(--ink-m); font-weight: 600; }
+
+.nm-bar-btn {
+  display: flex; align-items: center; gap: 6px;
+  padding: 7px 14px; border-radius: 8px;
   font-family: var(--font); font-size: 12px; font-weight: 700;
-  cursor: pointer; transition: all .15s; white-space: nowrap;
+  cursor: pointer; border: 1.5px solid; transition: all .15s;
 }
-.md-private-join-btn:hover { background: #7c3aed; }
+.nm-bar-btn--end { background: #fffbeb; border-color: #fde68a; color: #92400e; }
+.nm-bar-btn--end:hover { background: var(--orange); color: var(--white); border-color: var(--orange); }
+.nm-bar-btn--leave { background: #fef2f2; border-color: #fecaca; color: #dc2626; }
+.nm-bar-btn--leave:hover { background: var(--red); color: var(--white); border-color: var(--red); }
 
-/* Room grid */
-.md-room-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 14px; }
-.md-room-card {
-  background: var(--white); border: 1.5px solid var(--border); border-radius: 14px;
-  display: flex; flex-direction: column; overflow: hidden;
-  transition: all .18s; box-shadow: var(--shadow-sm);
+/* Frame */
+.nm-frame-wrap { flex: 1; position: relative; background: #1a1a2e; overflow: hidden; }
+.nm-jitsi { width: 100%; height: 100%; }
+.nm-jitsi iframe { width: 100% !important; height: 100% !important; border: none !important; }
+
+/* Loading */
+.nm-loading { position: absolute; inset: 0; z-index: 10; background: rgba(248,250,252,.97); display: flex; align-items: center; justify-content: center; }
+.nm-loader-card {
+  display: flex; flex-direction: column; align-items: center; gap: 20px;
+  padding: 48px 48px 40px; background: var(--white); border: 1px solid var(--border);
+  border-radius: 20px; min-width: 260px; box-shadow: var(--shadow-lg);
 }
-.md-room-card:hover { border-color: var(--blue-mid); transform: translateY(-2px); box-shadow: var(--shadow-md); }
-.md-room-card--live { border-color: #fecaca; }
-
-.md-room-top { padding: 18px; flex: 1; display: flex; flex-direction: column; gap: 10px; }
-.md-room-status-row { display: flex; align-items: center; justify-content: space-between; }
-.md-room-pill {
-  display: inline-flex; align-items: center; gap: 5px;
-  padding: 3px 10px; border-radius: 20px;
-  font-size: 10px; font-weight: 800; letter-spacing: .5px; text-transform: uppercase;
+.nm-loader-ring {
+  width: 52px; height: 52px; border-radius: 50%;
+  border: 3px solid var(--blue-mid); border-top-color: var(--blue);
+  animation: nm-spin .8s linear infinite;
 }
-.md-room-pill--live    { background: #fef2f2; border: 1px solid #fecaca; color: #dc2626; }
-.md-room-pill--public  { background: #f0fdf4; border: 1px solid #bbf7d0; color: #065f46; }
-.md-room-pill--private { background: var(--purple-s); border: 1px solid #ddd6fe; color: #6d28d9; }
-.md-pill-blink { width: 5px; height: 5px; border-radius: 50%; background: var(--red); animation: md-blink 2s ease-in-out infinite; }
-.md-room-time { font-size: 11px; color: var(--ink-m); font-weight: 500; }
-.md-room-name { font-family: var(--fdisp); font-size: 16px; font-weight: 700; color: var(--ink-s); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.md-room-code-row { display: inline-flex; align-items: center; gap: 6px; align-self: flex-start; padding: 5px 10px; background: var(--bg); border: 1px solid var(--border); border-radius: 6px; cursor: pointer; transition: all .15s; }
-.md-room-code-row:hover { border-color: var(--blue); background: var(--blue-soft); }
-.md-room-code { font-family: 'Courier New', monospace; font-size: 12px; color: var(--blue); font-weight: 700; letter-spacing: .5px; }
+.nm-loader-text { font-size: 14px; color: var(--ink-m); font-weight: 600; }
+.nm-loader-dots { display: flex; gap: 6px; }
+.nm-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--border); transition: background .3s; }
+.nm-dot--on { background: var(--blue); }
 
-.md-room-foot { display: flex; align-items: center; gap: 6px; padding: 12px 14px; border-top: 1px solid var(--border); background: var(--bg); }
-.md-room-join { display: flex; align-items: center; gap: 5px; padding: 7px 16px; background: var(--blue); color: var(--white); border: none; border-radius: 7px; font-family: var(--font); font-size: 12px; font-weight: 700; cursor: pointer; transition: all .15s; box-shadow: 0 2px 8px var(--blue-glow); }
-.md-room-join:hover { background: var(--blue-dk); }
-.md-room-icon-btn { width: 30px; height: 30px; border-radius: 7px; display: flex; align-items: center; justify-content: center; border: 1.5px solid; cursor: pointer; transition: all .15s; }
-.md-room-icon-btn--amber { background: #fffbeb; border-color: #fde68a; color: #92400e; }
-.md-room-icon-btn--amber:hover { background: var(--orange); color: var(--white); border-color: var(--orange); }
-.md-room-icon-btn--red { background: #fef2f2; border-color: #fecaca; color: #dc2626; }
-.md-room-icon-btn--red:hover { background: var(--red); color: var(--white); border-color: var(--red); }
+/* Error overlay */
+.nm-error-overlay { position: absolute; inset: 0; z-index: 10; background: rgba(248,250,252,.97); display: flex; align-items: center; justify-content: center; }
+.nm-error-card {
+  display: flex; flex-direction: column; align-items: center; gap: 14px;
+  padding: 48px 40px; text-align: center; background: var(--white);
+  border: 1px solid #fecaca; border-radius: 20px; max-width: 360px; box-shadow: var(--shadow-lg);
+}
+.nm-error-icon { width: 60px; height: 60px; border-radius: 50%; background: #fef2f2; border: 1px solid #fecaca; display: flex; align-items: center; justify-content: center; color: #dc2626; }
+.nm-error-title { font-family: var(--fdisp); font-size: 20px; font-weight: 700; color: var(--ink); }
+.nm-error-msg { font-size: 14px; color: var(--ink-m); line-height: 1.6; }
 
 /* Modal */
-.md-modal-overlay { position: fixed; inset: 0; z-index: 5000; background: rgba(13,27,54,.5); backdrop-filter: blur(6px); display: flex; align-items: center; justify-content: center; padding: 20px; }
-.md-modal { background: var(--white); border: 1px solid var(--border); border-radius: 20px; padding: 40px 36px 32px; max-width: 420px; width: 100%; text-align: center; box-shadow: var(--shadow-lg); }
-.md-modal-icon { width: 60px; height: 60px; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 20px; }
-.md-modal-icon--red   { background: #fef2f2; border: 1.5px solid #fecaca; color: #dc2626; }
-.md-modal-icon--amber { background: #fffbeb; border: 1.5px solid #fde68a; color: #92400e; }
-.md-modal-title { font-family: var(--fdisp); font-size: 20px; font-weight: 700; color: var(--ink); margin-bottom: 10px; }
-.md-modal-body { font-size: 14px; color: var(--ink-m); line-height: 1.65; margin-bottom: 24px; }
-.md-modal-actions { display: flex; gap: 10px; justify-content: center; }
-
-.md-modal-enter-active { animation: md-pop .2s cubic-bezier(.34,1.56,.64,1); }
-.md-modal-leave-active { animation: md-pop .15s reverse ease-in; }
-@keyframes md-pop { from{opacity:0;transform:scale(.92)} to{opacity:1;transform:scale(1)} }
+.nm-modal-overlay {
+  position: fixed; inset: 0; z-index: 20000;
+  background: rgba(13,27,54,.5); backdrop-filter: blur(6px);
+  display: flex; align-items: center; justify-content: center; padding: 20px;
+}
+.nm-modal {
+  background: var(--white); border: 1px solid var(--border); border-radius: 20px;
+  padding: 40px 36px 32px; max-width: 420px; width: 100%; text-align: center;
+  box-shadow: var(--shadow-lg);
+}
+.nm-modal-icon {
+  width: 60px; height: 60px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center; margin: 0 auto 20px;
+}
+.nm-modal-icon--red { background: #fef2f2; border: 1.5px solid #fecaca; color: #dc2626; }
+.nm-modal-title { font-family: var(--fdisp); font-size: 20px; font-weight: 700; color: var(--ink); margin-bottom: 10px; }
+.nm-modal-body { font-size: 14px; color: var(--ink-m); line-height: 1.65; margin-bottom: 28px; }
+.nm-modal-actions { display: flex; gap: 10px; justify-content: center; }
 
 /* Toast */
-.md-toast { position: fixed; bottom: 24px; right: 24px; z-index: 9000; display: flex; align-items: center; gap: 9px; padding: 12px 18px; border-radius: 10px; font-size: 13px; font-weight: 700; box-shadow: var(--shadow-lg); pointer-events: none; }
-.md-toast--success { background: var(--white); border: 1.5px solid #6ee7b7; color: #065f46; }
-.md-toast--error   { background: var(--white); border: 1.5px solid #fca5a5; color: #7f1d1d; }
-.md-toast-enter-active, .md-toast-leave-active { transition: opacity .2s, transform .2s; }
-.md-toast-enter-from { opacity: 0; transform: translateY(10px); }
-.md-toast-leave-to { opacity: 0; }
+.nm-toast {
+  position: fixed; bottom: 24px; right: 24px; z-index: 30000;
+  display: flex; align-items: center; gap: 8px;
+  padding: 11px 18px; border-radius: 10px;
+  font-size: 13px; font-weight: 700;
+  box-shadow: var(--shadow-lg); pointer-events: none;
+}
+.nm-toast--success { background: var(--white); border: 1.5px solid #6ee7b7; color: #065f46; }
+.nm-toast--error { background: var(--white); border: 1.5px solid #fca5a5; color: #7f1d1d; }
 
-/* Responsive */
-@media (max-width: 1024px) { .md-shell { grid-template-columns: 1fr; } .md-sidebar { display: none; } }
-@media (max-width: 768px) { .md-kpi-grid { grid-template-columns: repeat(2, 1fr); } .md-content { padding: 16px; } .md-header { padding: 0 16px; } }
-@media (max-width: 480px) { .md-kpi-grid { grid-template-columns: 1fr; } }
+/* Transitions */
+.nm-fade-enter-active, .nm-fade-leave-active { transition: opacity .3s; }
+.nm-fade-enter-from, .nm-fade-leave-to { opacity: 0; }
+.nm-modal-enter-active { animation: nm-pop .22s cubic-bezier(.34,1.56,.64,1); }
+.nm-modal-leave-active { animation: nm-pop .15s reverse ease-in; }
+@keyframes nm-pop { from{opacity:0;transform:scale(.93)} to{opacity:1;transform:scale(1)} }
+.nm-toast-enter-active, .nm-toast-leave-active { transition: opacity .2s, transform .2s; }
+.nm-toast-enter-from { opacity:0; transform:translateY(12px); }
+.nm-toast-leave-to { opacity:0; }
+
+@media (max-width: 768px) {
+  .nm-create-body { grid-template-columns: 1fr; padding: 32px 20px; gap: 40px; }
+  .nm-create-left { display: none; }
+}
 </style>
