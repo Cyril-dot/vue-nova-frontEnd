@@ -2,7 +2,7 @@
 
 import { TokenService } from '@/utils/apiService';
 
-const BACKEND_API = 'https://nova-test-ctne.onrender.com/api';
+const BACKEND_API = 'https://nova-test-yihm.onrender.com/api';
 
 function headers(requiresAuth = true) {
   const jwt = TokenService.getAccessToken();
