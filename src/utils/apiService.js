@@ -2,7 +2,7 @@
 // Centralized API service for handling authentication and API calls
 // ✅ FIXED: Integrated OAuth token capture and TokenService management
 
-const API_BASE_URL = 'https://nova-test-ctne.onrender.com/api';
+const API_BASE_URL = 'https://nova-test-yihm.onrender.com/api';
 
 // ✅ Token Management Service
 export const TokenService = {
