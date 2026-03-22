@@ -531,7 +531,7 @@ export default {
 
     handleGoogleLogin() {
       console.log('🔐 Initiating Google OAuth login...');
-      window.location.href = 'https://nova-test-ctne.onrender.com/api/oauth2/login/google';
+      window.location.href = 'https://nova-test-yihm.onrender.com/api/oauth2/login/google';
     },
 
     handleGithubLogin() {
