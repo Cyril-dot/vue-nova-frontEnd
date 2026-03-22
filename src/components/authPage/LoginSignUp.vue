@@ -536,7 +536,7 @@ export default {
 
     handleGithubLogin() {
       console.log('🔐 Initiating GitHub OAuth login...');
-      window.location.href = 'https://nova-test-ctne.onrender.com/api/oauth2/login/github';
+      window.location.href = 'https://nova-test-yihm.onrender.com/api/oauth2/login/github';
     },
 
     handleMfaInput(index, event) {
